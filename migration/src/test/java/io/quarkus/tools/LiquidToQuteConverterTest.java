@@ -345,7 +345,7 @@ class LiquidToQuteConverterTest {
     @Test
     void testSortFilterWithArgument() {
         String input = "{% assign authors = site.data.authors | sort: name %}";
-        String expected = "{#let authors=site.data.authors.sort(name)}{/let}";
+        String expected = "{#let authors=cdi:authors.sort(name)}{/let}";
         assertConverts(input, expected,
                 "Sort filter with argument should convert to method call with argument");
     }
@@ -363,7 +363,7 @@ class LiquidToQuteConverterTest {
     @Test
     void testDynamicBracketNotation() {
         String input = "{% assign author = site.data.authors[author_key] %}";
-        String expected = "{#let author=site.data.authors.get(author_key)}{/let}";
+        String expected = "{#let author=cdi:authors.get(author_key)}{/let}";
         assertConverts(input, expected,
                 "Dynamic bracket notation should be converted to .get() method call");
     }
@@ -371,7 +371,7 @@ class LiquidToQuteConverterTest {
     @Test
     void testDynamicBracketNotationInVariable() {
         String input = "{{ site.data.authors[key].name }}";
-        String expected = "{=site.data.authors.get(key).name}";
+        String expected = "{=cdi:authors.get(key).name}";
         assertConverts(input, expected,
                 "Bracket notation followed by property access should convert correctly");
     }
@@ -573,9 +573,10 @@ class LiquidToQuteConverterTest {
     @Test
     void testAssignInIfElseBranchesWithFalseElse() {
         String input = "{% if page.title %}{% assign x = page.title %}{% else %}{% assign x = false %}{% endif %}";
-        String expected = "{#let x=(page.title) && (page.title)}\n{/let}";
+        // condition == ifExpr, so Elvis applies: page.title ?: false
+        String expected = "{#let x=page.title ?: false}\n{/let}";
         assertConverts(input, expected,
-                "Same variable in if/else with false else should convert to && expression");
+                "Same variable in if/else with false else should convert to Elvis");
     }
 
     @Test
@@ -691,7 +692,20 @@ class LiquidToQuteConverterTest {
     }
 
     @Test
-    void testAssignInIfElseBlockGeneralCaseLeftAsIfElse() {
+    void testSiteDataToCdiReference() {
+        assertConverts("{{ site.data.projectfooter.links }}", "{=cdi:projectfooter.links}",
+                "site.data.X should convert to cdi:X");
+    }
+
+    @Test
+    void testSiteDataNestedReference() {
+        assertConverts("{{ site.data.versions.documentation }}",
+                "{=cdi:versions.documentation}",
+                "site.data.X.Y should convert to cdi:X.Y");
+    }
+
+    @Test
+    void testAssignInIfElseBlockGeneralCaseInlinesTrailingContent() {
         String input = """
                 {% if page.layout == 'guides' %}
                   {%assign canonical_url = page.url | replace: 'foo', '' %}
@@ -702,8 +716,11 @@ class LiquidToQuteConverterTest {
                 """;
         String result = converter.convert(input);
 
-        // General case (not boolean, not Elvis): if/else is preserved with scoped assigns
-        assertTrue(result.contains("{#if"), "If/else should be preserved for general case");
-        assertTrue(result.contains("canonical_url"), "Variable should still be assigned");
+        // General case: trailing content using the variable is duplicated into each branch
+        assertTrue(result.contains("{#if"), "If/else should be preserved");
+        // The <link> line should appear twice (once per branch)
+        int firstLink = result.indexOf("canonical");
+        int secondLink = result.indexOf("canonical", firstLink + 1);
+        assertTrue(secondLink > firstLink, "Trailing content should be duplicated into both branches");
     }
 }

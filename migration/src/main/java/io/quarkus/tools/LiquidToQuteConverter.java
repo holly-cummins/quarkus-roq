@@ -47,6 +47,9 @@ public class LiquidToQuteConverter {
         content = removeSpacesBeforeMethods(content);
         content = wrapTernaryBeforeMethods(content);
 
+        // Convert site.data.X references to cdi:X (Roq data file access)
+        content = convertSiteDataReferences(content);
+
         // Convert site properties that come from data/site.yml to CDI references
         content = convertSiteDataProperties(content);
 
@@ -763,17 +766,30 @@ public class LiquidToQuteConverter {
                             "$1.contains($2)");
 
                     String combinedExpr;
-                    if (elseExpr.trim().equals("false")) {
-                        // condition ? value : false  →  (condition) && (value)
-                        combinedExpr = "(" + exprCondition + ") && (" + ifExpr + ")";
-                    } else if (elseExpr.trim().equals("true")) {
-                        // condition ? value : true  →  !(condition) || (value)
-                        combinedExpr = "!(" + exprCondition + ") || (" + ifExpr + ")";
-                    } else if (condition.trim().equals(ifExpr.trim())) {
+                    if (condition.trim().equals(ifExpr.trim())) {
                         // condition ? condition : fallback  →  condition ?: fallback
                         combinedExpr = ifExpr + " ?: " + elseExpr;
                     } else {
-                        // General case: can't express as single Qute expression, skip
+                        // General case: find trailing content that uses this variable
+                        // and duplicate it into each branch so {#let} scope covers it
+                        int afterIfElse = matcher.end();
+                        String trailing = content.substring(afterIfElse);
+                        int useEnd = findTrailingUsageEnd(trailing, var);
+                        if (useEnd > 0) {
+                            String trailingContent = trailing.substring(0, useEnd);
+                            String ifAssign = "{% assign " + var + " = " + ifExpr + " %}";
+                            String elseAssign = "{% assign " + var + " = " + elseExpr + " %}";
+                            String before = content.substring(0, matcher.start());
+                            String after = trailing.substring(useEnd);
+                            String result = before
+                                    + "{#if " + condition + "}"
+                                    + ifAssign + trailingContent
+                                    + "{#else}"
+                                    + elseAssign + trailingContent
+                                    + "{/if}" + after;
+                            conversionsApplied.add("Inlined trailing content into if/else branches for variable scope");
+                            return result;
+                        }
                         continue;
                     }
 
@@ -825,6 +841,26 @@ public class LiquidToQuteConverter {
         }
 
         return content;
+    }
+
+    private int findTrailingUsageEnd(String trailing, String varName) {
+        // Find the end of the first line that uses the variable.
+        // Only inline a small amount of trailing content to avoid duplicating
+        // large template blocks.
+        Pattern usePattern = Pattern.compile("\\b" + Pattern.quote(varName) + "\\b");
+        Matcher useMatcher = usePattern.matcher(trailing);
+        if (!useMatcher.find()) {
+            return 0;
+        }
+        // Only inline if the first usage is within the first few lines
+        int firstUse = useMatcher.start();
+        long newlinesBefore = trailing.substring(0, firstUse).chars().filter(c -> c == '\n').count();
+        if (newlinesBefore > 3) {
+            return 0;
+        }
+        // Extend to the end of the line containing the last usage on consecutive lines
+        int lineEnd = trailing.indexOf('\n', useMatcher.end());
+        return lineEnd >= 0 ? lineEnd + 1 : trailing.length();
     }
 
     private String convertAssignments(String content) {
@@ -1071,6 +1107,27 @@ public class LiquidToQuteConverter {
         }
 
         return sb.toString();
+    }
+
+    private String convertSiteDataReferences(String content) {
+        String original = content;
+        Pattern p = Pattern.compile("\\bsite\\.data\\.(\\w+)");
+        Matcher m = p.matcher(content);
+        StringBuilder sb = new StringBuilder();
+        while (m.find()) {
+            String name = m.group(1);
+            if (name.equals("get")) {
+                m.appendReplacement(sb, Matcher.quoteReplacement(m.group(0)));
+            } else {
+                m.appendReplacement(sb, "cdi:" + name);
+            }
+        }
+        m.appendTail(sb);
+        content = sb.toString();
+        if (!content.equals(original)) {
+            conversionsApplied.add("Converted site.data references to cdi: prefix");
+        }
+        return content;
     }
 
     private String convertSiteDataProperties(String content) {

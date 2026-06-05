@@ -126,9 +126,33 @@ mkdir -p ${project_dir}/includes
 mvn -f ${tools_dir}/pom.xml -q exec:java -Dexec.mainClass="io.quarkus.tools.LiquidToQuteCommand" -Dexec.args="${project_dir}/_includes ${project_dir}/includes"
 mvn -f ${tools_dir}/pom.xml -q exec:java -Dexec.mainClass="io.quarkus.tools.LiquidToQuteCommand" -Dexec.args="${project_dir}/_layouts ${project_dir}/templates/layouts"
 
+# Data directories (subdirs of data/) can't be accessed as single CDI beans.
+# Revert cdi: prefix for these and leave a TODO comment in the templates.
+if [ -d "${project_dir}/data" ]; then
+    for dir in ${project_dir}/data/*/; do
+        dirname=$(basename "$dir")
+        find ${project_dir}/templates ${project_dir}/includes -name '*.html' -exec \
+            sed -i '' "s/cdi:${dirname}/site.data.${dirname}/g" {} + 2>/dev/null
+    done
+fi
+
 # Enable the alternative expression syntax to reduce overhead of escaping braces
 echo quarkus.qute.alt-expr-syntax=true >> ${project_dir}/config/application.properties
 echo "site.date-format=yyyy-MM-dd['T'HH:mm:ss][X]" >> ${project_dir}/config/application.properties
+# Comment out blocks using whereExp (no Qute equivalent)
+python3 -c "
+import re, glob, os
+for f in glob.glob(os.path.join('${project_dir}', 'templates', '**', '*.html'), recursive=True) + \
+         glob.glob(os.path.join('${project_dir}', 'includes', '**', '*.html'), recursive=True):
+    with open(f) as fh: content = fh.read()
+    if 'whereExp' not in content: continue
+    # Find the nearest enclosing {#if ...} ... {/if} around whereExp and comment it out
+    content = re.sub(
+        r'(\{#if [^}]*\}(?:(?!\{#if ).)*?whereExp.*?\{/if\})',
+        r'{! TODO: whereExp needs Roq reimplementation\n\1\n!}',
+        content, flags=re.DOTALL)
+    with open(f, 'w') as fh: fh.write(content)
+"
 
 # Extract site properties from _config.yml and create data/siteConfig.yml
 # This makes Jekyll's site.* properties available as cdi:siteConfig.* in Roq

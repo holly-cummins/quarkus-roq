@@ -673,4 +673,33 @@ class LiquidToQuteConverterTest {
         assertConverts(input, expected,
                 "Prepending to URL should use .resolve()");
     }
+
+    @Test
+    void testAssignInIfElseBlockScopedToEndOfIf() {
+        String input = """
+                {% if page.layout == 'guides' %}
+                  {%assign canonical_url = page.url | replace: 'foo', '' %}
+                {% else %}
+                  {%assign canonical_url = page.url %}
+                {% endif %}
+                <link rel="canonical" href="{{ canonical_url }}">
+                """;
+        String result = converter.convert(input);
+        System.out.println("=== CONVERTED ===");
+        System.out.println(result);
+        System.out.println("=================");
+
+        // Both assigns should be scoped broadly so canonical_url is available after {/if}
+        assertTrue(result.contains("{#if page.data.layout == 'guides'}"));
+        assertTrue(result.contains("{#let canonical_url=page.url.replace('foo', '')}"));
+        assertTrue(result.contains("{#else}"));
+        assertTrue(result.contains("{#let canonical_url=page.url}"));
+        assertTrue(result.contains("{/if}"));
+        assertTrue(result.contains("{/let}{/let}"));
+
+        // canonical_url usage should come BEFORE the {/let} tags (inside the scope)
+        int canonical = result.indexOf("canonical_url}\">");
+        int lastLet = result.lastIndexOf("{/let}");
+        assertTrue(canonical < lastLet, "canonical_url usage should be before {/let} (in scope)");
+    }
 }

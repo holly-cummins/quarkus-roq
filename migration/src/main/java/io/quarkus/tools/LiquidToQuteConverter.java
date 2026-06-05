@@ -695,6 +695,8 @@ public class LiquidToQuteConverter {
     }
 
     private int findScopeBoundary(String content, int startPos) {
+        // Find the boundary where a {#let} should be closed
+        // Skip {#else} - we want variables assigned in if branches to remain in scope after the if block
         int depth = 0;
         Pattern tagPattern = Pattern.compile("\\{#(for|if|let)\\b|\\{#else\\b|\\{/(for|if|let)\\}");
         Matcher matcher = tagPattern.matcher(content);
@@ -703,14 +705,14 @@ public class LiquidToQuteConverter {
         while (matcher.find()) {
             String match = matcher.group();
             if (match.startsWith("{#else")) {
-                if (depth == 0) {
-                    return matcher.start();
-                }
+                // Skip {#else} - don't stop here, continue to find the enclosing {/if}
+                continue;
             } else if (match.startsWith("{#")) {
                 depth++;
             } else {
                 if (depth == 0) {
-                    return matcher.start();
+                    // Found the closing tag - place {/let} AFTER it, not before
+                    return matcher.end();
                 }
                 depth--;
             }

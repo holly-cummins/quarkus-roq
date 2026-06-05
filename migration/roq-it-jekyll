@@ -75,6 +75,7 @@ cat > ${project_dir}/pom.xml <<'POM'
             <groupId>io.quarkus</groupId>
             <artifactId>quarkus-arc</artifactId>
         </dependency>
+PLUGIN_DEPS
     </dependencies>
     <build>
         <plugins>
@@ -165,6 +166,32 @@ search:
   cached-script-file: "${search_cached_script_file}"
 SITEDATA
 fi
+
+# Detect Jekyll features and add corresponding Roq plugins
+
+# Check for tags usage (in posts or layouts)
+if grep -q "^tags:" ${project_dir}/content/posts/*.md 2>/dev/null || \
+   grep -q "site.tags" ${project_dir}/templates/layouts/*.html 2>/dev/null; then
+    echo "Detected tags usage - adding quarkus-roq-plugin-tagging"
+
+    # Create plugin dependency block
+    cat > ${tmp_dir}/plugin_deps.xml <<'PLUGIN_DEP'
+        <dependency>
+            <groupId>io.quarkiverse.roq</groupId>
+            <artifactId>quarkus-roq-plugin-tagging</artifactId>
+            <version>${quarkus-roq.version}</version>
+        </dependency>
+PLUGIN_DEP
+
+    # Insert before the PLUGIN_DEPS marker
+    awk '/PLUGIN_DEPS/ {system("cat '${tmp_dir}'/plugin_deps.xml"); next} 1' ${project_dir}/pom.xml > ${tmp_dir}/pom.xml.tmp
+    mv ${tmp_dir}/pom.xml.tmp ${project_dir}/pom.xml
+fi
+
+# Remove the PLUGIN_DEPS placeholder
+sed -i.bak '/PLUGIN_DEPS/d' ${project_dir}/pom.xml
+rm -f ${project_dir}/pom.xml.bak
+
 # TODO need to add name and simple-name - global config?
 
 if [ "${BATCH_MODE}" != "true" ]; then

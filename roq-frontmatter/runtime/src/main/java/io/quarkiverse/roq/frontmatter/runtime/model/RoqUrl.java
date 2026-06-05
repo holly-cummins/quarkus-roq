@@ -169,25 +169,27 @@ public record RoqUrl(
 
     /**
      * Replace all occurrences matching the regex with the replacement
+     * Operates on the resource path only (without the root path)
      *
      * @param regex the regular expression
      * @param replacement the replacement string
      * @return a new RoqUrl with the replaced path
      */
     public RoqUrl replaceAll(String regex, String replacement) {
-        String newPath = path(false).replaceAll(regex, replacement);
-        return new RoqUrl(root(), newPath);
+        String newResourcePath = resourcePath().replaceAll(regex, replacement);
+        return new RoqUrl(root(), newResourcePath);
     }
 
     /**
      * Remove the first occurrence of the given string from the path
+     * Operates on the resource path only (without the root path)
      *
      * @param str the string to remove
      * @return a new RoqUrl with the string removed
      */
     public RoqUrl removeFirst(String str) {
-        String newPath = path(false).replaceFirst(java.util.regex.Pattern.quote(str), "");
-        return new RoqUrl(root(), newPath);
+        String newResourcePath = resourcePath().replaceFirst(java.util.regex.Pattern.quote(str), "");
+        return new RoqUrl(root(), newResourcePath);
     }
 
 }

@@ -45,6 +45,9 @@ public class LiquidToQuteConverter {
         // Convert custom page frontmatter fields to page.data.*
         content = convertCustomPageFields(content);
 
+        // Convert URL concatenation to RoqUrl methods
+        content = convertUrlConcatenation(content);
+
         // Restore raw blocks with Qute verbatim delimiters
         content = restoreRawBlocks(content, rawBlocks);
 
@@ -922,6 +925,39 @@ public class LiquidToQuteConverter {
 
         if (!result.equals(content)) {
             conversionsApplied.add("Converted custom page frontmatter fields to page.data.*");
+        }
+
+        return result;
+    }
+
+    private String convertUrlConcatenation(String content) {
+        // RoqUrl doesn't support + operator. Convert url + something to url.resolve(something)
+        // Patterns:
+        // - site.url + page.url -> site.url.resolve(page.url)
+        // - page.url + "/path" -> page.url.resolve("/path")
+
+        // Match: (site.url or page.url) + (something)
+        // We need to handle the full expression inside {=...}
+        Pattern pattern = Pattern.compile(
+                "(\\{=)([^}]*?)((?:site|page)\\.url)\\s*\\+\\s*([^}]+?)(\\})");
+        Matcher matcher = pattern.matcher(content);
+        StringBuilder sb = new StringBuilder();
+
+        while (matcher.find()) {
+            String prefix = matcher.group(1);  // {=
+            String before = matcher.group(2);   // anything before site.url
+            String urlExpr = matcher.group(3);  // site.url or page.url
+            String arg = matcher.group(4).trim(); // what's being concatenated
+            String suffix = matcher.group(5);   // }
+
+            String replacement = prefix + before + urlExpr + ".resolve(" + arg + ")" + suffix;
+            matcher.appendReplacement(sb, Matcher.quoteReplacement(replacement));
+        }
+        matcher.appendTail(sb);
+
+        String result = sb.toString();
+        if (!result.equals(content)) {
+            conversionsApplied.add("Converted URL concatenation to .resolve()");
         }
 
         return result;

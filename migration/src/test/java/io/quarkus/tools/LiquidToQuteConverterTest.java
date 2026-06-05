@@ -657,4 +657,20 @@ class LiquidToQuteConverterTest {
         assertConverts(input, expected,
                 "site.search.script-mode should convert to CDI reference");
     }
+
+    @Test
+    void testUrlConcatenationWithSiteUrl() {
+        String input = "{{site.url | append: page.url}}";
+        String expected = "{=site.url.resolve(page.url)}";
+        assertConverts(input, expected,
+                "URL concatenation should use .resolve() instead of +");
+    }
+
+    @Test
+    void testUrlConcatenationWithVariable() {
+        String input = "{{canonical_url | prepend: site.url}}";
+        String expected = "{=site.url.resolve(canonical_url)}";
+        assertConverts(input, expected,
+                "Prepending to URL should use .resolve()");
+    }
 }

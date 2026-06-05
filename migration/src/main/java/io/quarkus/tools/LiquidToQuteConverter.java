@@ -756,11 +756,11 @@ public class LiquidToQuteConverter {
                     String elseExpr = elseVars.get(var);
 
                     // Qute doesn't support ternary (? :), so use alternative constructs.
-                    // Also, 'contains' is only valid in {#if} sections — convert to method call
-                    // when extracting into a {#let} expression.
+                    // 'contains' is only valid as an operator in {#if} sections —
+                    // convert to method call for use in {#let} expressions.
                     String exprCondition = condition.replaceAll(
                             "(\\S+)\\s+contains\\s+('[^']*'|\"[^\"]*\")",
-                            "$1.toString().contains($2)");
+                            "$1.contains($2)");
 
                     String combinedExpr;
                     if (elseExpr.trim().equals("false")) {

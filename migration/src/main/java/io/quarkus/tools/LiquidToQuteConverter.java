@@ -840,17 +840,19 @@ public class LiquidToQuteConverter {
     }
 
     private String removeSpacesInExpression(String expr) {
+        // Match: identifier/paren/bracket/quote + whitespace + dot + identifier
+        // This handles cases like "stripHtml .wordLimit" → "stripHtml.wordLimit"
         Pattern pattern = Pattern.compile("([a-zA-Z0-9_\\)\\]\"'])\\s+\\.([a-zA-Z0-9_]+)");
-        Matcher matcher = pattern.matcher(expr);
-        StringBuilder sb = new StringBuilder();
+        String result = expr;
+        String prev;
 
-        while (matcher.find()) {
-            String before = matcher.group(1);
-            String method = matcher.group(2);
-            matcher.appendReplacement(sb, before + "." + method);
-        }
-        matcher.appendTail(sb);
-        return sb.toString();
+        // Keep applying until no more matches (handles multiple spaces in a row)
+        do {
+            prev = result;
+            result = pattern.matcher(result).replaceAll("$1.$2");
+        } while (!result.equals(prev));
+
+        return result;
     }
 
     private String transformInsideExpressions(String content,

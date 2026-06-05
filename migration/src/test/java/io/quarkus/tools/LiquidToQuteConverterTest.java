@@ -577,4 +577,12 @@ class LiquidToQuteConverterTest {
         assertConverts(input, expected,
                 "Assign in if branch should be scoped before the else, not crossing into it");
     }
+
+    @Test
+    void testChainedFiltersRemoveSpaces() {
+        String input = "{{page.content | strip_html | truncatewords: 75}}";
+        String expected = "{=page.content.stripHtml.wordLimit(75)}";
+        assertConverts(input, expected,
+                "Chained filters should not have spaces between method calls");
+    }
 }

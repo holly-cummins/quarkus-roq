@@ -157,4 +157,47 @@ public record RoqUrl(
         return new RoqUrl(root, resourcePath);
     }
 
+    /**
+     * Check if the URL path starts with the given prefix.
+     *
+     * @param prefix the prefix to check
+     * @return true if the path starts with the prefix
+     */
+    public boolean startsWith(String prefix) {
+        return path().startsWith(prefix);
+    }
+
+    /**
+     * Check if the URL path contains the given string.
+     *
+     * @param str the string to search for
+     * @return true if the path contains the string
+     */
+    public boolean contains(String str) {
+        return path().contains(str);
+    }
+
+    /**
+     * Replace all occurrences matching the regex with the replacement.
+     *
+     * @param regex the regular expression
+     * @param replacement the replacement string
+     * @return a new RoqUrl with the replaced path
+     */
+    public RoqUrl replaceAll(String regex, String replacement) {
+        String newPath = resourcePath().replaceAll(regex, replacement);
+        return new RoqUrl(root(), newPath);
+    }
+
+    /**
+     * Remove the first occurrence of the given string from the path.
+     *
+     * @param str the string to remove
+     * @return a new RoqUrl with the string removed
+     */
+    public RoqUrl removeFirst(String str) {
+        String newPath = resourcePath().replaceFirst(java.util.regex.Pattern.quote(str), "");
+        return new RoqUrl(root(), newPath);
+    }
+
 }

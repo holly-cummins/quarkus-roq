@@ -48,6 +48,9 @@ public class LiquidToQuteConverter {
         // Convert URL concatenation to RoqUrl methods
         content = convertUrlConcatenation(content);
 
+        // Make site.tags lenient (not available in Roq by default)
+        content = makeSiteTagsLenient(content);
+
         // Restore raw blocks with Qute verbatim delimiters
         content = restoreRawBlocks(content, rawBlocks);
 
@@ -959,6 +962,47 @@ public class LiquidToQuteConverter {
         if (!result.equals(content)) {
             conversionsApplied.add("Converted URL concatenation to .resolve()");
         }
+
+        return result;
+    }
+
+    private String makeSiteTagsLenient(String content) {
+        // Jekyll's site.tags is auto-generated and doesn't exist in Roq by default.
+        // Replace with cdi:siteConfig.tags which is set to an empty list by the migration script.
+
+        Pattern pattern = Pattern.compile("\\bsite\\.tags\\b");
+        Matcher matcher = pattern.matcher(content);
+
+        if (!matcher.find()) {
+            return content; // No site.tags usage
+        }
+
+        // Split frontmatter from template body
+        String frontmatter = "";
+        String body = content;
+
+        Pattern frontmatterPattern = Pattern.compile("^(---\\s*\\n.*?\\n---\\s*\\n)", Pattern.DOTALL);
+        Matcher fmMatcher = frontmatterPattern.matcher(content);
+        if (fmMatcher.find()) {
+            frontmatter = fmMatcher.group(1);
+            body = content.substring(fmMatcher.end());
+        }
+
+        // Add a warning comment at the start of the body
+        String warning = "\n{! TODO: site.tags not available in Roq by default.\n" +
+                "   The tag listing feature is currently disabled (replaced with cdi:siteConfig.tags=[]).\n" +
+                "   Options to restore functionality:\n" +
+                "   (1) Use collection.tagsCount() for a specific collection,\n" +
+                "   (2) Add a site.tags extension method, or\n" +
+                "   (3) Remove the tag listing feature entirely.\n" +
+                "   See migration implementation notes for details. !}\n";
+
+        // Replace all site.tags with cdi:siteConfig.tags (which is an empty list)
+        body = pattern.matcher(body).replaceAll("cdi:siteConfig.tags");
+
+        String result = frontmatter + warning + body;
+
+        conversionsApplied.add("Replaced site.tags with cdi:siteConfig.tags (needs manual implementation)");
 
         return result;
     }

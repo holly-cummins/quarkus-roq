@@ -159,6 +159,7 @@ search:
   host: "${search_host}"
   script-path: "${search_script_path}"
   cached-script-file: "${search_cached_script_file}"
+tags: []
 SITEDATA
 fi
 

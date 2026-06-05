@@ -353,11 +353,11 @@ class LiquidToQuteConverterTest {
     @Test
     void testPrependFilter() {
         // Liquid: {{ path | prepend: site.baseurl }}
-        // Qute: site.baseurl + path (prepend = concatenate before)
+        // Qute: cdi:siteConfig.baseurl + path (prepend = concatenate before, siteConfig from data/siteConfig.yml)
         String input = "{{paginator.next_page_path | prepend: site.baseurl}}";
-        String expected = "{=site.baseurl + paginator.next_page_path}";
+        String expected = "{=cdi:siteConfig.baseurl + paginator.next_page_path}";
         assertConverts(input, expected,
-                "Prepend filter should convert to string concatenation");
+                "Prepend filter should convert to string concatenation with CDI reference for site.baseurl");
     }
 
     @Test
@@ -584,5 +584,29 @@ class LiquidToQuteConverterTest {
         String expected = "{=page.content.stripHtml.wordLimit(75)}";
         assertConverts(input, expected,
                 "Chained filters should not have spaces between method calls");
+    }
+
+    @Test
+    void testSiteBaseurlConvertsToCdi() {
+        String input = "<a href=\"{{site.baseurl}}/path\">Link</a>";
+        String expected = "<a href=\"{=cdi:siteConfig.baseurl}/path\">Link</a>";
+        assertConverts(input, expected,
+                "site.baseurl should convert to CDI reference");
+    }
+
+    @Test
+    void testSiteLanguageConvertsToCdi() {
+        String input = "<html lang=\"{{site.language}}\">";
+        String expected = "<html lang=\"{=cdi:siteConfig.language}\">";
+        assertConverts(input, expected,
+                "site.language should convert to CDI reference");
+    }
+
+    @Test
+    void testSiteBaseurlInConditional() {
+        String input = "{% if site.baseurl %}<base href=\"{{site.baseurl}}\">{% endif %}";
+        String expected = "{#if cdi:siteConfig.baseurl}<base href=\"{=cdi:siteConfig.baseurl}\">{/if}";
+        assertConverts(input, expected,
+                "site.baseurl in conditionals should convert to CDI reference");
     }
 }

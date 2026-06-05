@@ -133,6 +133,26 @@ mvn -f ${tools_dir}/pom.xml -q exec:java -Dexec.mainClass="io.quarkus.tools.Liqu
 # Enable the alternative expression syntax to reduce overhead of escaping braces
 echo quarkus.qute.alt-expr-syntax=true >> ${project_dir}/config/application.properties
 echo "site.date-format=yyyy-MM-dd['T'HH:mm:ss][X]" >> ${project_dir}/config/application.properties
+
+# Extract site properties from _config.yml and create data/siteConfig.yml
+# This makes Jekyll's site.* properties available as cdi:siteConfig.* in Roq
+# Note: Can't use "site" as the name because Roq already has a Site object with that name
+if [ -f "${project_dir}/_config.yml" ]; then
+    mkdir -p ${project_dir}/data
+
+    # Extract baseurl (default to empty string if not set)
+    baseurl=$(grep "^baseurl:" ${project_dir}/_config.yml | sed 's/^baseurl: *"\(.*\)".*/\1/' | sed "s/^baseurl: *'\(.*\)'.*/\1/" | sed 's/^baseurl: *\([^ #]*\).*/\1/')
+
+    # Extract language (default to en if not set)
+    language=$(grep "^language:" ${project_dir}/_config.yml | sed 's/^language: *\([^ #]*\).*/\1/')
+    language=${language:-en}
+
+    # Create data/siteConfig.yml with extracted values
+    cat > ${project_dir}/data/siteConfig.yml <<SITEDATA
+baseurl: "${baseurl}"
+language: "${language}"
+SITEDATA
+fi
 # TODO need to add name and simple-name - global config?
 
 if [ "${BATCH_MODE}" != "true" ]; then

@@ -39,6 +39,9 @@ public class LiquidToQuteConverter {
         content = removeSpacesBeforeMethods(content);
         content = wrapTernaryBeforeMethods(content);
 
+        // Convert site properties that come from data/site.yml to CDI references
+        content = convertSiteDataProperties(content);
+
         // Restore raw blocks with Qute verbatim delimiters
         content = restoreRawBlocks(content, rawBlocks);
 
@@ -878,5 +881,25 @@ public class LiquidToQuteConverter {
         }
 
         return sb.toString();
+    }
+
+    private String convertSiteDataProperties(String content) {
+        // Jekyll site properties that are migrated to data/siteConfig.yml
+        // Convert {=site.baseurl} to {cdi:siteConfig.baseurl}, etc.
+        // Note: Using "siteConfig" instead of "site" to avoid conflict with Roq's built-in Site object
+        String[] dataProperties = {"baseurl", "language"};
+        String original = content;
+
+        for (String prop : dataProperties) {
+            // Match site.property in Qute expressions: {=site.baseurl} or {#if site.baseurl}
+            Pattern pattern = Pattern.compile("(\\{[=#])([^}]*?)\\bsite\\." + prop + "\\b");
+            content = pattern.matcher(content).replaceAll("$1$2cdi:siteConfig." + prop);
+        }
+
+        if (!content.equals(original)) {
+            conversionsApplied.add("Converted site data properties to CDI references");
+        }
+
+        return content;
     }
 }

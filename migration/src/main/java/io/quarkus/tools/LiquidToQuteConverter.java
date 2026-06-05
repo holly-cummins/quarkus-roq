@@ -1,10 +1,5 @@
 package io.quarkus.tools;
 
-import picocli.CommandLine;
-import picocli.CommandLine.Command;
-import picocli.CommandLine.Option;
-import picocli.CommandLine.Parameters;
-
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -15,13 +10,32 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
+import picocli.CommandLine;
+import picocli.CommandLine.Command;
+import picocli.CommandLine.Option;
+import picocli.CommandLine.Parameters;
+
+/**
+ * Liquid to Qute Template Converter
+ * Converts Jekyll/Liquid templates to Roq/Qute templates
+ * <p>
+ * Usage:
+ * mvn exec:java -Dexec.args="<input_file> [output_file]"
+ * mvn exec:java -Dexec.args="<input_directory> <output_directory> -r"
+ * <p>
+ * Author: Roq Team
+ * License: Apache 2.0
+ */
+///usr/bin/env jbang "$0" "$@" ; exit $?
+//DEPS info.picocli:picocli:4.7.5
+
 /**
  * Liquid to Qute Template Converter
  * Converts Jekyll/Liquid templates to Roq/Qute templates
  *
  * Usage:
- *   mvn exec:java -Dexec.args="<input_file> [output_file]"
- *   mvn exec:java -Dexec.args="<input_directory> <output_directory> -r"
+ *   jbang LiquidToQuteConverter.java <input_file> [output_file]
+ *   jbang LiquidToQuteConverter.java <input_directory> <output_directory> -r
  *
  * Author: Roq Team
  * License: Apache 2.0
@@ -88,7 +102,7 @@ public class LiquidToQuteConverter implements Callable<Integer> {
         return inputPath.getParent().resolve(fileName + ".qute");
     }
 
-    public boolean convertFile(Path inputPath, Path outputPath) {
+    private boolean convertFile(Path inputPath, Path outputPath) {
         try {
             String content = Files.readString(inputPath);
             conversionsApplied.clear();
@@ -143,12 +157,11 @@ public class LiquidToQuteConverter implements Callable<Integer> {
         }
     }
 
-    public String convert(String content) {
+    private String convert(String content) {
         String original = content;
 
         // Convert in order of complexity
         content = convertComments(content);
-        content = convertSpecialTags(content);  // Do raw blocks FIRST before variable conversion
         content = convertVariables(content);
         content = convertFilters(content);
         content = convertConditionals(content);
@@ -157,7 +170,8 @@ public class LiquidToQuteConverter implements Callable<Integer> {
         content = convertAssignments(content);
         content = convertCaseStatements(content);
         content = convertLayoutTags(content);
-        
+        content = convertSpecialTags(content);
+
         // Final cleanup steps - ORDER MATTERS!
         // Remove spaces first so ternary wrapping can match properly
         content = removeSpacesBeforeMethods(content);
@@ -215,21 +229,21 @@ public class LiquidToQuteConverter implements Callable<Integer> {
         Pattern appendPattern = Pattern.compile("([^|{]+?)((?:\\s*\\|\\s*append:\\s*[^|]+)+)");
         Matcher appendMatcher = appendPattern.matcher(content);
         StringBuffer appendSb = new StringBuffer();
-        
+
         while (appendMatcher.find()) {
             String base = appendMatcher.group(1).trim();
             String appends = appendMatcher.group(2);
-            
+
             // Extract all append values
             Pattern appendValuePattern = Pattern.compile("\\|\\s*append:\\s*([^|]+?)(?=\\s*\\||$)");
             Matcher appendValueMatcher = appendValuePattern.matcher(appends);
             StringBuilder concatenation = new StringBuilder(base);
-            
+
             while (appendValueMatcher.find()) {
                 String appendValue = appendValueMatcher.group(1).trim();
                 concatenation.append(" + ").append(appendValue);
             }
-            
+
             // Check if there are other filters after the appends
             String remaining = appends.replaceAll("\\|\\s*append:\\s*[^|]+", "").trim();
             String replacement;
@@ -239,38 +253,38 @@ public class LiquidToQuteConverter implements Callable<Integer> {
             } else {
                 replacement = concatenation.toString();
             }
-            
+
             appendMatcher.appendReplacement(appendSb, Matcher.quoteReplacement(replacement));
         }
         appendMatcher.appendTail(appendSb);
-        
+
         String result = appendSb.toString();
         if (!result.equals(content)) {
             conversionsApplied.add("Converted append filter to string concatenation");
             content = result;
         }
-        
+
         // Common filter conversions
         String[][] filterMap = {
-            {"upcase", "toUpperCase"},
-            {"downcase", "toLowerCase"},
-            {"capitalize", "capitalize"},
-            {"strip_html", "stripHtml"},
-            {"number_of_words", "numberOfWords"},
-            {"size", "size"},
-            {"first", "first"},
-            {"last", "last"},
-            {"join", "join"},
-            {"sort", "sort"},
-            {"reverse", "reverse"},
-            {"uniq", "distinct"},
-            {"compact", "filterNotNull"},
-            {"strip", "trim()"},
-            {"lstrip", "trimStart"},
-            {"rstrip", "trimEnd"},
-            {"escape", "escapeHtml"},
-            {"url_encode", "urlEncode"},
-            {"slugify", "slugify"}
+                {"upcase", "toUpperCase"},
+                {"downcase", "toLowerCase"},
+                {"capitalize", "capitalize"},
+                {"strip_html", "stripHtml"},
+                {"number_of_words", "numberOfWords"},
+                {"size", "size"},
+                {"first", "first"},
+                {"last", "last"},
+                {"join", "join"},
+                {"sort", "sort"},
+                {"reverse", "reverse"},
+                {"uniq", "distinct"},
+                {"compact", "filterNotNull"},
+                {"strip", "trim"},
+                {"lstrip", "trimStart"},
+                {"rstrip", "trimEnd"},
+                {"escape", "escapeHtml"},
+                {"url_encode", "urlEncode"},
+                {"slugify", "slugify"}
         };
 
         for (String[] mapping : filterMap) {
@@ -295,22 +309,22 @@ public class LiquidToQuteConverter implements Callable<Integer> {
         while (dateMatcher.find()) {
             String liquidFormat = dateMatcher.group(1);
             String javaFormat = liquidFormat
-                .replace("%Y", "yyyy")
-                .replace("%m", "MM")
-                .replace("%d", "dd")
-                .replace("%H", "HH")
-                .replace("%M", "mm")
-                .replace("%S", "ss")
-                .replace("%B", "MMMM")
-                .replace("%b", "MMM")
-                .replace("%A", "EEEE")
-                .replace("%a", "EEE");
+                    .replace("%Y", "yyyy")
+                    .replace("%m", "MM")
+                    .replace("%d", "dd")
+                    .replace("%H", "HH")
+                    .replace("%M", "mm")
+                    .replace("%S", "ss")
+                    .replace("%B", "MMMM")
+                    .replace("%b", "MMM")
+                    .replace("%A", "EEEE")
+                    .replace("%a", "EEE");
 
             dateMatcher.appendReplacement(sb, ".format('" + javaFormat + "')");
         }
         dateMatcher.appendTail(sb);
 
-         result = sb.toString();
+        result = sb.toString();
         if (!result.equals(content)) {
             conversionsApplied.add("Converted date filters");
             content = result;
@@ -334,9 +348,6 @@ public class LiquidToQuteConverter implements Callable<Integer> {
             conversionsApplied.add("Converted default filter");
             content = result;
         }
-        
-        // Clean up extra spaces around ternary operators
-        content = content.replaceAll("\\s{2,}\\?:", " ?:");
 
         // Truncate filter
         // Liquid: {{ text | truncatewords: 50 }}
@@ -361,18 +372,8 @@ public class LiquidToQuteConverter implements Callable<Integer> {
         // Push filter (array append)
         // Liquid: {{ array | push: item }}
         // Qute: {array.push(item)}
-        // Note: exclude }, |, and % from the parameter match to avoid matching Liquid closing tags
-        Pattern pushPattern = Pattern.compile("\\|\\s*push:\\s*([^}|%]+)");
-        Matcher pushMatcher = pushPattern.matcher(content);
-        StringBuilder pushSb = new StringBuilder();
-        
-        while (pushMatcher.find()) {
-            String param = pushMatcher.group(1).trim();  // Trim whitespace from parameter
-            pushMatcher.appendReplacement(pushSb, ".push(" + param + ")");
-        }
-        pushMatcher.appendTail(pushSb);
-        
-        result = pushSb.toString();
+        Pattern pushPattern = Pattern.compile("\\|\\s*push:\\s*([^}|]+)");
+        result = pushPattern.matcher(content).replaceAll(".push($1)");
         if (!result.equals(content)) {
             conversionsApplied.add("Converted push filter");
             content = result;
@@ -388,7 +389,17 @@ public class LiquidToQuteConverter implements Callable<Integer> {
             content = result;
         }
 
-        // Split filter - do BEFORE empty string check
+        // Special case: empty string split should become empty array
+        // Liquid: "" | split: ""
+        // Qute: [] (cannot call methods on string literals)
+        Pattern emptyStringSplitPattern = Pattern.compile("\"\"\\s*\\|\\s*split:\\s*['\"][^'\"]*['\"]");
+        result = emptyStringSplitPattern.matcher(content).replaceAll("[]");
+        if (!result.equals(content)) {
+            conversionsApplied.add("Converted empty string split to empty array");
+            content = result;
+        }
+
+        // Split filter
         // Liquid: {{ text | split: "," }}
         // Qute: {text.split(",")}
         Pattern splitPattern = Pattern.compile("\\|\\s*split:\\s*(['\"][^'\"]*['\"])");
@@ -397,18 +408,7 @@ public class LiquidToQuteConverter implements Callable<Integer> {
             conversionsApplied.add("Converted split filter");
             content = result;
         }
-        
-        // Special case: ONLY empty string literal split should become empty array
-        // This must match ONLY when there's no ternary operator before it
-        // Pattern: "".split(...) but NOT ?: "".split(...)
-        // Qute: [] (cannot call methods on string literals)
-        Pattern emptyStringSplitPattern = Pattern.compile("(?<!\\?:\\s)\"\"\\s*\\.\\s*split\\s*\\([^)]*\\)");
-        result = emptyStringSplitPattern.matcher(content).replaceAll("[]");
-        if (!result.equals(content)) {
-            conversionsApplied.add("Converted empty string split to empty array");
-            content = result;
-        }
-        
+
         // Strip filter (whitespace trimming)
         // Liquid: {{ text | strip }}
         // Qute: {text.trim()}
@@ -433,25 +433,9 @@ public class LiquidToQuteConverter implements Callable<Integer> {
         content = content.replaceAll("\\{%\\s*unless\\s+([^%]+?)\\s*%\\}", "{#if !($1)}");
         content = content.replaceAll("\\{%\\s*endunless\\s*%\\}", "{/if}");
 
-        // Convert operators ONLY in conditional blocks (between {#if and })
-        // Use a more targeted approach to avoid converting "and" in regular text
-        Pattern ifPattern = Pattern.compile("(\\{#(?:if|else if)\\s+)([^}]+?)(\\})");
-        Matcher ifMatcher = ifPattern.matcher(content);
-        StringBuffer sb = new StringBuffer();
-        
-        while (ifMatcher.find()) {
-            String prefix = ifMatcher.group(1);
-            String condition = ifMatcher.group(2);
-            String suffix = ifMatcher.group(3);
-            
-            // Convert operators in the condition
-            condition = condition.replaceAll("\\band\\b", "&&");
-            condition = condition.replaceAll("\\bor\\b", "||");
-            
-            ifMatcher.appendReplacement(sb, Matcher.quoteReplacement(prefix + condition + suffix));
-        }
-        ifMatcher.appendTail(sb);
-        content = sb.toString();
+        // Convert operators
+        content = content.replaceAll("\\band\\b", "&&");
+        content = content.replaceAll("\\bor\\b", "||");
 
         conversionsApplied.add("Converted conditionals");
         return content;
@@ -535,24 +519,10 @@ public class LiquidToQuteConverter implements Callable<Integer> {
     }
 
     private String convertAssignments(String content) {
-        // Simple assignments with filter support
-        // Liquid: {% assign var = value | filter: arg %}
-        // Qute: {#let var=value.filter(arg)}{/let}
-        Pattern assignPattern = Pattern.compile("\\{%\\s*assign\\s+(\\w+)\\s*=\\s*([^%]+?)\\s*%\\}");
-        Matcher assignMatcher = assignPattern.matcher(content);
-        StringBuilder sb = new StringBuilder();
-        
-        while (assignMatcher.find()) {
-            String varName = assignMatcher.group(1);
-            String value = assignMatcher.group(2).trim();
-            
-            // The value might contain filters that need to be converted
-            // This will be handled by convertFilters() which runs before this
-            String replacement = "{#let " + varName + "=" + value + "}{/let}";
-            assignMatcher.appendReplacement(sb, Matcher.quoteReplacement(replacement));
-        }
-        assignMatcher.appendTail(sb);
-        content = sb.toString();
+        // Simple assignments
+        // Liquid: {% assign var = value %}
+        // Qute: {#let var=value}{/let}
+        content = content.replaceAll("\\{%\\s*assign\\s+(\\w+)\\s*=\\s*([^%]+?)\\s*%\\}", "{#let $1=$2}{/let}");
 
         // Capture (multi-line assignment)
         content = content.replaceAll("\\{%\\s*capture\\s+(\\w+)\\s*%\\}", "{#let $1}");
@@ -577,15 +547,15 @@ public class LiquidToQuteConverter implements Callable<Integer> {
         // Jekyll layout inheritance tags
         // {% layout "name" %} -> {#insert name /}
         content = content.replaceAll("\\{%\\s*layout\\s+[\"']([^\"']+)[\"']\\s*%\\}", "{#insert $1 /}");
-        
+
         // {% block name %} -> {#block name}
         content = content.replaceAll("\\{%\\s*block\\s+(\\w+)\\s*%\\}", "{#block $1}");
         content = content.replaceAll("\\{%\\s*endblock\\s*%\\}", "{/block}");
-        
+
         // {% append name %} -> {#append name}
         content = content.replaceAll("\\{%\\s*append\\s+(\\w+)\\s*%\\}", "{#append $1}");
         content = content.replaceAll("\\{%\\s*endappend\\s*%\\}", "{/append}");
-        
+
         // {% prepend name %} -> {#prepend name}
         content = content.replaceAll("\\{%\\s*prepend\\s+(\\w+)\\s*%\\}", "{#prepend $1}");
         content = content.replaceAll("\\{%\\s*endprepend\\s*%\\}", "{/prepend}");
@@ -598,36 +568,25 @@ public class LiquidToQuteConverter implements Callable<Integer> {
         // Raw blocks (escape Qute processing)
         // Liquid: {% raw %}...{% endraw %}
         // Qute: {| ... |}
-        // We need to preserve the content inside raw blocks, so we'll use a more sophisticated approach
-        Pattern rawPattern = Pattern.compile("\\{%\\s*raw\\s*%\\}(.*?)\\{%\\s*endraw\\s*%\\}", Pattern.DOTALL);
-        Matcher rawMatcher = rawPattern.matcher(content);
-        StringBuilder sbRaw = new StringBuilder();
-        
-        while (rawMatcher.find()) {
-            String rawContent = rawMatcher.group(1);
-            // Don't convert the content inside raw blocks - just wrap it
-            String replacement = "{|" + rawContent + "|}";
-            rawMatcher.appendReplacement(sbRaw, Matcher.quoteReplacement(replacement));
-        }
-        rawMatcher.appendTail(sbRaw);
-        content = sbRaw.toString();
+        content = content.replaceAll("\\{%\\s*raw\\s*%\\}", "{|");
+        content = content.replaceAll("\\{%\\s*endraw\\s*%\\}", "|}");
 
         // Highlight blocks (for code syntax highlighting)
         // Liquid: {% highlight lang %}...{% endhighlight %}
         // Qute: <pre><code class="language-lang">...</code></pre>
         Pattern highlightPattern = Pattern.compile("\\{%\\s*highlight\\s+(\\w+)\\s*%\\}(.*?)\\{%\\s*endhighlight\\s*%\\}", Pattern.DOTALL);
         Matcher highlightMatcher = highlightPattern.matcher(content);
-        StringBuilder sbHighlight = new StringBuilder();
+        StringBuilder sb = new StringBuilder();
 
         while (highlightMatcher.find()) {
             String lang = highlightMatcher.group(1);
             String code = highlightMatcher.group(2);
             String replacement = "<pre><code class=\"language-" + lang + "\">" + code + "</code></pre>";
-            highlightMatcher.appendReplacement(sbHighlight, Matcher.quoteReplacement(replacement));
+            highlightMatcher.appendReplacement(sb, Matcher.quoteReplacement(replacement));
         }
-        highlightMatcher.appendTail(sbHighlight);
+        highlightMatcher.appendTail(sb);
 
-        String result = sbHighlight.toString();
+        String result = sb.toString();
         if (!result.equals(content)) {
             conversionsApplied.add("Converted special tags");
         }
@@ -659,7 +618,7 @@ public class LiquidToQuteConverter implements Callable<Integer> {
         Pattern pattern = Pattern.compile("([a-zA-Z0-9_\\.\\[\\]]+)\\s*\\?:\\s*([\"'][^\"']*[\"']|[a-zA-Z0-9_\\.\\[\\]]+)\\.([a-zA-Z0-9_]+)\\s*\\(");
         Matcher matcher = pattern.matcher(content);
         StringBuffer sb = new StringBuffer();
-        
+
         while (matcher.find()) {
             String expr = matcher.group(1);
             String defaultVal = matcher.group(2);
@@ -669,12 +628,12 @@ public class LiquidToQuteConverter implements Callable<Integer> {
             matcher.appendReplacement(sb, Matcher.quoteReplacement(replacement));
         }
         matcher.appendTail(sb);
-        
+
         String result = sb.toString();
         if (!result.equals(content)) {
             conversionsApplied.add("Wrapped ternary operators before method calls");
         }
-        
+
         return result;
     }
 
@@ -694,21 +653,19 @@ public class LiquidToQuteConverter implements Callable<Integer> {
         Pattern pattern = Pattern.compile("([a-zA-Z0-9_\\)\\]\"'])\\s+\\.([a-zA-Z0-9_]+)");
         Matcher matcher = pattern.matcher(content);
         StringBuffer sb = new StringBuffer();
-        
+
         while (matcher.find()) {
             String before = matcher.group(1);
             String method = matcher.group(2);
             matcher.appendReplacement(sb, before + "." + method);
         }
         matcher.appendTail(sb);
-        
+
         String result = sb.toString();
         if (!result.equals(content)) {
             conversionsApplied.add("Removed spaces before method calls");
         }
-        
+
         return result;
     }
 }
-
-// Made with Bob

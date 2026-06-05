@@ -158,13 +158,16 @@ public class LiquidToQuteConverter {
     }
 
     private String convertFiltersInBlock(String block) {
-        block = convertConcatenationFilters(block);
+        // Convert method-call filters first so concatenation filters see clean expressions
+        block = convertTwoArgFilters(block);
         block = convertTableDrivenFilters(block);
         block = convertDateFilter(block);
         block = convertDefaultFilter(block);
-        block = convertTwoArgFilters(block);
         block = convertPushFilter(block);
         block = convertSplitFilter(block);
+        // Concatenation filters (append/prepend) run last since they need
+        // the base expression fully converted to method calls
+        block = convertConcatenationFilters(block);
         return block;
     }
 
@@ -204,22 +207,58 @@ public class LiquidToQuteConverter {
             content = result;
         }
 
-        // Prepend filter: path | prepend: base -> base + path
-        Pattern prependPattern = Pattern.compile("([a-zA-Z0-9_.\"']+)\\s*\\|\\s*prepend:\\s*([^|}%]+)");
-        Matcher prependMatcher = prependPattern.matcher(content);
-        StringBuilder prependSb = new StringBuilder();
+        // Prepend filter: expr | prepend: value -> value + expr
+        // Uses paren-aware backward walk to handle method calls like .replaceAll(...)
+        content = convertPrependFilter(content);
 
-        while (prependMatcher.find()) {
-            String base = prependMatcher.group(1).trim();
-            String prefix = prependMatcher.group(2).trim();
-            prependMatcher.appendReplacement(prependSb, Matcher.quoteReplacement(prefix + " + " + base));
-        }
-        prependMatcher.appendTail(prependSb);
+        return content;
+    }
 
-        result = prependSb.toString();
-        if (!result.equals(content)) {
+    private String convertPrependFilter(String content) {
+        Pattern prependPipe = Pattern.compile("\\|\\s*prepend:\\s*([^|}%]+)");
+
+        while (true) {
+            Matcher m = prependPipe.matcher(content);
+            if (!m.find())
+                break;
+
+            String value = m.group(1).trim();
+            int pipeStart = m.start();
+
+            int baseEnd = pipeStart;
+            while (baseEnd > 0 && Character.isWhitespace(content.charAt(baseEnd - 1)))
+                baseEnd--;
+
+            int baseStart = baseEnd;
+            int parenDepth = 0;
+            while (baseStart > 0) {
+                char c = content.charAt(baseStart - 1);
+                if (c == ')') {
+                    parenDepth++;
+                    baseStart--;
+                } else if (c == '(') {
+                    if (parenDepth > 0) {
+                        parenDepth--;
+                        baseStart--;
+                    } else {
+                        break;
+                    }
+                } else if (parenDepth > 0) {
+                    baseStart--;
+                } else if (Character.isLetterOrDigit(c) || c == '.' || c == '_' || c == '\'' || c == '"') {
+                    baseStart--;
+                } else {
+                    break;
+                }
+            }
+
+            if (baseStart >= baseEnd) {
+                break;
+            }
+
+            String base = content.substring(baseStart, baseEnd);
+            content = content.substring(0, baseStart) + value + " + " + base + content.substring(m.end());
             conversionsApplied.add("Converted prepend filter to string concatenation");
-            content = result;
         }
 
         return content;
@@ -247,7 +286,7 @@ public class LiquidToQuteConverter {
         for (String[] mapping : filterWithArgMap) {
             String liquidFilter = mapping[0];
             String quteMethod = mapping[1];
-            Pattern fwaPattern = Pattern.compile("\\|\\s*" + liquidFilter + ":\\s*([^|}%]+)");
+            Pattern fwaPattern = Pattern.compile("\\s*\\|\\s*" + liquidFilter + ":\\s*([^|}%]+)");
             Matcher fwaMatcher = fwaPattern.matcher(content);
             StringBuilder fwaSb = new StringBuilder();
 
@@ -290,7 +329,7 @@ public class LiquidToQuteConverter {
         for (String[] mapping : filterMap) {
             String liquidFilter = mapping[0];
             String quteFilter = mapping[1];
-            Pattern pattern = Pattern.compile("\\|\\s*" + liquidFilter + "\\b");
+            Pattern pattern = Pattern.compile("\\s*\\|\\s*" + liquidFilter + "\\b");
             String replacement = "." + quteFilter;
             String newContent = pattern.matcher(content).replaceAll(replacement);
             if (!newContent.equals(content)) {
@@ -303,7 +342,7 @@ public class LiquidToQuteConverter {
     }
 
     private String convertDateFilter(String content) {
-        Pattern datePattern = Pattern.compile("\\|\\s*date:\\s*[\"']([^\"']+)[\"']");
+        Pattern datePattern = Pattern.compile("\\s*\\|\\s*date:\\s*[\"']([^\"']+)[\"']");
         Matcher dateMatcher = datePattern.matcher(content);
         StringBuilder sb = new StringBuilder();
 
@@ -353,7 +392,7 @@ public class LiquidToQuteConverter {
     }
 
     private String convertDefaultFilter(String content) {
-        Pattern defaultPattern = Pattern.compile("\\|\\s*default:\\s*([\"'][^\"']*[\"']|\\S+)");
+        Pattern defaultPattern = Pattern.compile("\\s*\\|\\s*default:\\s*([\"'][^\"']*[\"']|\\S+)");
         Matcher defaultMatcher = defaultPattern.matcher(content);
         StringBuilder sb = new StringBuilder();
 
@@ -376,7 +415,7 @@ public class LiquidToQuteConverter {
 
     private String convertTwoArgFilters(String content) {
         // Truncatewords: | truncatewords: 50 -> .wordLimit(50)
-        Pattern truncatePattern = Pattern.compile("\\|\\s*truncatewords:\\s*(\\d+)");
+        Pattern truncatePattern = Pattern.compile("\\s*\\|\\s*truncatewords:\\s*(\\d+)");
         String result = truncatePattern.matcher(content).replaceAll(".wordLimit($1)");
         if (!result.equals(content)) {
             conversionsApplied.add("Converted truncate filter");
@@ -384,15 +423,29 @@ public class LiquidToQuteConverter {
         }
 
         // Replace_regex (must be before replace to avoid partial match)
-        Pattern replaceRegexPattern = Pattern.compile("\\|\\s*replace_regex:\\s*(['\"][^'\"]*['\"])\\s*,\\s*(['\"][^'\"]*['\"])");
-        result = replaceRegexPattern.matcher(content).replaceAll(".replaceAll($1, $2)");
-        if (!result.equals(content)) {
+        // Also convert Ruby backreferences (\1, \2) to Java ($1, $2)
+        // \\s* before \\| consumes whitespace so .replaceAll attaches directly to the expression
+        Pattern replaceRegexPattern = Pattern.compile("\\s*\\|\\s*replace_regex:\\s*(['\"][^'\"]*['\"])\\s*,\\s*(['\"][^'\"]*['\"])");
+        Matcher replaceRegexMatcher = replaceRegexPattern.matcher(content);
+        StringBuilder replaceRegexSb = new StringBuilder();
+        boolean replaceRegexChanged = false;
+        while (replaceRegexMatcher.find()) {
+            String pattern_arg = replaceRegexMatcher.group(1);
+            String replacement_arg = replaceRegexMatcher.group(2);
+            // Convert \1, \2, etc. to $1, $2 in the replacement string
+            replacement_arg = replacement_arg.replaceAll("\\\\(\\d)", "\\$$1");
+            replaceRegexMatcher.appendReplacement(replaceRegexSb,
+                    Matcher.quoteReplacement(".replaceAll(" + pattern_arg + ", " + replacement_arg + ")"));
+            replaceRegexChanged = true;
+        }
+        replaceRegexMatcher.appendTail(replaceRegexSb);
+        if (replaceRegexChanged) {
             conversionsApplied.add("Converted replace_regex filter");
-            content = result;
+            content = replaceRegexSb.toString();
         }
 
         // Replace
-        Pattern replacePattern = Pattern.compile("\\|\\s*replace:\\s*(['\"][^'\"]*['\"])\\s*,\\s*(['\"][^'\"]*['\"])");
+        Pattern replacePattern = Pattern.compile("\\s*\\|\\s*replace:\\s*(['\"][^'\"]*['\"])\\s*,\\s*(['\"][^'\"]*['\"])");
         result = replacePattern.matcher(content).replaceAll(".replace($1, $2)");
         if (!result.equals(content)) {
             conversionsApplied.add("Converted replace filter");
@@ -400,7 +453,7 @@ public class LiquidToQuteConverter {
         }
 
         // Where: | where: "key", "value" -> .where("key", "value")
-        Pattern wherePattern = Pattern.compile("\\|\\s*where:\\s*(['\"][^'\"]*['\"])\\s*,\\s*(['\"][^'\"]*['\"])");
+        Pattern wherePattern = Pattern.compile("\\s*\\|\\s*where:\\s*(['\"][^'\"]*['\"])\\s*,\\s*(['\"][^'\"]*['\"])");
         result = wherePattern.matcher(content).replaceAll(".where($1, $2)");
         if (!result.equals(content)) {
             conversionsApplied.add("Converted where filter");
@@ -411,7 +464,7 @@ public class LiquidToQuteConverter {
     }
 
     private String convertPushFilter(String content) {
-        Pattern pushPattern = Pattern.compile("\\|\\s*push:\\s*([^}|%]+)");
+        Pattern pushPattern = Pattern.compile("\\s*\\|\\s*push:\\s*([^}|%]+)");
         Matcher pushMatcher = pushPattern.matcher(content);
         StringBuilder pushSb = new StringBuilder();
 
@@ -431,7 +484,7 @@ public class LiquidToQuteConverter {
     }
 
     private String convertSplitFilter(String content) {
-        Pattern splitPattern = Pattern.compile("\\|\\s*split:\\s*(['\"][^'\"]*['\"])");
+        Pattern splitPattern = Pattern.compile("\\s*\\|\\s*split:\\s*(['\"][^'\"]*['\"])");
         String result = splitPattern.matcher(content).replaceAll(".split($1)");
         if (!result.equals(content)) {
             conversionsApplied.add("Converted split filter");
@@ -659,13 +712,9 @@ public class LiquidToQuteConverter {
     }
 
     private String convertIfElseAssignsToTernary(String content) {
-        // Pattern: detect if/else blocks where the same variable is assigned in both branches
-        // Convert to a single ternary assignment before the if block
-        // This matches Jekyll semantics where assigns persist beyond their block
-
-        // Find: {#if condition} ... {%assign var = exprA %} ... {#else} ... {%assign var = exprB %} ... {/if}
-        // Convert to: {#let var = condition ? exprA : exprB} ... {/if} {/let}
-        // (remove both assigns, add the ternary before the if)
+        // Detect if/else blocks where the same variable is assigned in both branches.
+        // Replace both assigns with a single ternary assign BEFORE the if block.
+        // The result is still a {% assign %} tag, so convertAssignments handles scoping.
 
         Pattern ifElsePattern = Pattern.compile(
                 "\\{#if\\s+([^}]+?)\\}(.*?)\\{#else\\}(.*?)\\{/if\\}",
@@ -680,12 +729,10 @@ public class LiquidToQuteConverter {
             String ifBranch = matcher.group(2);
             String elseBranch = matcher.group(3);
 
-            // Look for assigns in both branches
             Pattern assignPattern = Pattern.compile("\\{%\\s*assign\\s+(\\w+)\\s*=\\s*([^%]+?)\\s*%\\}");
             Matcher ifAssigns = assignPattern.matcher(ifBranch);
             Matcher elseAssigns = assignPattern.matcher(elseBranch);
 
-            // Collect assigns from both branches
             Map<String, String> ifVars = new HashMap<>();
             Map<String, String> elseVars = new HashMap<>();
 
@@ -696,13 +743,11 @@ public class LiquidToQuteConverter {
                 elseVars.put(elseAssigns.group(1), elseAssigns.group(2));
             }
 
-            // Find variables assigned in BOTH branches
             Set<String> commonVars = new HashSet<>(ifVars.keySet());
             commonVars.retainAll(elseVars.keySet());
 
             if (!commonVars.isEmpty()) {
-                // Convert common assigns to ternary
-                StringBuilder ternaryLets = new StringBuilder();
+                StringBuilder ternaryAssigns = new StringBuilder();
                 String modifiedIfBranch = ifBranch;
                 String modifiedElseBranch = elseBranch;
 
@@ -710,13 +755,31 @@ public class LiquidToQuteConverter {
                     String ifExpr = ifVars.get(var);
                     String elseExpr = elseVars.get(var);
 
-                    // Create ternary: {#let var = condition ? ifExpr : elseExpr}
-                    ternaryLets.append("{#let ").append(var).append("=(")
-                            .append(condition).append(") ? ")
-                            .append(ifExpr).append(" : ")
-                            .append(elseExpr).append("}\n");
+                    // Qute doesn't support ternary (? :), so use alternative constructs.
+                    // Also, 'contains' is only valid in {#if} sections — convert to method call
+                    // when extracting into a {#let} expression.
+                    String exprCondition = condition.replaceAll(
+                            "(\\S+)\\s+contains\\s+('[^']*'|\"[^\"]*\")",
+                            "$1.toString().contains($2)");
 
-                    // Remove the assigns from both branches
+                    String combinedExpr;
+                    if (elseExpr.trim().equals("false")) {
+                        // condition ? value : false  →  (condition) && (value)
+                        combinedExpr = "(" + exprCondition + ") && (" + ifExpr + ")";
+                    } else if (elseExpr.trim().equals("true")) {
+                        // condition ? value : true  →  !(condition) || (value)
+                        combinedExpr = "!(" + exprCondition + ") || (" + ifExpr + ")";
+                    } else if (condition.trim().equals(ifExpr.trim())) {
+                        // condition ? condition : fallback  →  condition ?: fallback
+                        combinedExpr = ifExpr + " ?: " + elseExpr;
+                    } else {
+                        // General case: can't express as single Qute expression, skip
+                        continue;
+                    }
+
+                    ternaryAssigns.append("{% assign ").append(var).append(" = ")
+                            .append(combinedExpr).append(" %}\n");
+
                     modifiedIfBranch = modifiedIfBranch.replaceFirst(
                             "\\{%\\s*assign\\s+" + var + "\\s*=\\s*" + Pattern.quote(ifExpr) + "\\s*%\\}",
                             "");
@@ -725,19 +788,32 @@ public class LiquidToQuteConverter {
                             "");
                 }
 
-                // Rebuild the if/else block with ternary lets before it
-                String replacement = ternaryLets.toString()
-                        + "{#if " + condition + "}"
-                        + modifiedIfBranch
-                        + "{#else}"
-                        + modifiedElseBranch
-                        + "{/if}"
-                        + "{/let}".repeat(commonVars.size());
+                if (ternaryAssigns.length() == 0) {
+                    // No variables could be converted, leave unchanged
+                    matcher.appendReplacement(sb, Matcher.quoteReplacement(matcher.group(0)));
+                    continue;
+                }
+
+                // Check if the if/else block is now empty (only whitespace)
+                boolean ifEmpty = modifiedIfBranch.trim().isEmpty();
+                boolean elseEmpty = modifiedElseBranch.trim().isEmpty();
+
+                String replacement;
+                if (ifEmpty && elseEmpty) {
+                    // Both branches are empty after removing assigns — drop the if/else entirely
+                    replacement = ternaryAssigns.toString();
+                } else {
+                    replacement = ternaryAssigns.toString()
+                            + "{#if " + condition + "}"
+                            + modifiedIfBranch
+                            + "{#else}"
+                            + modifiedElseBranch
+                            + "{/if}";
+                }
 
                 matcher.appendReplacement(sb, Matcher.quoteReplacement(replacement));
                 changed = true;
             } else {
-                // No common assigns - keep as is
                 matcher.appendReplacement(sb, Matcher.quoteReplacement(matcher.group(0)));
             }
         }
@@ -796,8 +872,10 @@ public class LiquidToQuteConverter {
     }
 
     private int findScopeBoundary(String content, int startPos) {
-        // Find the boundary where a {#let} should be closed
-        // Skip {#else} - we want variables assigned in if branches to remain in scope after the if block
+        // Place {/let} BEFORE the next enclosing block's closing tag at depth 0.
+        // This ensures valid nesting: the let closes before its enclosing block closes.
+        // {#else} is also a boundary — assigns in if-branches scope to before the else.
+        // (If/else assigns for the same variable are handled separately by convertIfElseAssignsToTernary.)
         int depth = 0;
         Pattern tagPattern = Pattern.compile("\\{#(for|if|let)\\b|\\{#else\\b|\\{/(for|if|let)\\}");
         Matcher matcher = tagPattern.matcher(content);
@@ -806,14 +884,14 @@ public class LiquidToQuteConverter {
         while (matcher.find()) {
             String match = matcher.group();
             if (match.startsWith("{#else")) {
-                // Skip {#else} - don't stop here, continue to find the enclosing {/if}
-                continue;
+                if (depth == 0) {
+                    return matcher.start();
+                }
             } else if (match.startsWith("{#")) {
                 depth++;
             } else {
                 if (depth == 0) {
-                    // Found the closing tag - place {/let} AFTER it, not before
-                    return matcher.end();
+                    return matcher.start();
                 }
                 depth--;
             }

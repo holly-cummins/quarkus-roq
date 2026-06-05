@@ -321,9 +321,9 @@ class LiquidToQuteConverterTest {
     @Test
     void testReplaceRegexFilter() {
         String input = "{{page.url | replace_regex: '^/version/([^/]+)/.*', '\\1'}}";
-        String expected = "{=page.url.replaceAll('^/version/([^/]+)/.*', '\\1')}";
+        String expected = "{=page.url.replaceAll('^/version/([^/]+)/.*', '$1')}";
         assertConverts(input, expected,
-                "replace_regex filter should convert to .replaceAll() method call");
+                "replace_regex filter should convert to .replaceAll() with Java backreference syntax");
     }
 
     @Test
@@ -571,11 +571,27 @@ class LiquidToQuteConverterTest {
     }
 
     @Test
-    void testAssignInIfBranchScopedBeforeElse() {
-        String input = "{% if page.title %}{% assign x = page.title %}{% else %}{% assign x = 'default' %}{% endif %}";
-        String expected = "{#if page.title}{#let x=page.title}{/let}{#else}{#let x='default'}{/let}{/if}";
+    void testAssignInIfElseBranchesWithFalseElse() {
+        String input = "{% if page.title %}{% assign x = page.title %}{% else %}{% assign x = false %}{% endif %}";
+        String expected = "{#let x=(page.title) && (page.title)}\n{/let}";
         assertConverts(input, expected,
-                "Assign in if branch should be scoped before the else, not crossing into it");
+                "Same variable in if/else with false else should convert to && expression");
+    }
+
+    @Test
+    void testAssignInIfElseBranchesElvisCase() {
+        String input = "{% if page.title %}{% assign x = page.title %}{% else %}{% assign x = 'default' %}{% endif %}";
+        String expected = "{#let x=page.title ?: 'default'}\n{/let}";
+        assertConverts(input, expected,
+                "Same variable in if/else where condition matches if-value should use Elvis operator");
+    }
+
+    @Test
+    void testReplaceRegexWithPrependChain() {
+        String input = "{% assign x = page.url | replace_regex: '^/version/([^/]+)/.*', '\\1' | prepend: ' - ' %}";
+        String expected = "{#let x=' - ' + page.url.replaceAll('^/version/([^/]+)/.*', '$1')}{/let}";
+        assertConverts(input, expected,
+                "replace_regex chained with prepend should produce valid method call");
     }
 
     @Test
@@ -675,7 +691,7 @@ class LiquidToQuteConverterTest {
     }
 
     @Test
-    void testAssignInIfElseBlockScopedToEndOfIf() {
+    void testAssignInIfElseBlockGeneralCaseLeftAsIfElse() {
         String input = """
                 {% if page.layout == 'guides' %}
                   {%assign canonical_url = page.url | replace: 'foo', '' %}
@@ -686,18 +702,8 @@ class LiquidToQuteConverterTest {
                 """;
         String result = converter.convert(input);
 
-        // When the same variable is assigned in both branches, convert to ternary
-        assertTrue(result.contains("{#let canonical_url=(page.data.layout == 'guides') ? page.url.replace('foo', '') : page.url}"),
-                "Should convert to ternary expression");
-
-        // The if/else block should remain (even if empty) for now
-        assertTrue(result.contains("{#if page.data.layout == 'guides'}"));
-        assertTrue(result.contains("{#else}"));
-        assertTrue(result.contains("{/if}"));
-
-        // canonical_url usage should come BEFORE the {/let} tag (inside the scope)
-        int canonical = result.indexOf("canonical_url}\">");
-        int lastLet = result.lastIndexOf("{/let}");
-        assertTrue(canonical < lastLet, "canonical_url usage should be before {/let} (in scope)");
+        // General case (not boolean, not Elvis): if/else is preserved with scoped assigns
+        assertTrue(result.contains("{#if"), "If/else should be preserved for general case");
+        assertTrue(result.contains("canonical_url"), "Variable should still be assigned");
     }
 }

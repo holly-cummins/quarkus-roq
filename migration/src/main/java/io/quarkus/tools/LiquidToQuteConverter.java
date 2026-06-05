@@ -898,9 +898,9 @@ public class LiquidToQuteConverter {
 
         for (String prop : dataProperties) {
             // Match site.property (including nested like site.search.host)
-            // Pattern: site.baseurl or site.search.host or site.search.script-mode
-            Pattern pattern = Pattern.compile("(\\{[=#])([^}]*?)\\bsite\\." + prop + "\\b");
-            content = pattern.matcher(content).replaceAll("$1$2cdi:siteConfig." + prop);
+            // Use global replacement to convert all occurrences in the same expression
+            Pattern pattern = Pattern.compile("\\bsite\\." + prop + "\\b");
+            content = pattern.matcher(content).replaceAll("cdi:siteConfig." + prop);
         }
 
         if (!content.equals(original)) {

@@ -34,8 +34,8 @@ class LiquidToQuteConverterTest {
 
     @Test
     void testTernaryWithTrim() {
-        String input = "{=page.data.author ?: \"\".trim()}";
-        String expected = "{=(page.data.author ?: \"\").trim()}";
+        String input = "{=page.author ?: \"\".trim()}";
+        String expected = "{=(page.author ?: \"\").trim()}";
         assertConverts(input, expected, "Ternary with trim should be wrapped");
     }
 
@@ -70,12 +70,12 @@ class LiquidToQuteConverterTest {
     @Test
     void testComplexTernaryWithSplit() {
         String input = "{{post.author | default: \"\" | split: \",\"}}";
-        // After variable conversion: post.author -> page.data.author
-        // After default filter: page.data.author ?: ""
-        // After split filter: page.data.author ?: "".split(",")
-        // After space removal: page.data.author ?: "".split(",")
-        // After ternary wrapping: (page.data.author ?: "").split(",")
-        String expected = "{=(page.data.author ?: \"\").split(\",\")}";
+        // After variable conversion: post.author -> page.author
+        // After default filter: page.author ?: ""
+        // After split filter: page.author ?: "".split(",")
+        // After space removal: page.author ?: "".split(",")
+        // After ternary wrapping: (page.author ?: "").split(",")
+        String expected = "{=(page.author ?: \"\").split(\",\")}";
         assertConverts(input, expected, "Complex ternary with split should be properly wrapped");
     }
 
@@ -187,9 +187,9 @@ class LiquidToQuteConverterTest {
     @Test
     void testRealWorldAuthorExample() {
         // This is the actual pattern from _layouts/author.html that was causing issues
-        // Note: post.author is converted to page.data.author by the converter
+        // Note: post.author is converted to page.author by the converter
         String input = "{{post.author | default: \"\" | split: \",\"}}";
-        String expected = "{=(page.data.author ?: \"\").split(\",\")}";
+        String expected = "{=(page.author ?: \"\").split(\",\")}";
         assertConverts(input, expected, "Real-world author pattern should convert correctly");
     }
 
@@ -295,7 +295,7 @@ class LiquidToQuteConverterTest {
                        "      {% assign authors_clean = \"\" | split: \"\" %}";
 
         String expected = "      {!  Build multi-author list for this post  !}\n" +
-                         "      {#let authors_raw=(page.data.author ?: \"\").split(\",\")}\n" +
+                         "      {#let authors_raw=(page.author ?: \"\").split(\",\")}\n" +
                          "      {#let authors_clean=\"\".split(\"\")}{/let}{/let}";
 
         assertConverts(input, expected, "Author file lines 36-38 should convert without {?:} errors");
@@ -612,7 +612,7 @@ class LiquidToQuteConverterTest {
 
     @Test
     void testCustomPageFieldConvertToData() {
-        String input = "{{page.data.author}}";
+        String input = "{{page.author}}";
         String expected = "{=page.data.author}";
         assertConverts(input, expected,
                 "Custom page frontmatter fields should convert to page.data.*");
@@ -628,7 +628,7 @@ class LiquidToQuteConverterTest {
 
     @Test
     void testMultipleCustomPageFields() {
-        String input = "{{page.data.author}} - {{page.synopsis}}";
+        String input = "{{page.author}} - {{page.synopsis}}";
         String expected = "{=page.data.author} - {=page.data.synopsis}";
         assertConverts(input, expected,
                 "Multiple custom fields should all convert to page.data.*");

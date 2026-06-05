@@ -42,6 +42,9 @@ public class LiquidToQuteConverter {
         // Convert site properties that come from data/site.yml to CDI references
         content = convertSiteDataProperties(content);
 
+        // Convert custom page frontmatter fields to page.data.*
+        content = convertCustomPageFields(content);
+
         // Restore raw blocks with Qute verbatim delimiters
         content = restoreRawBlocks(content, rawBlocks);
 
@@ -901,5 +904,25 @@ public class LiquidToQuteConverter {
         }
 
         return content;
+    }
+
+    private String convertCustomPageFields(String content) {
+        // Roq's Page model has specific built-in properties. Custom frontmatter must use page.data.*
+        // Known Page properties (from Roq docs):
+        String knownPageProps = "url|title|description|image|imageExists|date|data|content|contentAbstract|" +
+                "rawTemplate|sourcePath|sourceFileName|baseFileName|id|draft|files|file|fileExists|source|site|" +
+                "collectionId|collection|next|nextPage|previous|prev|previousPage|prevPage|hidden|paginator";
+
+        // Match page.customField (not page.data.*, page.url.*, or known properties)
+        // and convert to page.data.customField
+        Pattern pattern = Pattern.compile(
+                "\\b(page)\\.((?!(?:" + knownPageProps + ")\\b|data\\.|url\\.)[a-zA-Z_][a-zA-Z0-9_]*)\\b");
+        String result = pattern.matcher(content).replaceAll("$1.data.$2");
+
+        if (!result.equals(content)) {
+            conversionsApplied.add("Converted custom page frontmatter fields to page.data.*");
+        }
+
+        return result;
     }
 }

@@ -1,0 +1,33 @@
+#! /bin/bash
+
+set -x
+
+# TODO this only works in a new shell, do a source?
+# TODO or just the mvn commands
+# or a pre-script?
+# curl -Ls https://sh.jbang.dev | bash -s - trust add https://repo1.maven.org/maven2/io/quarkiverse/roq/
+# curl -Ls https://sh.jbang.dev | bash -s - app install --fresh --force roq@quarkiverse/quarkus-roq
+
+export project_dir=$1
+export tools_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+export tmp_dir=~/tmp
+
+(
+cd ${project_dir}
+
+# Reset to upstream/main (keeps changes staged)
+git reset --hard upstream/main
+
+# Remove untracked files and directories
+git clean -fd
+
+git cherry-pick 049f46bcefd5146df6294932d51e8d66753eb008
+git cherry-pick 96ba75623ca18dbc33565b8de378ee77f6ac723d
+)
+
+# TODO need to handle qute stuff
+## Hack: delete files we can't process
+rm ${project_dir}/_posts/2022-06-21-qute-templates-from-db.adoc
+rm ${project_dir}/_posts/2023-10-10-intellij-quarkus-recap.adoc
+
+${tools_dir}/roq-it-jekyll ${project_dir}

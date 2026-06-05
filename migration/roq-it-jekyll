@@ -147,10 +147,22 @@ if [ -f "${project_dir}/_config.yml" ]; then
     language=$(grep "^language:" ${project_dir}/_config.yml | sed 's/^language: *\([^ #]*\).*/\1/')
     language=${language:-en}
 
+    # Extract nested search config from _config.yml
+    # Note: This is a simplified extraction - complex YAML may need a proper parser
+    search_script_mode=$(grep -A10 "^search:" ${project_dir}/_config.yml | grep "script-mode:" | sed 's/.*script-mode: *"\(.*\)".*/\1/')
+    search_host=$(grep -A10 "^search:" ${project_dir}/_config.yml | grep "host:" | sed 's/.*host: *"\(.*\)".*/\1/')
+    search_script_path=$(grep -A10 "^search:" ${project_dir}/_config.yml | grep "script-path:" | sed 's/.*script-path: *"\(.*\)".*/\1/')
+    search_cached_script_file=$(grep -A10 "^search:" ${project_dir}/_config.yml | grep "cached-script-file:" | sed 's/.*cached-script-file: *"\(.*\)".*/\1/' | sed "s/.*cached-script-file: *\([^ ]*\).*/\1/")
+
     # Create data/siteConfig.yml with extracted values
     cat > ${project_dir}/data/siteConfig.yml <<SITEDATA
 baseurl: "${baseurl}"
 language: "${language}"
+search:
+  script-mode: "${search_script_mode}"
+  host: "${search_host}"
+  script-path: "${search_script_path}"
+  cached-script-file: "${search_cached_script_file}"
 SITEDATA
 fi
 # TODO need to add name and simple-name - global config?

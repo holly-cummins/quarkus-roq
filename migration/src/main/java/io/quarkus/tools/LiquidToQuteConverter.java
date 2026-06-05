@@ -890,11 +890,12 @@ public class LiquidToQuteConverter {
         // Jekyll site properties that are migrated to data/siteConfig.yml
         // Convert {=site.baseurl} to {cdi:siteConfig.baseurl}, etc.
         // Note: Using "siteConfig" instead of "site" to avoid conflict with Roq's built-in Site object
-        String[] dataProperties = {"baseurl", "language"};
+        String[] dataProperties = {"baseurl", "language", "search"};
         String original = content;
 
         for (String prop : dataProperties) {
-            // Match site.property in Qute expressions: {=site.baseurl} or {#if site.baseurl}
+            // Match site.property (including nested like site.search.host)
+            // Pattern: site.baseurl or site.search.host or site.search.script-mode
             Pattern pattern = Pattern.compile("(\\{[=#])([^}]*?)\\bsite\\." + prop + "\\b");
             content = pattern.matcher(content).replaceAll("$1$2cdi:siteConfig." + prop);
         }

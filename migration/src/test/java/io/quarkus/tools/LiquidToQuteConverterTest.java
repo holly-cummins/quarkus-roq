@@ -641,4 +641,20 @@ class LiquidToQuteConverterTest {
         assertConverts(input, expected,
                 "Custom fields in conditionals should convert to page.data.*");
     }
+
+    @Test
+    void testSiteSearchConvertsToCdi() {
+        String input = "{{site.search.host}}";
+        String expected = "{=cdi:siteConfig.search.host}";
+        assertConverts(input, expected,
+                "site.search properties should convert to CDI reference");
+    }
+
+    @Test
+    void testSiteSearchScriptMode() {
+        String input = "{% if site.search.script-mode == 'direct' %}...{% endif %}";
+        String expected = "{#if cdi:siteConfig.search.script-mode == 'direct'}...{/if}";
+        assertConverts(input, expected,
+                "site.search.script-mode should convert to CDI reference");
+    }
 }

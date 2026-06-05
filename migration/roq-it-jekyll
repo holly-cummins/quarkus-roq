@@ -165,6 +165,14 @@ search:
   script-path: "${search_script_path}"
   cached-script-file: "${search_cached_script_file}"
 SITEDATA
+
+    # Create empty menu.yml to satisfy theme templates (even if not used)
+    # Sites can populate this later with their navigation structure
+    cat > ${project_dir}/data/menu.yml <<MENU
+# Navigation menu structure (optional)
+# Uncomment and customize if using roq-default theme's sidebar menu
+items: []
+MENU
 fi
 
 # Detect Jekyll features and add corresponding Roq plugins

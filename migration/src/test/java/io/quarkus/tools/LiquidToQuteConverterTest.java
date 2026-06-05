@@ -26,9 +26,9 @@ class LiquidToQuteConverterTest {
     @Test
     void testEmptyStringSplit() {
         String input = "{=\"\" | split: \",\"}";
-        String expected = "{=[]}";
+        String expected = "{=\"\".split(\",\")}";
         String result = converter.convert(input);
-        assertEquals(expected, result, "Empty string split should become empty array");
+        assertEquals(expected, result, "Empty string split should use split method");
     }
 
     @Test
@@ -321,20 +321,21 @@ class LiquidToQuteConverterTest {
 
     @Test
     void testAssignWithEmptyStringSplit() {
-        // This is the pattern from _layouts/author.html line 38 that causes {?:} error
+        // Liquid: "" | split: "" creates an empty array
+        // Qute doesn't support [] literals, so we leave it as "".split("")
         String input = "{% assign authors_clean = \"\" | split: \"\" %}";
-        String expected = "{#let authors_clean=[]}{/let}";
+        String expected = "{#let authors_clean=\"\".split(\"\")}{/let}";
         String result = converter.convert(input);
-        assertEquals(expected, result, "Empty string split in assignment should become empty array");
+        assertEquals(expected, result, "Empty string split in assignment should produce valid Qute");
     }
 
     @Test
     void testEmptyStringWithPipeAndSplit() {
         // Test the exact pattern: "" | split: ""
         String input = "\"\" | split: \"\"";
-        String expected = "[]";
+        String expected = "\"\".split(\"\")";
         String result = converter.convert(input);
-        assertEquals(expected, result, "Empty string pipe split should become empty array");
+        assertEquals(expected, result, "Empty string pipe split should use split method");
     }
 
     @Test
@@ -347,6 +348,17 @@ class LiquidToQuteConverterTest {
     }
 
     @Test
+    void testAndOrInProseNotCorrupted() {
+        String input = "<p>This is information or data and more text</p>\n" +
+                       "{% if a and b %}yes{% endif %}";
+        String expected = "<p>This is information or data and more text</p>\n" +
+                         "{#if a && b}yes{/if}";
+        String result = converter.convert(input);
+        assertEquals(expected, result,
+                "and/or in prose text should not be converted, only inside conditionals");
+    }
+
+    @Test
     void testAuthorFileLines36to38() {
         // Test the EXACT pattern from _layouts/author.html lines 36-38
         String input = "      {% comment %} Build multi-author list for this post {% endcomment %}\n" +
@@ -355,10 +367,97 @@ class LiquidToQuteConverterTest {
         
         String expected = "      {!  Build multi-author list for this post  !}\n" +
                          "      {#let authors_raw=(page.author ?: \"\").split(\",\")}{/let}\n" +
-                         "      {#let authors_clean=[]}{/let}";
+                         "      {#let authors_clean=\"\".split(\"\")}{/let}";
         
         String result = converter.convert(input);
         assertEquals(expected, result, "Author file lines 36-38 should convert without {?:} errors");
+    }
+    @Test
+    void testWhitespaceTrimmingTags() {
+        // Liquid: {%- if ... -%} and {% endif -%} (whitespace trimming)
+        String input = "{%- if condition -%}content{%- endif -%}";
+        String expected = "{#if condition}content{/if}";
+        String result = converter.convert(input);
+        assertEquals(expected, result,
+                "Whitespace-trimming tags should be handled like normal tags");
+    }
+
+    @Test
+    void testWhitespaceTrimmingEndFor() {
+        String input = "{% for item in items %}{=item}{% endfor -%}";
+        String expected = "{#for item in items}{=item}{/for}";
+        String result = converter.convert(input);
+        assertEquals(expected, result,
+                "endfor with whitespace trimming should convert");
+    }
+
+    @Test
+    void testReplaceRegexFilter() {
+        String input = "{{page.url | replace_regex: '^/version/([^/]+)/.*', '\\1'}}";
+        String expected = "{=page.url.replaceAll('^/version/([^/]+)/.*', '\\1')}";
+        String result = converter.convert(input);
+        assertEquals(expected, result,
+                "replace_regex filter should convert to .replaceAll() method call");
+    }
+
+    @Test
+    void testStartsWithFilter() {
+        String input = "{% assign versioned = page.url | startswith: '/version/' %}";
+        String expected = "{#let versioned=page.url.startsWith('/version/')}{/let}";
+        String result = converter.convert(input);
+        assertEquals(expected, result,
+                "startswith filter should convert to .startsWith() method call");
+    }
+
+    @Test
+    void testEndsWithFilter() {
+        String input = "{{title | endswith: 'Quarkus'}}";
+        String expected = "{=title.endsWith('Quarkus')}";
+        String result = converter.convert(input);
+        assertEquals(expected, result,
+                "endswith filter should convert to .endsWith() method call");
+    }
+
+    @Test
+    void testSortFilterWithArgument() {
+        // Liquid: {{ array | sort: "name" }}
+        // Qute: array.sort("name")
+        String input = "{% assign authors = site.data.authors | sort: name %}";
+        String expected = "{#let authors=site.data.authors.sort(name)}{/let}";
+        String result = converter.convert(input);
+        assertEquals(expected, result,
+                "Sort filter with argument should convert to method call with argument");
+    }
+
+    @Test
+    void testPrependFilter() {
+        // Liquid: {{ path | prepend: site.baseurl }}
+        // Qute: site.baseurl + path (prepend = concatenate before)
+        String input = "{{paginator.next_page_path | prepend: site.baseurl}}";
+        String expected = "{=site.baseurl + paginator.next_page_path}";
+        String result = converter.convert(input);
+        assertEquals(expected, result,
+                "Prepend filter should convert to string concatenation");
+    }
+
+    @Test
+    void testDynamicBracketNotation() {
+        // Liquid: site.data.authors[author_key]
+        // Qute doesn't support dynamic bracket notation; use .get() instead
+        String input = "{% assign author = site.data.authors[author_key] %}";
+        String expected = "{#let author=site.data.authors.get(author_key)}{/let}";
+        String result = converter.convert(input);
+        assertEquals(expected, result,
+                "Dynamic bracket notation should be converted to .get() method call");
+    }
+
+    @Test
+    void testDynamicBracketNotationInVariable() {
+        String input = "{{ site.data.authors[key].name }}";
+        String expected = "{=site.data.authors.get(key).name}";
+        String result = converter.convert(input);
+        assertEquals(expected, result,
+                "Bracket notation followed by property access should convert correctly");
     }
 }
 

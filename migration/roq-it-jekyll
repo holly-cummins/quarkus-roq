@@ -2,15 +2,12 @@
 
 set -x
 
-# TODO this only works in a new shell, do a source?
-# TODO or just the mvn commands
-# or a pre-script?
-# curl -Ls https://sh.jbang.dev | bash -s - trust add https://repo1.maven.org/maven2/io/quarkiverse/roq/
-# curl -Ls https://sh.jbang.dev | bash -s - app install --fresh --force roq@quarkiverse/quarkus-roq
-
 export project_dir=$1
 export tools_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 export tmp_dir=~/tmp
+
+## Build the converter
+mvn -f ${tools_dir}/pom.xml install -q
 
 ## Ensure a clean state in the starting project
 
@@ -21,30 +18,102 @@ rm -rf ${project_dir}/templates/
 
 rm -f ${project_dir}/application.properties
 
-mkdir -p ${tmp_dir}
-export roq_skeleton_dir=${tmp_dir}/quarkusio-roq-skeleton
+## Generate minimal Roq project files (no roq CLI needed)
+mkdir -p ${project_dir}/config
 
-## Make a donor roq project
-# TODO this could be done with a direct call to RoqProjectCreator, but I am not sure how much it gives us
-rm -rf ${roq_skeleton_dir}
-(
-cd ${tmp_dir}
-roq create quarkusio-roq-skeleton
-)
+cat > ${project_dir}/config/application.properties <<'PROPS'
+PROPS
 
-# Remove scaffolded files that we have already
-# Better idea - copy what we need
-
-mv ${roq_skeleton_dir}/pom.xml ${project_dir}
-mv ${roq_skeleton_dir}/config ${project_dir}
+# Generate a standalone pom.xml for the converted Roq site
+cat > ${project_dir}/pom.xml <<'POM'
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <groupId>io.quarkus</groupId>
+    <artifactId>quarkusio-converted</artifactId>
+    <version>1.0.0-SNAPSHOT</version>
+    <name>Quarkus.io - Converted from Jekyll</name>
+    <properties>
+        <compiler-plugin.version>3.15.0</compiler-plugin.version>
+        <maven.compiler.release>21</maven.compiler.release>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
+        <quarkus.platform.artifact-id>quarkus-bom</quarkus.platform.artifact-id>
+        <quarkus.platform.group-id>io.quarkus</quarkus.platform.group-id>
+        <quarkus.platform.version>3.35.0</quarkus.platform.version>
+        <quarkus-roq.version>999-SNAPSHOT</quarkus-roq.version>
+        <surefire-plugin.version>3.5.5</surefire-plugin.version>
+    </properties>
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>${quarkus.platform.group-id}</groupId>
+                <artifactId>${quarkus.platform.artifact-id}</artifactId>
+                <version>${quarkus.platform.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+    <dependencies>
+        <dependency>
+            <groupId>io.quarkiverse.roq</groupId>
+            <artifactId>quarkus-roq-frontmatter</artifactId>
+            <version>${quarkus-roq.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.quarkiverse.roq</groupId>
+            <artifactId>quarkus-roq-theme-default</artifactId>
+            <version>${quarkus-roq.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.quarkiverse.roq</groupId>
+            <artifactId>quarkus-roq-plugin-markdown</artifactId>
+            <version>${quarkus-roq.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-arc</artifactId>
+        </dependency>
+    </dependencies>
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>${quarkus.platform.group-id}</groupId>
+                <artifactId>quarkus-maven-plugin</artifactId>
+                <version>${quarkus.platform.version}</version>
+                <extensions>true</extensions>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>build</goal>
+                            <goal>generate-code</goal>
+                            <goal>generate-code-tests</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>${compiler-plugin.version}</version>
+                <configuration>
+                    <parameters>true</parameters>
+                </configuration>
+            </plugin>
+            <plugin>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>${surefire-plugin.version}</version>
+            </plugin>
+        </plugins>
+    </build>
+</project>
+POM
 
 # Roq content lives in content
 mkdir -p ${project_dir}/content
 mv ${project_dir}/*md ${project_dir}/content/
 
 mkdir -p ${project_dir}/templates
-
-# clear target directories
 
 # Adjust folder names and locations
 mv ${project_dir}/_posts ${project_dir}/content/posts
@@ -56,26 +125,25 @@ mv ${project_dir}/assets ${project_dir}/public
 
 mv ${project_dir}/_site/index.html ${project_dir}
 
-# TODO can't be a good idea
-mv ${roq_skeleton_dir}/data/menu.yml ${project_dir}/data
-# TODO same
-
-# TODO check jbang is installed
 # Convert Liquid to Qute; this has the side effect of renaming directories to adjust the structure
-mkdir ${project_dir}/includes
-jbang ${tools_dir}/LiquidToQuteConverter.java ${project_dir}/_includes ${project_dir}/includes
-jbang ${tools_dir}/LiquidToQuteConverter.java ${project_dir}/_layouts ${project_dir}/templates/layouts
-
-# TODO need to be more selective here, should not be needed, what is in here?
-# mv ${roq_skeleton_dir}/content ${project_dir}
+mkdir -p ${project_dir}/includes
+mvn -f ${tools_dir}/pom.xml -q exec:java -Dexec.mainClass="io.quarkus.tools.LiquidToQuteConverter" -Dexec.args="${project_dir}/_includes ${project_dir}/includes"
+mvn -f ${tools_dir}/pom.xml -q exec:java -Dexec.mainClass="io.quarkus.tools.LiquidToQuteConverter" -Dexec.args="${project_dir}/_layouts ${project_dir}/templates/layouts"
 
 # Enable the alternative expression syntax to reduce overhead of escaping braces
 echo quarkus.qute.alt-expr-syntax=true >> ${project_dir}/config/application.properties
 echo "site.date-format=yyyy-MM-dd['T'HH:mm:ss][X]" >> ${project_dir}/config/application.properties
 # TODO need to add name and simple-name - global config?
 
-# TODO maven should work?
-(
-    cd ${project_dir}
-    roq dev
-)
+if [ "${BATCH_MODE}" != "true" ]; then
+    (
+        cd ${project_dir}
+        mvn quarkus:dev
+    )
+else
+    echo "Batch mode: running quarkus:build to check for errors..."
+    (
+        cd ${project_dir}
+        mvn quarkus:build 2>&1
+    )
+fi

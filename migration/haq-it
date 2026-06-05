@@ -2,6 +2,15 @@
 
 set -x
 
+# Parse options
+export BATCH_MODE=false
+while [[ "$1" == --* ]]; do
+  case "$1" in
+    --batch) BATCH_MODE=true; shift ;;
+    *) echo "Unknown option: $1"; exit 1 ;;
+  esac
+done
+
 # TODO this only works in a new shell, do a source?
 # TODO or just the mvn commands
 # or a pre-script?
@@ -26,7 +35,8 @@ git cherry-pick 96ba75623ca18dbc33565b8de378ee77f6ac723d
 )
 
 # TODO need to handle qute stuff
-## Hack: delete files we can't process
+## Hack: delete files with Qute example code that the Qute parser would interpret as real template syntax
+rm ${project_dir}/_posts/2020-02-24-qute.adoc
 rm ${project_dir}/_posts/2022-06-21-qute-templates-from-db.adoc
 rm ${project_dir}/_posts/2023-10-10-intellij-quarkus-recap.adoc
 

@@ -102,7 +102,7 @@ public class LiquidToQuteConverter implements Callable<Integer> {
         return inputPath.getParent().resolve(fileName + ".qute");
     }
 
-    private boolean convertFile(Path inputPath, Path outputPath) {
+    boolean convertFile(Path inputPath, Path outputPath) {
         try {
             String content = Files.readString(inputPath);
             conversionsApplied.clear();
@@ -157,8 +157,12 @@ public class LiquidToQuteConverter implements Callable<Integer> {
         }
     }
 
-    private String convert(String content) {
+    String convert(String content) {
         String original = content;
+
+        // Strip Liquid whitespace-trimming markers before any conversion
+        content = content.replaceAll("\\{%-", "{%");
+        content = content.replaceAll("-%\\}", "%}");
 
         // Convert in order of complexity
         content = convertComments(content);
@@ -171,6 +175,8 @@ public class LiquidToQuteConverter implements Callable<Integer> {
         content = convertCaseStatements(content);
         content = convertLayoutTags(content);
         content = convertSpecialTags(content);
+
+        content = convertBracketNotation(content);
 
         // Final cleanup steps - ORDER MATTERS!
         // Remove spaces first so ternary wrapping can match properly
@@ -264,6 +270,64 @@ public class LiquidToQuteConverter implements Callable<Integer> {
             content = result;
         }
 
+        // Handle prepend filter (string concatenation, reversed order)
+        // Liquid: path | prepend: base
+        // Qute: base + path
+        Pattern prependPattern = Pattern.compile("([a-zA-Z0-9_.\"']+)\\s*\\|\\s*prepend:\\s*([^|}%]+)");
+        Matcher prependMatcher = prependPattern.matcher(content);
+        StringBuffer prependSb = new StringBuffer();
+
+        while (prependMatcher.find()) {
+            String base = prependMatcher.group(1).trim();
+            String prefix = prependMatcher.group(2).trim();
+            prependMatcher.appendReplacement(prependSb, Matcher.quoteReplacement(prefix + " + " + base));
+        }
+        prependMatcher.appendTail(prependSb);
+
+        result = prependSb.toString();
+        if (!result.equals(content)) {
+            conversionsApplied.add("Converted prepend filter to string concatenation");
+            content = result;
+        }
+
+        // Filters with a single argument: sort, startswith, endswith, contains
+        String[][] filterWithArgMap = {
+                {"sort", "sort"},
+                {"startswith", "startsWith"},
+                {"endswith", "endsWith"},
+                {"contains", "contains"},
+                {"equals", "equals"},
+                {"map", "map"},
+                {"group_by", "groupBy"},
+                {"slice", "slice"},
+                {"add", "add"},
+                {"minus", "minus"},
+                {"times", "times"},
+                {"truncate", "truncate"},
+                {"remove_first", "removeFirst"},
+                {"where_exp", "whereExp"},
+        };
+
+        for (String[] mapping : filterWithArgMap) {
+            String liquidFilter = mapping[0];
+            String quteMethod = mapping[1];
+            Pattern fwaPattern = Pattern.compile("\\|\\s*" + liquidFilter + ":\\s*([^|}%]+)");
+            Matcher fwaMatcher = fwaPattern.matcher(content);
+            StringBuilder fwaSb = new StringBuilder();
+
+            while (fwaMatcher.find()) {
+                String arg = fwaMatcher.group(1).trim();
+                fwaMatcher.appendReplacement(fwaSb, "." + quteMethod + "(" + Matcher.quoteReplacement(arg) + ")");
+            }
+            fwaMatcher.appendTail(fwaSb);
+
+            result = fwaSb.toString();
+            if (!result.equals(content)) {
+                conversionsApplied.add("Converted filter: " + liquidFilter + " -> " + quteMethod + "()");
+                content = result;
+            }
+        }
+
         // Common filter conversions
         String[][] filterMap = {
                 {"upcase", "toUpperCase"},
@@ -279,7 +343,7 @@ public class LiquidToQuteConverter implements Callable<Integer> {
                 {"reverse", "reverse"},
                 {"uniq", "distinct"},
                 {"compact", "filterNotNull"},
-                {"strip", "trim"},
+                {"strip", "trim()"},
                 {"lstrip", "trimStart"},
                 {"rstrip", "trimEnd"},
                 {"escape", "escapeHtml"},
@@ -349,6 +413,8 @@ public class LiquidToQuteConverter implements Callable<Integer> {
             content = result;
         }
 
+        content = content.replaceAll("\\s{2,}\\?:", " ?:");
+
         // Truncate filter
         // Liquid: {{ text | truncatewords: 50 }}
         // Qute: {text.wordLimit(50)}
@@ -356,6 +422,16 @@ public class LiquidToQuteConverter implements Callable<Integer> {
         result = truncatePattern.matcher(content).replaceAll(".wordLimit($1)");
         if (!result.equals(content)) {
             conversionsApplied.add("Converted truncate filter");
+            content = result;
+        }
+
+        // Replace_regex filter with two arguments (must be before replace to avoid partial match)
+        // Liquid: {{ text | replace_regex: 'pattern', 'replacement' }}
+        // Qute: {text.replaceAll('pattern', 'replacement')}
+        Pattern replaceRegexPattern = Pattern.compile("\\|\\s*replace_regex:\\s*(['\"][^'\"]*['\"])\\s*,\\s*(['\"][^'\"]*['\"])");
+        result = replaceRegexPattern.matcher(content).replaceAll(".replaceAll($1, $2)");
+        if (!result.equals(content)) {
+            conversionsApplied.add("Converted replace_regex filter");
             content = result;
         }
 
@@ -372,8 +448,17 @@ public class LiquidToQuteConverter implements Callable<Integer> {
         // Push filter (array append)
         // Liquid: {{ array | push: item }}
         // Qute: {array.push(item)}
-        Pattern pushPattern = Pattern.compile("\\|\\s*push:\\s*([^}|]+)");
-        result = pushPattern.matcher(content).replaceAll(".push($1)");
+        Pattern pushPattern = Pattern.compile("\\|\\s*push:\\s*([^}|%]+)");
+        Matcher pushMatcher = pushPattern.matcher(content);
+        StringBuilder pushSb = new StringBuilder();
+
+        while (pushMatcher.find()) {
+            String param = pushMatcher.group(1).trim();
+            pushMatcher.appendReplacement(pushSb, ".push(" + param + ")");
+        }
+        pushMatcher.appendTail(pushSb);
+
+        result = pushSb.toString();
         if (!result.equals(content)) {
             conversionsApplied.add("Converted push filter");
             content = result;
@@ -389,17 +474,7 @@ public class LiquidToQuteConverter implements Callable<Integer> {
             content = result;
         }
 
-        // Special case: empty string split should become empty array
-        // Liquid: "" | split: ""
-        // Qute: [] (cannot call methods on string literals)
-        Pattern emptyStringSplitPattern = Pattern.compile("\"\"\\s*\\|\\s*split:\\s*['\"][^'\"]*['\"]");
-        result = emptyStringSplitPattern.matcher(content).replaceAll("[]");
-        if (!result.equals(content)) {
-            conversionsApplied.add("Converted empty string split to empty array");
-            content = result;
-        }
-
-        // Split filter
+        // Split filter (must happen before empty string split detection)
         // Liquid: {{ text | split: "," }}
         // Qute: {text.split(",")}
         Pattern splitPattern = Pattern.compile("\\|\\s*split:\\s*(['\"][^'\"]*['\"])");
@@ -433,9 +508,23 @@ public class LiquidToQuteConverter implements Callable<Integer> {
         content = content.replaceAll("\\{%\\s*unless\\s+([^%]+?)\\s*%\\}", "{#if !($1)}");
         content = content.replaceAll("\\{%\\s*endunless\\s*%\\}", "{/if}");
 
-        // Convert operators
-        content = content.replaceAll("\\band\\b", "&&");
-        content = content.replaceAll("\\bor\\b", "||");
+        // Convert operators ONLY inside conditional blocks to avoid corrupting prose text
+        Pattern ifPattern = Pattern.compile("(\\{#(?:if|else if)\\s+)([^}]+?)(\\})");
+        Matcher ifMatcher = ifPattern.matcher(content);
+        StringBuffer sb = new StringBuffer();
+
+        while (ifMatcher.find()) {
+            String prefix = ifMatcher.group(1);
+            String condition = ifMatcher.group(2);
+            String suffix = ifMatcher.group(3);
+
+            condition = condition.replaceAll("\\band\\b", "&&");
+            condition = condition.replaceAll("\\bor\\b", "||");
+
+            ifMatcher.appendReplacement(sb, Matcher.quoteReplacement(prefix + condition + suffix));
+        }
+        ifMatcher.appendTail(sb);
+        content = sb.toString();
 
         conversionsApplied.add("Converted conditionals");
         return content;
@@ -519,6 +608,9 @@ public class LiquidToQuteConverter implements Callable<Integer> {
     }
 
     private String convertAssignments(String content) {
+        // Convert post.* to page.* inside assign tags before converting the tags themselves
+        content = content.replaceAll("(\\{%\\s*assign\\s+\\w+\\s*=\\s*[^%]*?)\\bpost\\.", "$1page.");
+
         // Simple assignments
         // Liquid: {% assign var = value %}
         // Qute: {#let var=value}{/let}
@@ -602,6 +694,28 @@ public class LiquidToQuteConverter implements Callable<Integer> {
                 .map(s -> "✓ " + s)
                 .reduce((a, b) -> a + "\n" + b)
                 .orElse("");
+    }
+
+    private String convertBracketNotation(String content) {
+        // Liquid: object[variable] (dynamic property access)
+        // Qute: object.get(variable)
+        Pattern pattern = Pattern.compile("([a-zA-Z0-9_.]+)\\[([a-zA-Z0-9_.]+)\\]");
+        Matcher matcher = pattern.matcher(content);
+        StringBuffer sb = new StringBuffer();
+
+        while (matcher.find()) {
+            String object = matcher.group(1);
+            String key = matcher.group(2);
+            matcher.appendReplacement(sb, Matcher.quoteReplacement(object + ".get(" + key + ")"));
+        }
+        matcher.appendTail(sb);
+
+        String result = sb.toString();
+        if (!result.equals(content)) {
+            conversionsApplied.add("Converted bracket notation to .get()");
+        }
+
+        return result;
     }
 
     /**

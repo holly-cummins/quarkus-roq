@@ -684,12 +684,17 @@ public class LiquidToQuteConverter {
 
     private int findScopeBoundary(String content, int startPos) {
         int depth = 0;
-        Pattern tagPattern = Pattern.compile("\\{#(for|if|let)\\b|\\{/(for|if|let)\\}");
+        Pattern tagPattern = Pattern.compile("\\{#(for|if|let)\\b|\\{#else\\b|\\{/(for|if|let)\\}");
         Matcher matcher = tagPattern.matcher(content);
         matcher.region(startPos, content.length());
 
         while (matcher.find()) {
-            if (matcher.group().startsWith("{#")) {
+            String match = matcher.group();
+            if (match.startsWith("{#else")) {
+                if (depth == 0) {
+                    return matcher.start();
+                }
+            } else if (match.startsWith("{#")) {
                 depth++;
             } else {
                 if (depth == 0) {

@@ -127,8 +127,8 @@ mv ${project_dir}/_site/index.html ${project_dir}
 
 # Convert Liquid to Qute; this has the side effect of renaming directories to adjust the structure
 mkdir -p ${project_dir}/includes
-mvn -f ${tools_dir}/pom.xml -q exec:java -Dexec.mainClass="io.quarkus.tools.LiquidToQuteConverter" -Dexec.args="${project_dir}/_includes ${project_dir}/includes"
-mvn -f ${tools_dir}/pom.xml -q exec:java -Dexec.mainClass="io.quarkus.tools.LiquidToQuteConverter" -Dexec.args="${project_dir}/_layouts ${project_dir}/templates/layouts"
+mvn -f ${tools_dir}/pom.xml -q exec:java -Dexec.mainClass="io.quarkus.tools.LiquidToQuteCommand" -Dexec.args="${project_dir}/_includes ${project_dir}/includes"
+mvn -f ${tools_dir}/pom.xml -q exec:java -Dexec.mainClass="io.quarkus.tools.LiquidToQuteCommand" -Dexec.args="${project_dir}/_layouts ${project_dir}/templates/layouts"
 
 # Enable the alternative expression syntax to reduce overhead of escaping braces
 echo quarkus.qute.alt-expr-syntax=true >> ${project_dir}/config/application.properties

@@ -569,4 +569,12 @@ class LiquidToQuteConverterTest {
         assertConverts(input, expected,
                 "Multiple top-level assigns should nest with both {/let}s at end");
     }
+
+    @Test
+    void testAssignInIfBranchScopedBeforeElse() {
+        String input = "{% if page.title %}{% assign x = page.title %}{% else %}{% assign x = 'default' %}{% endif %}";
+        String expected = "{#if page.title}{#let x=page.title}{/let}{#else}{#let x='default'}{/let}{/if}";
+        assertConverts(input, expected,
+                "Assign in if branch should be scoped before the else, not crossing into it");
+    }
 }

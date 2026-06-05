@@ -1,7 +1,11 @@
 package io.quarkus.tools;
 
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -27,6 +31,10 @@ public class LiquidToQuteConverter {
         content = convertConditionals(content);
         content = convertLoops(content);
         content = convertIncludes(content);
+
+        // Convert if/else blocks with assigns to ternary expressions (must run before convertAssignments)
+        content = convertIfElseAssignsToTernary(content);
+
         content = convertAssignments(content);
         content = convertCaseStatements(content);
         content = convertLayoutTags(content);
@@ -648,6 +656,99 @@ public class LiquidToQuteConverter {
         }
 
         return result;
+    }
+
+    private String convertIfElseAssignsToTernary(String content) {
+        // Pattern: detect if/else blocks where the same variable is assigned in both branches
+        // Convert to a single ternary assignment before the if block
+        // This matches Jekyll semantics where assigns persist beyond their block
+
+        // Find: {#if condition} ... {%assign var = exprA %} ... {#else} ... {%assign var = exprB %} ... {/if}
+        // Convert to: {#let var = condition ? exprA : exprB} ... {/if} {/let}
+        // (remove both assigns, add the ternary before the if)
+
+        Pattern ifElsePattern = Pattern.compile(
+                "\\{#if\\s+([^}]+?)\\}(.*?)\\{#else\\}(.*?)\\{/if\\}",
+                Pattern.DOTALL);
+
+        Matcher matcher = ifElsePattern.matcher(content);
+        StringBuilder sb = new StringBuilder();
+        boolean changed = false;
+
+        while (matcher.find()) {
+            String condition = matcher.group(1);
+            String ifBranch = matcher.group(2);
+            String elseBranch = matcher.group(3);
+
+            // Look for assigns in both branches
+            Pattern assignPattern = Pattern.compile("\\{%\\s*assign\\s+(\\w+)\\s*=\\s*([^%]+?)\\s*%\\}");
+            Matcher ifAssigns = assignPattern.matcher(ifBranch);
+            Matcher elseAssigns = assignPattern.matcher(elseBranch);
+
+            // Collect assigns from both branches
+            Map<String, String> ifVars = new HashMap<>();
+            Map<String, String> elseVars = new HashMap<>();
+
+            while (ifAssigns.find()) {
+                ifVars.put(ifAssigns.group(1), ifAssigns.group(2));
+            }
+            while (elseAssigns.find()) {
+                elseVars.put(elseAssigns.group(1), elseAssigns.group(2));
+            }
+
+            // Find variables assigned in BOTH branches
+            Set<String> commonVars = new HashSet<>(ifVars.keySet());
+            commonVars.retainAll(elseVars.keySet());
+
+            if (!commonVars.isEmpty()) {
+                // Convert common assigns to ternary
+                StringBuilder ternaryLets = new StringBuilder();
+                String modifiedIfBranch = ifBranch;
+                String modifiedElseBranch = elseBranch;
+
+                for (String var : commonVars) {
+                    String ifExpr = ifVars.get(var);
+                    String elseExpr = elseVars.get(var);
+
+                    // Create ternary: {#let var = condition ? ifExpr : elseExpr}
+                    ternaryLets.append("{#let ").append(var).append("=(")
+                            .append(condition).append(") ? ")
+                            .append(ifExpr).append(" : ")
+                            .append(elseExpr).append("}\n");
+
+                    // Remove the assigns from both branches
+                    modifiedIfBranch = modifiedIfBranch.replaceFirst(
+                            "\\{%\\s*assign\\s+" + var + "\\s*=\\s*" + Pattern.quote(ifExpr) + "\\s*%\\}",
+                            "");
+                    modifiedElseBranch = modifiedElseBranch.replaceFirst(
+                            "\\{%\\s*assign\\s+" + var + "\\s*=\\s*" + Pattern.quote(elseExpr) + "\\s*%\\}",
+                            "");
+                }
+
+                // Rebuild the if/else block with ternary lets before it
+                String replacement = ternaryLets.toString()
+                        + "{#if " + condition + "}"
+                        + modifiedIfBranch
+                        + "{#else}"
+                        + modifiedElseBranch
+                        + "{/if}"
+                        + "{/let}".repeat(commonVars.size());
+
+                matcher.appendReplacement(sb, Matcher.quoteReplacement(replacement));
+                changed = true;
+            } else {
+                // No common assigns - keep as is
+                matcher.appendReplacement(sb, Matcher.quoteReplacement(matcher.group(0)));
+            }
+        }
+        matcher.appendTail(sb);
+
+        if (changed) {
+            conversionsApplied.add("Converted if/else assigns to ternary expressions");
+            return sb.toString();
+        }
+
+        return content;
     }
 
     private String convertAssignments(String content) {

@@ -685,19 +685,17 @@ class LiquidToQuteConverterTest {
                 <link rel="canonical" href="{{ canonical_url }}">
                 """;
         String result = converter.convert(input);
-        System.out.println("=== CONVERTED ===");
-        System.out.println(result);
-        System.out.println("=================");
 
-        // Both assigns should be scoped broadly so canonical_url is available after {/if}
+        // When the same variable is assigned in both branches, convert to ternary
+        assertTrue(result.contains("{#let canonical_url=(page.data.layout == 'guides') ? page.url.replace('foo', '') : page.url}"),
+                "Should convert to ternary expression");
+
+        // The if/else block should remain (even if empty) for now
         assertTrue(result.contains("{#if page.data.layout == 'guides'}"));
-        assertTrue(result.contains("{#let canonical_url=page.url.replace('foo', '')}"));
         assertTrue(result.contains("{#else}"));
-        assertTrue(result.contains("{#let canonical_url=page.url}"));
         assertTrue(result.contains("{/if}"));
-        assertTrue(result.contains("{/let}{/let}"));
 
-        // canonical_url usage should come BEFORE the {/let} tags (inside the scope)
+        // canonical_url usage should come BEFORE the {/let} tag (inside the scope)
         int canonical = result.indexOf("canonical_url}\">");
         int lastLet = result.lastIndexOf("{/let}");
         assertTrue(canonical < lastLet, "canonical_url usage should be before {/let} (in scope)");

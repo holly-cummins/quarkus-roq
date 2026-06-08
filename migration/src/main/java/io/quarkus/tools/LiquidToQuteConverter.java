@@ -176,16 +176,13 @@ public class LiquidToQuteConverter {
     }
 
     private String convertUrlFilters(String content) {
-        // Jekyll's | relative_url prepends site.baseurl; | absolute_url prepends the full site.url + baseurl.
-        // In Roq, baseurl is available as cdi:siteConfig.baseurl.
-        content = content.replaceAll("\\s*\\|\\s*relative_url", "");
-        if (content.contains("relative_url")) {
-            // fallback in case regex missed something
-        }
-        // For expressions like {='/path' | relative_url}, the filter has been removed,
-        // leaving {='/path'}. The baseurl is typically empty or handled by Roq's URL resolution.
-        // If baseurl needs prepending, templates should use cdi:siteConfig.baseurl + '/path'.
-        content = content.replaceAll("\\s*\\|\\s*absolute_url", "");
+        // Jekyll's | relative_url prepends site.baseurl to a path.
+        // Rewrite as | prepend: so the concatenation filter handles the expression walk.
+        content = content.replaceAll("\\|\\s*relative_url", "| prepend: cdi:siteConfig.baseurl");
+        // TODO: absolute_url should prepend site.url + site.baseurl, but chaining two prepends
+        // interacts badly with convertUrlConcatenation's site.url.resolve() transform.
+        // For now, treat same as relative_url (sufficient when site.url is not needed).
+        content = content.replaceAll("\\|\\s*absolute_url", "| prepend: cdi:siteConfig.baseurl");
         return content;
     }
 
@@ -263,7 +260,17 @@ public class LiquidToQuteConverter {
                     }
                 } else if (parenDepth > 0) {
                     baseStart--;
-                } else if (Character.isLetterOrDigit(c) || c == '.' || c == '_' || c == '\'' || c == '"') {
+                } else if (c == '\'' || c == '"') {
+                    // Walk backward through the entire string literal
+                    char quote = c;
+                    baseStart--;
+                    while (baseStart > 0 && content.charAt(baseStart - 1) != quote) {
+                        baseStart--;
+                    }
+                    if (baseStart > 0) {
+                        baseStart--; // include the opening quote
+                    }
+                } else if (Character.isLetterOrDigit(c) || c == '.' || c == '_') {
                     baseStart--;
                 } else {
                     break;

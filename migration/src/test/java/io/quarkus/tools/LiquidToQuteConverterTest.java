@@ -762,22 +762,29 @@ class LiquidToQuteConverterTest {
     @Test
     void testRelativeUrlFilter() {
         String input = "{{ '/assets/javascript/highlight.pack.js' | relative_url }}";
-        String expected = "{='/assets/javascript/highlight.pack.js'}";
-        assertConverts(input, expected, "relative_url filter should be stripped");
+        String expected = "{=cdi:siteConfig.baseurl + '/assets/javascript/highlight.pack.js'}";
+        assertConverts(input, expected, "relative_url filter should prepend baseurl");
     }
 
     @Test
     void testRelativeUrlFilterWithVariable() {
         String input = "{{ page.url | relative_url }}";
-        String expected = "{=page.url}";
-        assertConverts(input, expected, "relative_url filter on variable should be stripped");
+        String expected = "{=cdi:siteConfig.baseurl + page.url}";
+        assertConverts(input, expected, "relative_url filter on variable should prepend baseurl");
     }
 
     @Test
     void testAbsoluteUrlFilter() {
         String input = "{{ '/feed.xml' | absolute_url }}";
-        String expected = "{='/feed.xml'}";
-        assertConverts(input, expected, "absolute_url filter should be stripped");
+        String expected = "{=cdi:siteConfig.baseurl + '/feed.xml'}";
+        assertConverts(input, expected, "absolute_url filter should prepend baseurl");
+    }
+
+    @Test
+    void testPrependWithStringLiteral() {
+        String input = "{{ '/assets/images/quarkus_card.png' | prepend: site.url }}";
+        String expected = "{=site.url.resolve('/assets/images/quarkus_card.png')}";
+        assertConverts(input, expected, "prepend with string literal containing slashes should work");
     }
 
     @Test

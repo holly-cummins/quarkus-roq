@@ -169,6 +169,7 @@ public class LiquidToQuteConverter {
         block = convertTwoArgFilters(block);
         block = convertTableDrivenFilters(block);
         block = convertDateFilter(block);
+        block = stripDefaultBeforeSplit(block);
         block = convertDefaultFilter(block);
         block = convertPushFilter(block);
         block = convertSplitFilter(block);
@@ -440,6 +441,20 @@ public class LiquidToQuteConverter {
         content = content.replaceAll("\\s{2,}\\?:", " ?:");
 
         return content;
+    }
+
+    private String stripDefaultBeforeSplit(String content) {
+        // When | default: X | split: Y appear in sequence, drop the default filter.
+        // Our JekyllFiltersExtension.split() already handles null by returning List.of(),
+        // so the default is redundant. More importantly, keeping it produces
+        // (expr ?: X).split(Y) which Qute's {#let} parser silently drops the .split() call.
+        String result = content.replaceAll(
+                "\\s*\\|\\s*default:\\s*(?:[\"'][^\"']*[\"']|\\S+)(\\s*\\|\\s*split:)",
+                "$1");
+        if (!result.equals(content)) {
+            conversionsApplied.add("Stripped default filter before split (split handles null)");
+        }
+        return result;
     }
 
     private String convertTwoArgFilters(String content) {

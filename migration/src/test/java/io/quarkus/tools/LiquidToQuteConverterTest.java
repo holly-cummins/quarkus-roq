@@ -68,14 +68,12 @@ class LiquidToQuteConverterTest {
     }
 
     @Test
-    void testComplexTernaryWithSplit() {
+    void testDefaultBeforeSplitStripsDefault() {
         String input = "{{post.author | default: \"\" | split: \",\"}}";
-        // post.author stays as-is (post may be a loop variable)
-        // After default filter: post.author ?: ""
-        // After split filter: post.author ?: "".split(",")
-        // After ternary wrapping: (post.author ?: "").split(",")
-        String expected = "{=(post.author ?: \"\").split(\",\")}";
-        assertConverts(input, expected, "Complex ternary with split should be properly wrapped");
+        // default filter is stripped when followed by split, because our split extension handles null.
+        // This avoids (X ?: Y).split() which Qute's {#let} parser silently drops the method call.
+        String expected = "{=post.author.split(\",\")}";
+        assertConverts(input, expected, "default before split should be stripped (split handles null)");
     }
 
     @Test
@@ -208,8 +206,9 @@ class LiquidToQuteConverterTest {
     void testRealWorldAuthorExample() {
         // This is the actual pattern from _layouts/author.html that was causing issues
         // post.author stays as-is (post may be a loop variable)
+        // default is stripped because split extension handles null
         String input = "{{post.author | default: \"\" | split: \",\"}}";
-        String expected = "{=(post.author ?: \"\").split(\",\")}";
+        String expected = "{=post.author.split(\",\")}";
         assertConverts(input, expected, "Real-world author pattern should convert correctly");
     }
 
@@ -315,7 +314,7 @@ class LiquidToQuteConverterTest {
                        "      {% assign authors_clean = \"\" | split: \"\" %}";
 
         String expected = "      {!  Build multi-author list for this post  !}\n" +
-                         "      {#let authors_raw=(post.author ?: \"\").split(\",\")}\n" +
+                         "      {#let authors_raw=post.author.split(\",\")}\n" +
                          "      {#let authors_clean=\"\".split(\"\")}{/let}{/let}";
 
         assertConverts(input, expected, "Author file lines 36-38 should convert without {?:} errors");

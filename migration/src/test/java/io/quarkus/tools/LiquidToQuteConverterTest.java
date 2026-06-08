@@ -21,8 +21,8 @@ class LiquidToQuteConverterTest {
     @Test
     void testEmptyStringSplit() {
         String input = "{=\"\" | split: \",\"}";
-        String expected = "{=\"\".split(\",\")}";
-        assertConverts(input, expected, "Empty string split should use split method");
+        String expected = "{=str:split(\"\", \",\")}";
+        assertConverts(input, expected, "Empty string split should use namespace split");
     }
 
     @Test
@@ -63,17 +63,16 @@ class LiquidToQuteConverterTest {
     @Test
     void testSplitFilter() {
         String input = "{{text | split: \",\"}}";
-        String expected = "{=text.split(\",\")}";
-        assertConverts(input, expected, "Split filter should convert to method call");
+        String expected = "{=str:split(text, \",\")}";
+        assertConverts(input, expected, "Split filter should use namespace form");
     }
 
     @Test
     void testDefaultBeforeSplitStripsDefault() {
         String input = "{{post.author | default: \"\" | split: \",\"}}";
-        // default filter is stripped when followed by split, because our split extension handles null.
-        // This avoids (X ?: Y).split() which Qute's {#let} parser silently drops the method call.
-        String expected = "{=post.author.split(\",\")}";
-        assertConverts(input, expected, "default before split should be stripped (split handles null)");
+        // default is stripped because namespace split handles null
+        String expected = "{=str:split(post.author, \",\")}";
+        assertConverts(input, expected, "default before split should be stripped; split uses namespace form");
     }
 
     @Test
@@ -100,7 +99,7 @@ class LiquidToQuteConverterTest {
     @Test
     void testForLoop() {
         String input = "{% for item in items %}{{item}}{% endfor %}";
-        String expected = "{#for item in items}{=item}{/for}";
+        String expected = "{#for item in items.orEmpty}{=item}{/for}";
         assertConverts(input, expected, "For loop should convert");
     }
 
@@ -184,7 +183,7 @@ class LiquidToQuteConverterTest {
     @Test
     void testUnlessForloopLast() {
         String input = "{% for x in items %}{% unless forloop.last %}, {% endunless %}{% endfor %}";
-        String expected = "{#for x in items}{#if x_hasNext}, {/if}{/for}";
+        String expected = "{#for x in items.orEmpty}{#if x_hasNext}, {/if}{/for}";
         assertConverts(input, expected, "Unless forloop.last should become if hasNext (no double negation)");
     }
 
@@ -206,9 +205,9 @@ class LiquidToQuteConverterTest {
     void testRealWorldAuthorExample() {
         // This is the actual pattern from _layouts/author.html that was causing issues
         // post.author stays as-is (post may be a loop variable)
-        // default is stripped because split extension handles null
+        // default is stripped; split uses namespace form for null safety
         String input = "{{post.author | default: \"\" | split: \",\"}}";
-        String expected = "{=post.author.split(\",\")}";
+        String expected = "{=str:split(post.author, \",\")}";
         assertConverts(input, expected, "Real-world author pattern should convert correctly");
     }
 
@@ -278,8 +277,8 @@ class LiquidToQuteConverterTest {
     @Test
     void testAssignWithEmptyStringSplit() {
         String input = "{% assign authors_clean = \"\" | split: \"\" %}";
-        String expected = "{#let authors_clean=\"\".split(\"\")}{/let}";
-        assertConverts(input, expected, "Empty string split in assignment should produce valid Qute");
+        String expected = "{#let authors_clean=str:split(\"\", \"\")}{/let}";
+        assertConverts(input, expected, "Empty string split in assignment should use namespace form");
     }
 
     @Test
@@ -314,8 +313,8 @@ class LiquidToQuteConverterTest {
                        "      {% assign authors_clean = \"\" | split: \"\" %}";
 
         String expected = "      {!  Build multi-author list for this post  !}\n" +
-                         "      {#let authors_raw=post.author.split(\",\")}\n" +
-                         "      {#let authors_clean=\"\".split(\"\")}{/let}{/let}";
+                         "      {#let authors_raw=str:split(post.author, \",\")}\n" +
+                         "      {#let authors_clean=str:split(\"\", \"\")}{/let}{/let}";
 
         assertConverts(input, expected, "Author file lines 36-38 should convert without {?:} errors");
     }
@@ -332,7 +331,7 @@ class LiquidToQuteConverterTest {
     @Test
     void testWhitespaceTrimmingEndFor() {
         String input = "{% for item in items %}{=item}{% endfor -%}";
-        String expected = "{#for item in items}{=item}{/for}";
+        String expected = "{#for item in items.orEmpty}{=item}{/for}";
         assertConverts(input, expected,
                 "endfor with whitespace trimming should convert");
     }
@@ -400,7 +399,7 @@ class LiquidToQuteConverterTest {
     @Test
     void testForLoopIndexWithNamedVar() {
         String input = "{% for post in posts %}{{forloop.index0}} {{forloop.index}}{% endfor %}";
-        String expected = "{#for post in posts}{=post_index} {=post_count}{/for}";
+        String expected = "{#for post in posts.orEmpty}{=post_index} {=post_count}{/for}";
         assertConverts(input, expected,
                 "forloop.index0/index should use the loop variable name");
     }
@@ -408,7 +407,7 @@ class LiquidToQuteConverterTest {
     @Test
     void testForLoopFirstUsesCount() {
         String input = "{% for item in items %}{% if forloop.first %}first{% endif %}{% endfor %}";
-        String expected = "{#for item in items}{#if item_count == 1}first{/if}{/for}";
+        String expected = "{#for item in items.orEmpty}{#if item_count == 1}first{/if}{/for}";
         assertConverts(input, expected,
                 "forloop.first should convert to var_count == 1");
     }
@@ -416,7 +415,7 @@ class LiquidToQuteConverterTest {
     @Test
     void testForLoopLastUsesHasNext() {
         String input = "{% for entry in entries %}{% if forloop.last %}last{% endif %}{% endfor %}";
-        String expected = "{#for entry in entries}{#if !entry_hasNext}last{/if}{/for}";
+        String expected = "{#for entry in entries.orEmpty}{#if !entry_hasNext}last{/if}{/for}";
         assertConverts(input, expected,
                 "forloop.last should convert to !var_hasNext");
     }
@@ -424,7 +423,7 @@ class LiquidToQuteConverterTest {
     @Test
     void testNestedForLoopsUseDifferentVarNames() {
         String input = "{% for cat in categories %}{% for post in cat.posts %}{{forloop.index}}{% endfor %}{% endfor %}";
-        String expected = "{#for cat in categories}{#for post in cat.posts.orEmpty}{=post_count}{/for}{/for}";
+        String expected = "{#for cat in categories.orEmpty}{#for post in cat.posts.orEmpty}{=post_count}{/for}{/for}";
         assertConverts(input, expected,
                 "Nested loops should use their own variable name for metadata");
     }
@@ -432,7 +431,7 @@ class LiquidToQuteConverterTest {
     @Test
     void testForLoopWithLimitAndOffset() {
         String input = "{% for item in items limit:3 offset:2 %}{{item}}{% endfor %}";
-        String expected = "{#for item in items.skip(2).limit(3)}{=item}{/for}";
+        String expected = "{#for item in items.orEmpty.skip(2).limit(3)}{=item}{/for}";
         assertConverts(input, expected,
                 "Loop with limit and offset should convert to .skip().limit()");
     }
@@ -567,8 +566,8 @@ class LiquidToQuteConverterTest {
 
     @Test
     void testAssignScopeEndsAtEnclosingForLoop() {
-        String input = "{#for item in items}{% assign x = item.name %}{=x}{/for}after";
-        String expected = "{#for item in items}{#let x=item.name}{=x}{/let}{/for}after";
+        String input = "{#for item in items.orEmpty}{% assign x = item.name %}{=x}{/for}after";
+        String expected = "{#for item in items.orEmpty}{#let x=item.name}{=x}{/let}{/for}after";
         assertConverts(input, expected,
                 "Assign inside a for loop should scope to the loop's end");
     }
@@ -818,5 +817,21 @@ class LiquidToQuteConverterTest {
         String input = "{% for item in cdi:books %}text{% endfor %}";
         String expected = "{#for item in cdi:books}text{/for}";
         assertConverts(input, expected, "cdi: iterable should not get .orEmpty");
+    }
+
+    @Test
+    void testSplitWithDefaultUsesNamespaceForm() {
+        // default is stripped, split uses namespace form for null safety
+        String input = "{% assign result = foo.bar | default: \"\" | split: \",\" %}{result}";
+        String result = converter.convert(input);
+        assertTrue(result.contains("{#let result=str:split(foo.bar, \",\")}"),
+                "Should use namespace split form: " + result);
+    }
+
+    @Test
+    void testForLoopSimpleVariableGetsOrEmpty() {
+        String input = "{% for a in authors_raw %}{{ a }}{% endfor %}";
+        String expected = "{#for a in authors_raw.orEmpty}{=a}{/for}";
+        assertConverts(input, expected, "Simple variable iterable in for loop should get .orEmpty");
     }
 }

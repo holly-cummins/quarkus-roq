@@ -445,14 +445,14 @@ public class LiquidToQuteConverter {
 
     private String stripDefaultBeforeSplit(String content) {
         // When | default: X | split: Y appear in sequence, drop the default filter.
-        // Our JekyllFiltersExtension.split() already handles null by returning List.of(),
+        // The split is converted to a namespace call str:split() which handles null,
         // so the default is redundant. More importantly, keeping it produces
         // (expr ?: X).split(Y) which Qute's {#let} parser silently drops the .split() call.
         String result = content.replaceAll(
                 "\\s*\\|\\s*default:\\s*(?:[\"'][^\"']*[\"']|\\S+)(\\s*\\|\\s*split:)",
                 "$1");
         if (!result.equals(content)) {
-            conversionsApplied.add("Stripped default filter before split (split handles null)");
+            conversionsApplied.add("Stripped default filter before split (namespace split handles null)");
         }
         return result;
     }
@@ -528,13 +528,24 @@ public class LiquidToQuteConverter {
     }
 
     private String convertSplitFilter(String content) {
-        Pattern splitPattern = Pattern.compile("\\s*\\|\\s*split:\\s*(['\"][^'\"]*['\"])");
-        String result = splitPattern.matcher(content).replaceAll(".split($1)");
-        if (!result.equals(content)) {
-            conversionsApplied.add("Converted split filter");
-            content = result;
+        // Use namespace form str:split(base, delim) instead of base.split(delim).
+        // Namespace extensions receive null as a regular parameter, so they handle
+        // null base objects that instance extensions can't dispatch on.
+        Pattern splitPattern = Pattern.compile("([a-zA-Z0-9_\\.\"'\\[\\]()]+)\\s*\\|\\s*split:\\s*(['\"][^'\"]*['\"])");
+        Matcher m = splitPattern.matcher(content);
+        StringBuilder sb = new StringBuilder();
+        boolean found = false;
+        while (m.find()) {
+            String base = m.group(1);
+            String delim = m.group(2);
+            m.appendReplacement(sb, Matcher.quoteReplacement("str:split(" + base + ", " + delim + ")"));
+            found = true;
         }
-
+        m.appendTail(sb);
+        if (found) {
+            conversionsApplied.add("Converted split filter");
+            return sb.toString();
+        }
         return content;
     }
 
@@ -762,10 +773,11 @@ public class LiquidToQuteConverter {
     }
 
     private String appendOrEmptyToForLoops(String content) {
-        // Property-access iterables like post.tags might be null at runtime.
+        // Iterables in for loops might be null/not-found at runtime (e.g. post.tags,
+        // or {#let}-bound variables whose expression failed to resolve).
         // Append .orEmpty so Qute returns an empty list instead of throwing.
-        // Skip cdi: and site.collections references (always defined).
-        Pattern p = Pattern.compile("(\\{#for\\s+\\w+\\s+in\\s+)(\\w+\\.\\w[^}]*?)(\\})");
+        // Skip cdi: references (always defined) and already-safe expressions.
+        Pattern p = Pattern.compile("(\\{#for\\s+\\w+\\s+in\\s+)([^\\s}]+)(\\s[^}]*\\}|\\})");
         Matcher m = p.matcher(content);
         StringBuilder sb = new StringBuilder();
         while (m.find()) {

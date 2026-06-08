@@ -3,6 +3,7 @@ package io.quarkus.tools.migration;
 import io.quarkus.qute.TemplateExtension;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
@@ -58,10 +59,53 @@ public class JekyllFiltersExtension {
     }
 
     /**
-     * Split a string by delimiter, returning an iterable list.
-     * Java's String.split() returns String[] which Qute may not iterate.
-     * Usage in Qute: {myString.split(",")}
+     * Jekyll's "sort" filter: sort a list by a named property.
+     * Usage in Qute: {myList.sort('title')}
      */
+    static List<?> sort(List<?> list, String property) {
+        if (list == null || list.isEmpty()) {
+            return List.of();
+        }
+        List<Object> sorted = new ArrayList<>(list);
+        sorted.sort((a, b) -> {
+            String va = extractProperty(a, property);
+            String vb = extractProperty(b, property);
+            if (va == null) return vb == null ? 0 : 1;
+            if (vb == null) return -1;
+            return va.compareToIgnoreCase(vb);
+        });
+        return sorted;
+    }
+
+    private static String extractProperty(Object obj, String property) {
+        if (obj instanceof JsonObject json) {
+            Object val = json.getValue(property);
+            return val != null ? val.toString() : null;
+        }
+        if (obj instanceof java.util.Map<?, ?> map) {
+            Object val = map.get(property);
+            return val != null ? val.toString() : null;
+        }
+        return obj != null ? obj.toString() : null;
+    }
+
+    /**
+     * Jekyll's "push" filter: append an element to a list and return the new list.
+     * Usage in Qute: {myList.push(item)}
+     */
+    static List<Object> push(List<?> list, Object item) {
+        List<Object> result = new ArrayList<>(list);
+        result.add(item);
+        return result;
+    }
+
+    /**
+     * Split a string by delimiter, returning an iterable list.
+     * Uses namespace form so it can handle null base objects (instance extensions can't
+     * dispatch on null). Also returns List instead of String[] for Qute iteration.
+     * Usage in Qute: {str:split(myString, ",")}
+     */
+    @TemplateExtension(namespace = "str")
     static List<String> split(String str, String delimiter) {
         if (str == null || str.isEmpty()) {
             return List.of();

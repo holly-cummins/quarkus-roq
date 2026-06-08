@@ -59,6 +59,16 @@ public class JekyllFiltersExtension {
     }
 
     /**
+     * Jekyll's "truncate" filter: truncate a string to a given number of characters.
+     * Usage in Qute: {myString.truncate(280)}
+     */
+    static String truncate(String str, int length) {
+        if (str == null) return "";
+        if (str.length() <= length) return str;
+        return str.substring(0, length) + "...";
+    }
+
+    /**
      * Jekyll's "sort" filter: sort a list by a named property.
      * Usage in Qute: {myList.sort('title')}
      */

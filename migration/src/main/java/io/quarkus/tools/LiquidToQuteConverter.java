@@ -134,8 +134,9 @@ public class LiquidToQuteConverter {
         while (matcher.find()) {
             String var = matcher.group(1).trim();
 
-            // Convert post.* to page.* (Roq uses page for all content)
-            var = var.replaceAll("\\bpost\\.", "page.");
+            // Note: post.* is NOT converted to page.* here because post may be a loop variable
+            // (e.g., {#for post in site.collections.get('posts')}). In Roq, iterated items
+            // are page-like objects so post.title, post.url etc. work directly.
 
             matcher.appendReplacement(sb, "{=" + Matcher.quoteReplacement(var) + "}");
         }
@@ -994,8 +995,7 @@ public class LiquidToQuteConverter {
     private String convertAssignments(String content) {
         String original = content;
 
-        // Convert post.* to page.* inside assign tags before converting the tags themselves
-        content = content.replaceAll("(\\{%\\s*assign\\s+\\w+\\s*=\\s*[^%]*?)\\bpost\\.", "$1page.");
+        // Note: post.* is NOT converted to page.* — post may be a loop variable
 
         // Place {/let} at the enclosing scope boundary for each assign
         Pattern assignPattern = Pattern.compile("\\{%\\s*assign\\s+(\\w+)\\s*=\\s*([^%]+?)\\s*%\\}");

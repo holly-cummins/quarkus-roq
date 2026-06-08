@@ -3,6 +3,8 @@ package io.quarkus.tools.migration;
 import io.quarkus.qute.TemplateExtension;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
+import java.util.Arrays;
+import java.util.List;
 
 @TemplateExtension
 public class JekyllFiltersExtension {
@@ -53,5 +55,17 @@ public class JekyllFiltersExtension {
      */
     static int size(JsonArray array) {
         return array == null ? 0 : array.size();
+    }
+
+    /**
+     * Split a string by delimiter, returning an iterable list.
+     * Java's String.split() returns String[] which Qute may not iterate.
+     * Usage in Qute: {myString.split(",")}
+     */
+    static List<String> split(String str, String delimiter) {
+        if (str == null || str.isEmpty()) {
+            return List.of();
+        }
+        return Arrays.asList(str.split(delimiter));
     }
 }

@@ -68,6 +68,10 @@ public class LiquidToQuteConverter {
         // Make site.tags lenient (not available in Roq by default)
         content = makeSiteTagsLenient(content);
 
+        // Append .raw to output expressions containing .replace() calls.
+        // Jekyll never escapes output, but Qute auto-escapes in HTML templates.
+        content = appendRawToReplaceOutputs(content);
+
         // Restore raw blocks with Qute verbatim delimiters
         content = restoreRawBlocks(content, rawBlocks);
 
@@ -1319,7 +1323,7 @@ public class LiquidToQuteConverter {
         // Jekyll site properties that are migrated to data/siteConfig.yml
         // Convert {=site.baseurl} to {cdi:siteConfig.baseurl}, etc.
         // Note: Using "siteConfig" instead of "site" to avoid conflict with Roq's built-in Site object
-        String[] dataProperties = {"baseurl", "language", "search"};
+        String[] dataProperties = {"baseurl", "language", "search", "cname"};
         String original = content;
 
         for (String prop : dataProperties) {
@@ -1415,6 +1419,26 @@ public class LiquidToQuteConverter {
         content = content.replaceAll("\\bsite\\.posts\\b", "site.collections.get('posts')");
         if (!content.equals(original)) {
             conversionsApplied.add("Converted site.posts to site.collections.get('posts')");
+        }
+        return content;
+    }
+
+    private String appendRawToReplaceOutputs(String content) {
+        // Jekyll never escapes HTML in output tags, but Qute auto-escapes in .html templates.
+        // Append .raw to output expressions containing .replace() so HTML content renders correctly.
+        Pattern pattern = Pattern.compile("(\\{=([^}]*\\.replace(?:All)?\\([^)]*\\)))\\}");
+        Matcher matcher = pattern.matcher(content);
+        StringBuilder sb = new StringBuilder();
+        boolean found = false;
+        while (matcher.find()) {
+            matcher.appendReplacement(sb, Matcher.quoteReplacement(matcher.group(1) + ".raw}"));
+            found = true;
+        }
+        matcher.appendTail(sb);
+
+        if (found) {
+            conversionsApplied.add("Appended .raw to replace() outputs (Jekyll never escapes HTML)");
+            return sb.toString();
         }
         return content;
     }

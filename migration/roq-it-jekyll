@@ -199,6 +199,12 @@ for f in glob.glob(os.path.join('${project_dir}', 'templates', '**', '*.html'), 
 if [ -f "${project_dir}/_config.yml" ]; then
     mkdir -p ${project_dir}/data
 
+    # Extract CNAME (GitHub Pages custom domain, used by some templates)
+    cname=""
+    if [ -f "${project_dir}/CNAME" ]; then
+        cname=$(cat ${project_dir}/CNAME | tr -d '[:space:]')
+    fi
+
     # Extract baseurl (default to empty string if not set)
     baseurl=$(grep "^baseurl:" ${project_dir}/_config.yml | sed 's/^baseurl: *"\(.*\)".*/\1/' | sed "s/^baseurl: *'\(.*\)'.*/\1/" | sed 's/^baseurl: *\([^ #]*\).*/\1/')
 
@@ -215,6 +221,7 @@ if [ -f "${project_dir}/_config.yml" ]; then
 
     # Create data/siteConfig.yml with extracted values
     cat > ${project_dir}/data/siteConfig.yml <<SITEDATA
+cname: "${cname}"
 baseurl: "${baseurl}"
 language: "${language}"
 search:

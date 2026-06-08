@@ -1,5 +1,6 @@
 package io.quarkus.tools.migration;
 
+import io.quarkus.qute.RawString;
 import io.quarkus.qute.TemplateExtension;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
@@ -107,6 +108,16 @@ public class JekyllFiltersExtension {
         List<Object> result = new ArrayList<>(list);
         result.add(item);
         return result;
+    }
+
+    /**
+     * Output a string without HTML escaping.
+     * Qute auto-escapes HTML in .html templates; this bypasses that for trusted content.
+     * Usage in Qute: {=myString.raw}
+     */
+    static RawString raw(String str) {
+        if (str == null) return new RawString("");
+        return new RawString(str);
     }
 
     /**

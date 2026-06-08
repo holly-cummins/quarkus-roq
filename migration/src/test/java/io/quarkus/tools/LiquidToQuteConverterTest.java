@@ -242,8 +242,8 @@ class LiquidToQuteConverterTest {
     @Test
     void testReplaceFilter() {
         String input = "{{text | replace: 'old', 'new'}}";
-        String expected = "{=text.replace('old', 'new')}";
-        assertConverts(input, expected, "Replace filter should convert");
+        String expected = "{=text.replace('old', 'new').raw}";
+        assertConverts(input, expected, "Replace filter should convert with .raw (Jekyll never escapes)");
     }
 
     @Test
@@ -803,7 +803,7 @@ class LiquidToQuteConverterTest {
     @Test
     void testNotEqualsConvertsToNe() {
         String input = "{% if site.cname != 'quarkus.io' %}content{% endif %}";
-        String expected = "{#if site.cname ne 'quarkus.io'}content{/if}";
+        String expected = "{#if cdi:siteConfig.cname ne 'quarkus.io'}content{/if}";
         assertConverts(input, expected, "!= should convert to ne in if conditions");
     }
 

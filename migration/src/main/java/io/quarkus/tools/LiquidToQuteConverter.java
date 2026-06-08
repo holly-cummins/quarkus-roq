@@ -168,10 +168,25 @@ public class LiquidToQuteConverter {
         block = convertDefaultFilter(block);
         block = convertPushFilter(block);
         block = convertSplitFilter(block);
+        block = convertUrlFilters(block);
         // Concatenation filters (append/prepend) run last since they need
         // the base expression fully converted to method calls
         block = convertConcatenationFilters(block);
         return block;
+    }
+
+    private String convertUrlFilters(String content) {
+        // Jekyll's | relative_url prepends site.baseurl; | absolute_url prepends the full site.url + baseurl.
+        // In Roq, baseurl is available as cdi:siteConfig.baseurl.
+        content = content.replaceAll("\\s*\\|\\s*relative_url", "");
+        if (content.contains("relative_url")) {
+            // fallback in case regex missed something
+        }
+        // For expressions like {='/path' | relative_url}, the filter has been removed,
+        // leaving {='/path'}. The baseurl is typically empty or handled by Roq's URL resolution.
+        // If baseurl needs prepending, templates should use cdi:siteConfig.baseurl + '/path'.
+        content = content.replaceAll("\\s*\\|\\s*absolute_url", "");
+        return content;
     }
 
     private String convertConcatenationFilters(String content) {

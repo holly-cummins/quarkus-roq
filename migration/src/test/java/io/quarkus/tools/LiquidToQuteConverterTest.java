@@ -758,4 +758,32 @@ class LiquidToQuteConverterTest {
         int secondLink = result.indexOf("canonical", firstLink + 1);
         assertTrue(secondLink > firstLink, "Trailing content should be duplicated into both branches");
     }
+
+    @Test
+    void testRelativeUrlFilter() {
+        String input = "{{ '/assets/javascript/highlight.pack.js' | relative_url }}";
+        String expected = "{='/assets/javascript/highlight.pack.js'}";
+        assertConverts(input, expected, "relative_url filter should be stripped");
+    }
+
+    @Test
+    void testRelativeUrlFilterWithVariable() {
+        String input = "{{ page.url | relative_url }}";
+        String expected = "{=page.url}";
+        assertConverts(input, expected, "relative_url filter on variable should be stripped");
+    }
+
+    @Test
+    void testAbsoluteUrlFilter() {
+        String input = "{{ '/feed.xml' | absolute_url }}";
+        String expected = "{='/feed.xml'}";
+        assertConverts(input, expected, "absolute_url filter should be stripped");
+    }
+
+    @Test
+    void testNotEqualsConvertsToNe() {
+        String input = "{% if site.cname != 'quarkus.io' %}content{% endif %}";
+        String expected = "{#if site.cname ne 'quarkus.io'}content{/if}";
+        assertConverts(input, expected, "!= should convert to ne in if conditions");
+    }
 }

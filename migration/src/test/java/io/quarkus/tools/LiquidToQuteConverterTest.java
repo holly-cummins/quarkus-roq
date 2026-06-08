@@ -425,7 +425,7 @@ class LiquidToQuteConverterTest {
     @Test
     void testNestedForLoopsUseDifferentVarNames() {
         String input = "{% for cat in categories %}{% for post in cat.posts %}{{forloop.index}}{% endfor %}{% endfor %}";
-        String expected = "{#for cat in categories}{#for post in cat.posts}{=post_count}{/for}{/for}";
+        String expected = "{#for cat in categories}{#for post in cat.posts.orEmpty}{=post_count}{/for}{/for}";
         assertConverts(input, expected,
                 "Nested loops should use their own variable name for metadata");
     }
@@ -803,7 +803,21 @@ class LiquidToQuteConverterTest {
     @Test
     void testSitePostsConversion() {
         String input = "{% for post in site.posts %}text{% endfor %}";
-        String expected = "{#for post in site.collections.get('posts')}text{/for}";
+        String expected = "{#for post in site.collections.get('posts').orEmpty}text{/for}";
         assertConverts(input, expected, "site.posts should convert to site.collections.get('posts')");
+    }
+
+    @Test
+    void testForLoopPropertyIterableGetsOrEmpty() {
+        String input = "{% for tag in post.tags %}{{ tag }}{% endfor %}";
+        String expected = "{#for tag in post.tags.orEmpty}{=tag}{/for}";
+        assertConverts(input, expected, "Property-access iterable in for loop should get .orEmpty");
+    }
+
+    @Test
+    void testForLoopCdiIterableNoOrEmpty() {
+        String input = "{% for item in cdi:books %}text{% endfor %}";
+        String expected = "{#for item in cdi:books}text{/for}";
+        assertConverts(input, expected, "cdi: iterable should not get .orEmpty");
     }
 }

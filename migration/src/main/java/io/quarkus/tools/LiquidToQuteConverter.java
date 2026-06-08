@@ -721,6 +721,9 @@ public class LiquidToQuteConverter {
         content = content.replaceAll("\\{%\\s*for\\s+(\\w+)\\s+in\\s+([^%]+?)\\s*%\\}", "{#for $1 in $2}");
         content = content.replaceAll("\\{%\\s*endfor\\s*%\\}", "{/for}");
 
+        // Append .orEmpty to property-access iterables (e.g., post.tags) that might be null
+        content = appendOrEmptyToForLoops(content);
+
         // Loop variables: replace forloop.* with Qute metadata derived from the actual loop variable name.
         // We find each {#for VAR in ...} and replace forloop.* references with VAR_* in the loop body.
         content = replaceLoopVariables(content);
@@ -741,6 +744,27 @@ public class LiquidToQuteConverter {
             conversionsApplied.add("Converted loops");
         }
         return content;
+    }
+
+    private String appendOrEmptyToForLoops(String content) {
+        // Property-access iterables like post.tags might be null at runtime.
+        // Append .orEmpty so Qute returns an empty list instead of throwing.
+        // Skip cdi: and site.collections references (always defined).
+        Pattern p = Pattern.compile("(\\{#for\\s+\\w+\\s+in\\s+)(\\w+\\.\\w[^}]*?)(\\})");
+        Matcher m = p.matcher(content);
+        StringBuilder sb = new StringBuilder();
+        while (m.find()) {
+            String prefix = m.group(1);
+            String iterable = m.group(2).trim();
+            String suffix = m.group(3);
+            if (!iterable.startsWith("cdi:") && !iterable.endsWith(".orEmpty")) {
+                m.appendReplacement(sb, Matcher.quoteReplacement(prefix + iterable + ".orEmpty" + suffix));
+            } else {
+                m.appendReplacement(sb, Matcher.quoteReplacement(m.group(0)));
+            }
+        }
+        m.appendTail(sb);
+        return sb.toString();
     }
 
     private String replaceLoopVariables(String content) {

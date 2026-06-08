@@ -710,6 +710,22 @@ class LiquidToQuteConverterTest {
     }
 
     @Test
+    void testPageUrlEqualityComparison() {
+        String input = "{#if page.url == '/'}homepage{#else}{=page.data.layout}{/if}";
+        String expected = "{#if page.url.path == '/'}homepage{#else}{=page.data.layout}{/if}";
+        assertConverts(input, expected,
+                "page.url == should convert to page.url.path == (RoqUrl is not a String)");
+    }
+
+    @Test
+    void testPageUrlNotEqualsComparison() {
+        String input = "{#if page.url != '/about/'}other{/if}";
+        String expected = "{#if page.url.path ne '/about/'}other{/if}";
+        assertConverts(input, expected,
+                "page.url != should convert to page.url.path ne");
+    }
+
+    @Test
     void testSiteDataToCdiReference() {
         assertConverts("{{ site.data.projectfooter.links }}", "{=cdi:projectfooter.links}",
                 "site.data.X should convert to cdi:X");

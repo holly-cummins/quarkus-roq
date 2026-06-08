@@ -59,6 +59,9 @@ public class LiquidToQuteConverter {
         // Convert URL concatenation to RoqUrl methods
         content = convertUrlConcatenation(content);
 
+        // Convert page.url equality comparisons to use .path (RoqUrl is not a String)
+        content = convertPageUrlComparisons(content);
+
         // Convert Jekyll site.posts to Roq collections access
         content = convertSiteCollections(content);
 
@@ -1384,6 +1387,26 @@ public class LiquidToQuteConverter {
         }
 
         return result;
+    }
+
+    private String convertPageUrlComparisons(String content) {
+        // RoqUrl is an object, not a String. Equality comparisons like page.url == '/'
+        // need to use page.url.path instead so they compare strings.
+        Pattern pattern = Pattern.compile("\\bpage\\.url\\s*(==|!=|\\bne\\b)");
+        Matcher matcher = pattern.matcher(content);
+        StringBuilder sb = new StringBuilder();
+        boolean found = false;
+        while (matcher.find()) {
+            matcher.appendReplacement(sb, Matcher.quoteReplacement("page.url.path " + matcher.group(1)));
+            found = true;
+        }
+        matcher.appendTail(sb);
+
+        if (found) {
+            conversionsApplied.add("Converted page.url comparisons to page.url.path (RoqUrl is not a String)");
+            return sb.toString();
+        }
+        return content;
     }
 
     private String convertSiteCollections(String content) {

@@ -155,8 +155,10 @@ echo "quarkus.qute.strict-rendering=false" >> ${project_dir}/config/application.
 # Exclude type checking for data items (JsonArray iteration yields Object at build time)
 echo "quarkus.qute.type-check-excludes=java.lang.Object.*" >> ${project_dir}/config/application.properties
 # Fix asset paths: Jekyll's assets/ dir was moved to public/ which is served at root.
-# Strip /assets/ prefix from all template references.
+# Strip /assets/ prefix from all template and CSS references.
 find ${project_dir}/templates -name '*.html' -exec \
+    sed -i '' 's|/assets/|/|g' {} +
+find ${project_dir}/public -name '*.css' -exec \
     sed -i '' 's|/assets/|/|g' {} +
 
 # TODO: Workaround for Jekyll→Qute variable scoping mismatch in includes.

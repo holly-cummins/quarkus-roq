@@ -793,4 +793,11 @@ class LiquidToQuteConverterTest {
         String expected = "{#if site.cname ne 'quarkus.io'}content{/if}";
         assertConverts(input, expected, "!= should convert to ne in if conditions");
     }
+
+    @Test
+    void testContentVariableInLayout() {
+        String input = "<div>{{ content }}</div>";
+        String expected = "<div>{#insert /}</div>";
+        assertConverts(input, expected, "{{ content }} in layout should become {#insert /}");
+    }
 }

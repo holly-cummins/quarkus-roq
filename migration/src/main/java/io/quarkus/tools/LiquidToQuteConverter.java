@@ -1115,6 +1115,9 @@ public class LiquidToQuteConverter {
         content = content.replaceAll("\\{%\\s*prepend\\s+(\\w+)\\s*%\\}", "{#prepend $1}");
         content = content.replaceAll("\\{%\\s*endprepend\\s*%\\}", "{/prepend}");
 
+        // Jekyll's {{ content }} in layouts renders child content; Qute uses {#insert /}
+        content = content.replaceAll("\\{=content\\}", "{#insert /}");
+
         if (!content.equals(original)) {
             conversionsApplied.add("Converted layout tags");
         }

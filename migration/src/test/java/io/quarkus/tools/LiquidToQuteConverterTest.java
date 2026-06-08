@@ -152,8 +152,8 @@ class LiquidToQuteConverterTest {
     @Test
     void testInclude() {
         String input = "{% include \"header.html\" %}";
-        String expected = "{#include header.html /}";
-        assertConverts(input, expected, "Include should convert");
+        String expected = "{#include partials/header.html /}";
+        assertConverts(input, expected, "Include should convert with partials/ prefix");
     }
 
     @Test
@@ -166,8 +166,29 @@ class LiquidToQuteConverterTest {
     @Test
     void testUnless() {
         String input = "{% unless condition %}content{% endunless %}";
-        String expected = "{#if !(condition)}content{/if}";
+        String expected = "{#if !condition}content{/if}";
         assertConverts(input, expected, "Unless should convert to negated if");
+    }
+
+    @Test
+    void testUnlessWithOr() {
+        String input = "{% unless item.completed or item.lts or item.status != 'on track' %}content{% endunless %}";
+        String expected = "{#if !item.completed && !item.lts && item.status == 'on track'}content{/if}";
+        assertConverts(input, expected, "Unless with or should apply De Morgan's law");
+    }
+
+    @Test
+    void testUnlessWithComparison() {
+        String input = "{% unless item.status == 'active' %}content{% endunless %}";
+        String expected = "{#if item.status ne 'active'}content{/if}";
+        assertConverts(input, expected, "Unless with == should negate to ne");
+    }
+
+    @Test
+    void testUnlessForloopLast() {
+        String input = "{% for x in items %}{% unless forloop.last %}, {% endunless %}{% endfor %}";
+        String expected = "{#for x in items}{#if x_hasNext}, {/if}{/for}";
+        assertConverts(input, expected, "Unless forloop.last should become if hasNext (no double negation)");
     }
 
     @Test
@@ -702,6 +723,20 @@ class LiquidToQuteConverterTest {
         assertConverts("{{ site.data.versions.documentation }}",
                 "{=cdi:versions.documentation}",
                 "site.data.X.Y should convert to cdi:X.Y");
+    }
+
+    @Test
+    void testContainsInIfCondition() {
+        assertConverts("{% if page.url contains '/guides/' %}yes{% endif %}",
+                "{#if page.url.contains('/guides/')}yes{/if}",
+                "contains operator in if should convert to method call");
+    }
+
+    @Test
+    void testContainsInIfConditionWithAnd() {
+        assertConverts("{% if page.url contains '/guides/' and page.title %}yes{% endif %}",
+                "{#if page.url.contains('/guides/') && page.title}yes{/if}",
+                "contains with and should convert both operators");
     }
 
     @Test

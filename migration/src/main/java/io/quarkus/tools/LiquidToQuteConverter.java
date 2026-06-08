@@ -28,8 +28,8 @@ public class LiquidToQuteConverter {
         content = convertComments(content);
         content = convertVariables(content);
         content = convertFilters(content);
-        content = convertConditionals(content);
         content = convertLoops(content);
+        content = convertConditionals(content);
         content = convertIncludes(content);
 
         // Convert if/else blocks with assigns to ternary expressions (must run before convertAssignments)
@@ -447,8 +447,8 @@ public class LiquidToQuteConverter {
             content = replaceRegexSb.toString();
         }
 
-        // Replace
-        Pattern replacePattern = Pattern.compile("\\s*\\|\\s*replace:\\s*(['\"][^'\"]*['\"])\\s*,\\s*(['\"][^'\"]*['\"])");
+        // Replace (second arg can be quoted string or variable reference)
+        Pattern replacePattern = Pattern.compile("\\s*\\|\\s*replace:\\s*(['\"][^'\"]*['\"])\\s*,\\s*(['\"][^'\"]*['\"]|\\w+)");
         result = replacePattern.matcher(content).replaceAll(".replace($1, $2)");
         if (!result.equals(content)) {
             conversionsApplied.add("Converted replace filter");
@@ -506,8 +506,8 @@ public class LiquidToQuteConverter {
         content = content.replaceAll("\\{%\\s*else\\s*%\\}", "{#else}");
         content = content.replaceAll("\\{%\\s*endif\\s*%\\}", "{/if}");
 
-        // unless (negative if)
-        content = content.replaceAll("\\{%\\s*unless\\s+([^%]+?)\\s*%\\}", "{#if !($1)}");
+        // unless (negative if) — apply De Morgan's law to avoid !(...)
+        content = convertUnless(content);
         content = content.replaceAll("\\{%\\s*endunless\\s*%\\}", "{/if}");
 
         // Convert operators ONLY inside conditional blocks to avoid corrupting prose text
@@ -533,6 +533,67 @@ public class LiquidToQuteConverter {
         return content;
     }
 
+    private String convertUnless(String content) {
+        Pattern p = Pattern.compile("\\{%\\s*unless\\s+([^%]+?)\\s*%\\}");
+        Matcher m = p.matcher(content);
+        StringBuilder sb = new StringBuilder();
+        while (m.find()) {
+            String cond = m.group(1).trim();
+            String negated = negateLiquidCondition(cond);
+            m.appendReplacement(sb, Matcher.quoteReplacement("{#if " + negated + "}"));
+        }
+        m.appendTail(sb);
+        return sb.toString();
+    }
+
+    private String negateLiquidCondition(String condition) {
+        // Split on " or " (Liquid's OR) and negate each part, joining with " and "
+        // De Morgan: !(A or B or C) => !A and !B and !C
+        String[] orParts = condition.split("\\s+or\\s+");
+        if (orParts.length > 1) {
+            StringBuilder result = new StringBuilder();
+            for (int i = 0; i < orParts.length; i++) {
+                if (i > 0) result.append(" and ");
+                result.append(negateSingleCondition(orParts[i].trim()));
+            }
+            return result.toString();
+        }
+        // Split on " and " and negate each part, joining with " or "
+        // De Morgan: !(A and B) => !A or !B
+        String[] andParts = condition.split("\\s+and\\s+");
+        if (andParts.length > 1) {
+            StringBuilder result = new StringBuilder();
+            for (int i = 0; i < andParts.length; i++) {
+                if (i > 0) result.append(" or ");
+                result.append(negateSingleCondition(andParts[i].trim()));
+            }
+            return result.toString();
+        }
+        return negateSingleCondition(condition.trim());
+    }
+
+    private String negateSingleCondition(String cond) {
+        // If already negated, remove the negation (double negative)
+        if (cond.startsWith("!")) {
+            return cond.substring(1);
+        }
+        // If it contains a comparison operator, flip it
+        if (cond.contains(" != ")) {
+            return cond.replace(" != ", " == ");
+        }
+        if (cond.contains("!=")) {
+            return cond.replace("!=", " == ");
+        }
+        if (cond.contains(" == ")) {
+            return cond.replace(" == ", " != ");
+        }
+        if (cond.contains("==")) {
+            return cond.replace("==", " != ");
+        }
+        // Simple variable — prefix with !
+        return "!" + cond;
+    }
+
     private String replaceOperatorsOutsideStrings(String condition) {
         StringBuilder result = new StringBuilder();
         boolean inSingleQuote = false;
@@ -555,6 +616,44 @@ public class LiquidToQuteConverter {
                 } else if (matchesWord(condition, i, "or")) {
                     result.append("||");
                     i += 2;
+                } else if (i + 1 < condition.length()
+                        && (condition.substring(i, i + 2).equals("!=")
+                            || condition.substring(i, i + 2).equals("=="))) {
+                    // Qute uses 'ne' for !=, '==' stays as-is but needs spaces
+                    String op = condition.substring(i, i + 2);
+                    String quteOp = op.equals("!=") ? "ne" : op;
+                    String before = result.toString();
+                    if (!before.isEmpty() && before.charAt(before.length() - 1) != ' ') {
+                        result.append(' ');
+                    }
+                    result.append(quteOp);
+                    i += 2;
+                    if (i < condition.length() && condition.charAt(i) != ' ') {
+                        result.append(' ');
+                    }
+                } else if (matchesWord(condition, i, "contains")) {
+                    // Convert operator to method call: X contains 'Y' → X.contains('Y')
+                    // Walk backwards to find the base expression
+                    String before = result.toString().stripTrailing();
+                    result.setLength(0);
+                    result.append(before);
+                    result.append(".contains(");
+                    i += "contains".length();
+                    // Skip whitespace after "contains"
+                    while (i < condition.length() && condition.charAt(i) == ' ') i++;
+                    // Find the argument (quoted string or expression)
+                    int argStart = i;
+                    if (i < condition.length() && (condition.charAt(i) == '\'' || condition.charAt(i) == '"')) {
+                        char quote = condition.charAt(i);
+                        i++;
+                        while (i < condition.length() && condition.charAt(i) != quote) i++;
+                        if (i < condition.length()) i++; // consume closing quote
+                    } else {
+                        while (i < condition.length() && condition.charAt(i) != ' '
+                                && condition.charAt(i) != ')') i++;
+                    }
+                    result.append(condition, argStart, i);
+                    result.append(")");
                 } else {
                     result.append(condition.charAt(i));
                     i++;
@@ -695,11 +794,15 @@ public class LiquidToQuteConverter {
             String file = includeMatcher.group(1);
             String params = includeMatcher.group(2).trim();
 
+            // Roq resolves includes from templates/ directory;
+            // partials go under templates/partials/
+            String path = file.startsWith("partials/") ? file : "partials/" + file;
+
             String replacement;
             if (!params.isEmpty()) {
-                replacement = "{#include " + file + " " + params + " /}";
+                replacement = "{#include " + path + " " + params + " /}";
             } else {
-                replacement = "{#include " + file + " /}";
+                replacement = "{#include " + path + " /}";
             }
 
             includeMatcher.appendReplacement(sb, Matcher.quoteReplacement(replacement));

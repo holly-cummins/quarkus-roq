@@ -122,8 +122,8 @@ mv ${project_dir}/assets ${project_dir}/public
 mv ${project_dir}/_site/index.html ${project_dir}
 
 # Convert Liquid to Qute; this has the side effect of renaming directories to adjust the structure
-mkdir -p ${project_dir}/includes
-mvn -f ${tools_dir}/pom.xml -q exec:java -Dexec.mainClass="io.quarkus.tools.LiquidToQuteCommand" -Dexec.args="${project_dir}/_includes ${project_dir}/includes"
+mkdir -p ${project_dir}/templates/partials
+mvn -f ${tools_dir}/pom.xml -q exec:java -Dexec.mainClass="io.quarkus.tools.LiquidToQuteCommand" -Dexec.args="${project_dir}/_includes ${project_dir}/templates/partials"
 mvn -f ${tools_dir}/pom.xml -q exec:java -Dexec.mainClass="io.quarkus.tools.LiquidToQuteCommand" -Dexec.args="${project_dir}/_layouts ${project_dir}/templates/layouts"
 
 # Data directories (subdirs of data/) can't be accessed as single CDI beans.
@@ -131,14 +131,40 @@ mvn -f ${tools_dir}/pom.xml -q exec:java -Dexec.mainClass="io.quarkus.tools.Liqu
 if [ -d "${project_dir}/data" ]; then
     for dir in ${project_dir}/data/*/; do
         dirname=$(basename "$dir")
-        find ${project_dir}/templates ${project_dir}/includes -name '*.html' -exec \
+        find ${project_dir}/templates ${project_dir}/templates/partials -name '*.html' -exec \
             sed -i '' "s/cdi:${dirname}/site.data.${dirname}/g" {} + 2>/dev/null
     done
 fi
 
+# Copy Jekyll filter extensions (where, first, last, size for JsonArray)
+mkdir -p ${project_dir}/src/main/java/io/quarkus/tools/migration
+cp ${tools_dir}/src/main/resources/migration-helpers/JekyllFiltersExtension.java \
+   ${project_dir}/src/main/java/io/quarkus/tools/migration/
+
 # Enable the alternative expression syntax to reduce overhead of escaping braces
 echo quarkus.qute.alt-expr-syntax=true >> ${project_dir}/config/application.properties
 echo "site.date-format=yyyy-MM-dd['T'HH:mm:ss][X]" >> ${project_dir}/config/application.properties
+# Jekyll templates access arbitrary frontmatter fields that may not exist on every page
+echo "quarkus.qute.strict-rendering=false" >> ${project_dir}/config/application.properties
+# Exclude type checking for data items (JsonArray iteration yields Object at build time)
+echo "quarkus.qute.type-check-excludes=java.lang.Object.*" >> ${project_dir}/config/application.properties
+# TODO: Workaround for Jekyll→Qute variable scoping mismatch in includes.
+# Problem: Jekyll's {% assign %} creates page-scoped variables that are visible inside {% include %} blocks.
+# In Qute, {#let} variables are block-scoped and NOT visible inside {#include} templates. So a variable
+# like search_script assigned in base.html with {#let} is invisible inside {#include partials/head-csp.html /}.
+# This causes PropertyNotFoundThrowException at runtime even with strict-rendering=false.
+#
+# Current fix: Append ?? (or-empty) to all simple standalone variable references in partials, making them
+# resolve to empty string instead of throwing when the variable is missing.
+#
+# Better solutions to explore:
+#   1. Pass variables explicitly as include parameters: {#include partials/head-csp.html search_script=search_script /}
+#      This would require the converter to track which variables are used in each include and auto-generate params.
+#   2. Convert Jekyll assigns to Qute @TemplateData beans or CDI-injected values so they're globally accessible.
+#   3. Restructure templates to inline the partial content where scoped variables are needed.
+#   4. Add a Roq/Qute feature for "transparent includes" that inherit the parent's variable scope (like Jekyll).
+find ${project_dir}/templates/partials -name '*.html' -exec \
+    sed -i '' 's/{=\([a-z_][a-z_0-9]*\)}/{=\1??}/g' {} +
 # Comment out blocks using whereExp (no Qute equivalent)
 python3 -c "
 import re, glob, os

@@ -59,6 +59,9 @@ public class LiquidToQuteConverter {
         // Convert URL concatenation to RoqUrl methods
         content = convertUrlConcatenation(content);
 
+        // Convert Jekyll site.posts to Roq collections access
+        content = convertSiteCollections(content);
+
         // Make site.tags lenient (not available in Roq by default)
         content = makeSiteTagsLenient(content);
 
@@ -1330,6 +1333,16 @@ public class LiquidToQuteConverter {
         }
 
         return result;
+    }
+
+    private String convertSiteCollections(String content) {
+        String original = content;
+        // Jekyll's site.posts → Roq's site.collections.get('posts')
+        content = content.replaceAll("\\bsite\\.posts\\b", "site.collections.get('posts')");
+        if (!content.equals(original)) {
+            conversionsApplied.add("Converted site.posts to site.collections.get('posts')");
+        }
+        return content;
     }
 
     private String makeSiteTagsLenient(String content) {

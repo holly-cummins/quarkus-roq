@@ -800,4 +800,11 @@ class LiquidToQuteConverterTest {
         String expected = "<div>{#insert /}</div>";
         assertConverts(input, expected, "{{ content }} in layout should become {#insert /}");
     }
+
+    @Test
+    void testSitePostsConversion() {
+        String input = "{% for post in site.posts %}text{% endfor %}";
+        String expected = "{#for post in site.collections.get('posts')}text{/for}";
+        assertConverts(input, expected, "site.posts should convert to site.collections.get('posts')");
+    }
 }

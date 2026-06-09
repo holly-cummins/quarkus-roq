@@ -105,6 +105,10 @@ PLUGIN_DEPS
 </project>
 POM
 
+# Remove Jekyll-specific files
+rm ${project_dir}/Gemfile
+rm ${project_dir}/Gemfile.lock
+
 # Roq content lives in content
 mkdir -p ${project_dir}/content
 mv ${project_dir}/*md ${project_dir}/content/

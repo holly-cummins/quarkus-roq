@@ -49,6 +49,11 @@ public class LiquidToQuteConverter {
         content = convertIfElseAssignsToTernary(content);
 
         content = convertAssignments(content);
+
+        // Collapse "init empty list + push in loop + iterate" into str:splitTrimmed
+        // Must run after convertAssignments (which creates {#let}) and convertLoops
+        content = collapsePushInLoopPattern(content);
+
         content = convertCaseStatements(content);
         content = convertLayoutTags(content);
         content = convertSpecialTags(content);
@@ -1142,6 +1147,80 @@ public class LiquidToQuteConverter {
 
         if (!content.equals(original)) {
             conversionsApplied.add("Converted assignments");
+        }
+        return content;
+    }
+
+    private String collapsePushInLoopPattern(String content) {
+        // Detect the Liquid idiom: init empty list, push in loop, iterate after.
+        // Qute's block-scoped {#let} makes push-in-loop silently discard results.
+        // Collapse into a single str:splitTrimmed() call.
+        //
+        // Input pattern (after convertAssignments/convertLoops):
+        //   {#let RAW=str:split(EXPR)}
+        //   {#let CLEAN=str:split("", "")}
+        //   {#for V in RAW.orEmpty}...CLEAN.push...{/for}
+        //   {#for ITER in CLEAN.orEmpty}...{/for}
+        //   {/let}{/let}  (closing RAW and CLEAN)
+        String original = content;
+
+        while (true) {
+            // Find the init pattern: {#let X=str:split(EXPR)}\n{#let Y=str:split("", "")}
+            Pattern initPattern = Pattern.compile(
+                    "\\{#let (\\w+)=str:split\\(([^)]+)\\)\\}\\s*" +
+                    "\\{#let (\\w+)=str:split\\(\"\", \"\"\\)\\}");
+            Matcher m = initPattern.matcher(content);
+            if (!m.find()) break;
+
+            String rawVar = m.group(1);
+            String splitExpr = m.group(2);
+            String cleanVar = m.group(3);
+            int initStart = m.start();
+            int afterInit = m.end();
+
+            // Find the push loop: {#for ... in RAW.orEmpty}...CLEAN.push...{/for}
+            String afterInitContent = content.substring(afterInit);
+            Pattern pushLoopPattern = Pattern.compile(
+                    "\\s*\\{#for \\w+ in " + Pattern.quote(rawVar) + "\\.orEmpty\\}");
+            Matcher pushLoopMatcher = pushLoopPattern.matcher(afterInitContent);
+            if (!pushLoopMatcher.find() || pushLoopMatcher.start() != 0) break;
+
+            int pushLoopBodyStart = afterInit + pushLoopMatcher.end();
+            int pushLoopEnd = findMatchingEndFor(content, pushLoopBodyStart);
+            String pushLoopBody = content.substring(pushLoopBodyStart, pushLoopEnd);
+            if (!pushLoopBody.contains(cleanVar + ".push(")) break;
+
+            int afterPushLoop = pushLoopEnd + "{/for}".length();
+
+            // Find the iteration loop: {#for ITER in CLEAN.orEmpty}
+            // May have HTML content between the push loop and the iteration loop
+            String afterPushContent = content.substring(afterPushLoop);
+            Pattern iterPattern = Pattern.compile(
+                    "\\{#for (\\w+) in " + Pattern.quote(cleanVar) + "\\.orEmpty\\}");
+            Matcher iterMatcher = iterPattern.matcher(afterPushContent);
+            if (!iterMatcher.find()) break;
+
+            String iterVar = iterMatcher.group(1);
+            String contentBetween = afterPushContent.substring(0, iterMatcher.start()).stripLeading();
+            int iterBodyStart = afterPushLoop + iterMatcher.end();
+            int iterForEnd = findMatchingEndFor(content, iterBodyStart);
+            String iterBody = content.substring(iterBodyStart, iterForEnd);
+
+            // Build replacement: preserve HTML between push loop and iteration loop,
+            // then a single for loop with str:splitTrimmed
+            String replacement = contentBetween +
+                    "{#for " + iterVar + " in str:splitTrimmed(" + splitExpr + ").orEmpty}" +
+                    iterBody + "{/for}";
+
+            // Remove the trailing {/let}{/let} that closed rawVar and cleanVar
+            String afterFor = content.substring(iterForEnd + "{/for}".length());
+            afterFor = afterFor.replaceFirst("\\{/let\\}\\{/let\\}", "");
+
+            content = content.substring(0, initStart) + replacement + afterFor;
+        }
+
+        if (!content.equals(original)) {
+            conversionsApplied.add("Collapsed push-in-loop pattern to str:splitTrimmed");
         }
         return content;
     }

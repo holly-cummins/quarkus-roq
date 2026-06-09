@@ -143,4 +143,25 @@ public class JekyllFiltersExtension {
         }
         return Arrays.asList(str.split(delimiter));
     }
+
+    /**
+     * Split, trim each element, and filter out empty strings.
+     * Replaces the Liquid pattern: assign clean = "" | split: "" / for x in raw / push trimmed / endfor
+     * That pattern doesn't work in Qute because {#let} is block-scoped (push results are discarded).
+     * Usage in Qute: {str:splitTrimmed(myString, ",")}
+     */
+    @TemplateExtension(namespace = "str")
+    static List<String> splitTrimmed(String str, String delimiter) {
+        if (str == null || str.isEmpty()) {
+            return List.of();
+        }
+        List<String> result = new ArrayList<>();
+        for (String s : str.split(delimiter)) {
+            String trimmed = s.trim();
+            if (!trimmed.isEmpty()) {
+                result.add(trimmed);
+            }
+        }
+        return result;
+    }
 }

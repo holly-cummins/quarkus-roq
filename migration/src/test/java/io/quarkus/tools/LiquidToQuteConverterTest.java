@@ -370,6 +370,50 @@ class LiquidToQuteConverterTest {
     }
 
     @Test
+    void testPushInLoopCollapsedToSplitTrimmed() {
+        String input = "{% assign authors_raw = post.author | default: \"\" | split: \",\" %}\n" +
+                "{% assign authors_clean = \"\" | split: \"\" %}\n" +
+                "{% for a in authors_raw %}\n" +
+                "{% assign a_trimmed = a | strip %}\n" +
+                "{% if a_trimmed != \"\" %}\n" +
+                "{% assign authors_clean = authors_clean | push: a_trimmed %}\n" +
+                "{% endif %}\n" +
+                "{% endfor %}\n" +
+                "{% for author_key in authors_clean %}\n" +
+                "{{author_key}}\n" +
+                "{% endfor %}";
+        String expected = "{#for author_key in str:splitTrimmed(post.data.author??, \",\").orEmpty}\n" +
+                "{=author_key}\n" +
+                "{/for}";
+        assertConverts(input, expected,
+                "Init-empty-list + push-in-loop + iterate should collapse to str:splitTrimmed");
+    }
+
+    @Test
+    void testPushInLoopWithHtmlBetween() {
+        String input = "{% assign authors_raw = post.author | default: \"\" | split: \",\" %}\n" +
+                "{% assign authors_clean = \"\" | split: \"\" %}\n" +
+                "{% for a in authors_raw %}\n" +
+                "{% assign a_trimmed = a | strip %}\n" +
+                "{% if a_trimmed != \"\" %}\n" +
+                "{% assign authors_clean = authors_clean | push: a_trimmed %}\n" +
+                "{% endif %}\n" +
+                "{% endfor %}\n" +
+                "<p class=\"byline\">\n" +
+                "By\n" +
+                "{% for author_key in authors_clean %}\n" +
+                "{{author_key}}\n" +
+                "{% endfor %}";
+        String expected = "<p class=\"byline\">\n" +
+                "By\n" +
+                "{#for author_key in str:splitTrimmed(post.data.author??, \",\").orEmpty}\n" +
+                "{=author_key}\n" +
+                "{/for}";
+        assertConverts(input, expected,
+                "Push-in-loop with HTML between should collapse, preserving the HTML");
+    }
+
+    @Test
     void testAndOrInProseNotCorrupted() {
         String input = "<p>This is information or data and more text</p>\n" +
                        "{% if a and b %}yes{% endif %}";

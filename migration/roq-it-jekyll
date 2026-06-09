@@ -185,6 +185,7 @@ find ${project_dir}/public -name '*.css' -exec \
 #   4. Add a Roq/Qute feature for "transparent includes" that inherit the parent's variable scope (like Jekyll).
 find ${project_dir}/templates/partials -name '*.html' -exec \
     sed -i '' 's/{=\([a-z_][a-z_0-9]*\)}/{=\1??}/g' {} +
+
 # Comment out blocks using whereExp (no Qute equivalent)
 python3 -c "
 import re, glob, os

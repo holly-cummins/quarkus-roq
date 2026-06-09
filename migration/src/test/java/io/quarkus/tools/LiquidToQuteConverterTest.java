@@ -751,6 +751,22 @@ class LiquidToQuteConverterTest {
     }
 
     @Test
+    void testSiteCustomPropertyConvertsToCdi() {
+        String input = "{=site.twitter_username}";
+        String expected = "{=cdi:siteConfig.twitter_username}";
+        assertConverts(input, expected,
+                "Custom site properties should convert to cdi:siteConfig references");
+    }
+
+    @Test
+    void testSiteBuiltInPropertiesNotConverted() {
+        String input = "{=site.url} {=site.title} {=site.collections} {=site.pages} {=site.data}";
+        String expected = "{=site.url} {=site.title} {=site.collections} {=site.pages} {=site.data}";
+        assertConverts(input, expected,
+                "Roq Site built-in properties should not be converted to cdi:siteConfig");
+    }
+
+    @Test
     void testCustomPageFieldConvertToData() {
         String input = "{{page.data.author}}";
         String expected = "{=page.data.author??}";

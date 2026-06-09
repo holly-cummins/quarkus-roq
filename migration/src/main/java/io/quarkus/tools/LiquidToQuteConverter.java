@@ -1374,24 +1374,22 @@ public class LiquidToQuteConverter {
     }
 
     private String convertSiteDataProperties(String content) {
-        // Jekyll site properties that are migrated to data/siteConfig.yml
-        // Convert {=site.baseurl} to {cdi:siteConfig.baseurl}, etc.
+        // Jekyll site.* properties that aren't part of Roq's Site model come from _config.yml.
+        // These are migrated to data/siteConfig.yml and accessed via cdi:siteConfig.*
         // Note: Using "siteConfig" instead of "site" to avoid conflict with Roq's built-in Site object
-        String[] dataProperties = {"baseurl", "language", "search", "cname"};
-        String original = content;
+        String knownSiteProps = "url|title|description|image|imageExists|data|pages|allPages|collections|" +
+                "index|files|file|fileExists|page|normalPage|document|imagesDirUrl|pageContent|" +
+                "posts|tags";
 
-        for (String prop : dataProperties) {
-            // Match site.property (including nested like site.search.host)
-            // Use global replacement to convert all occurrences in the same expression
-            Pattern pattern = Pattern.compile("\\bsite\\." + prop + "\\b");
-            content = pattern.matcher(content).replaceAll("cdi:siteConfig." + prop);
-        }
+        Pattern pattern = Pattern.compile(
+                "\\bsite\\.((?!(?:" + knownSiteProps + ")\\b)[a-zA-Z_][a-zA-Z0-9_]*)\\b");
+        String result = pattern.matcher(content).replaceAll("cdi:siteConfig.$1");
 
-        if (!content.equals(original)) {
+        if (!result.equals(content)) {
             conversionsApplied.add("Converted site data properties to CDI references");
         }
 
-        return content;
+        return result;
     }
 
     private String convertCustomPageFields(String content) {

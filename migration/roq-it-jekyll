@@ -219,6 +219,9 @@ if [ -f "${project_dir}/_config.yml" ]; then
     language=$(grep "^language:" ${project_dir}/_config.yml | sed 's/^language: *\([^ #]*\).*/\1/')
     language=${language:-en}
 
+    # Extract twitter_username
+    twitter_username=$(grep "^twitter_username:" ${project_dir}/_config.yml | sed 's/^twitter_username: *\([^ #]*\).*/\1/')
+
     # Extract nested search config from _config.yml
     # Note: This is a simplified extraction - complex YAML may need a proper parser
     search_script_mode=$(grep -A10 "^search:" ${project_dir}/_config.yml | grep "script-mode:" | sed 's/.*script-mode: *"\(.*\)".*/\1/')
@@ -236,6 +239,7 @@ search:
   host: "${search_host}"
   script-path: "${search_script_path}"
   cached-script-file: "${search_cached_script_file}"
+twitter_username: "${twitter_username}"
 tags: []
 SITEDATA
 fi

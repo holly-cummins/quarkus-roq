@@ -156,8 +156,11 @@ echo quarkus.qute.alt-expr-syntax=true >> ${project_dir}/config/application.prop
 echo "site.date-format=yyyy-MM-dd['T'HH:mm:ss][X]" >> ${project_dir}/config/application.properties
 # Jekyll templates access arbitrary frontmatter fields that may not exist on every page
 echo "quarkus.qute.strict-rendering=false" >> ${project_dir}/config/application.properties
-# Exclude type checking for data items (JsonArray iteration yields Object at build time)
-echo "quarkus.qute.type-check-excludes=java.lang.Object.*" >> ${project_dir}/config/application.properties
+# Exclude type checking for:
+# - Object.* (JsonArray iteration yields Object at build time)
+# - Page.paginator (only on NormalPage subclass, not visible at compile time)
+# - DocumentPage.* (post loop variables access custom frontmatter via data)
+echo "quarkus.qute.type-check-excludes=java.lang.Object.*,io.quarkiverse.roq.frontmatter.runtime.model.Page.paginator,io.quarkiverse.roq.frontmatter.runtime.model.Page.tags,io.quarkiverse.roq.frontmatter.runtime.model.Page.tagsCount,io.quarkiverse.roq.frontmatter.runtime.model.DocumentPage.*" >> ${project_dir}/config/application.properties
 # Fix asset paths: Jekyll's assets/ dir was moved to public/ which is served at root.
 # Strip /assets/ prefix from all template and CSS references.
 find ${project_dir}/templates -name '*.html' -exec \

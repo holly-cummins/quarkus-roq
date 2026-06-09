@@ -41,6 +41,7 @@ public class LiquidToQuteConverter {
         content = convertFilters(content);
         content = convertLoops(content);
         content = convertConditionals(content);
+        content = convertPaginator(content);
         content = convertIncludes(content);
         content = convertIncludeParamAccess(content);
 
@@ -67,6 +68,9 @@ public class LiquidToQuteConverter {
 
         // Convert custom page frontmatter fields to page.data.*
         content = convertCustomPageFields(content);
+
+        // Make page.data.* references lenient — custom frontmatter may not exist on every page
+        content = makePageDataLenient(content);
 
         // Convert URL concatenation to RoqUrl methods
         content = convertUrlConcatenation(content);
@@ -761,6 +765,33 @@ public class LiquidToQuteConverter {
         return true;
     }
 
+    private String convertPaginator(String content) {
+        String original = content;
+
+        // Jekyll's paginator.posts -> Roq's collection access
+        content = content.replaceAll("\\bpaginator\\.posts\\b",
+                "site.collections.get('posts').paginated(page.paginator)");
+
+        // Jekyll field names -> Roq Paginator field names
+        content = content.replaceAll("\\bpaginator\\.total_pages\\b", "page.paginator.total");
+        content = content.replaceAll("\\bpaginator\\.next_page_path\\b", "page.paginator.next");
+        content = content.replaceAll("\\bpaginator\\.previous_page_path\\b", "page.paginator.previous");
+        content = content.replaceAll("\\bpaginator\\.next_page\\b", "page.paginator.next");
+        content = content.replaceAll("\\bpaginator\\.previous_page\\b", "page.paginator.previous");
+
+        // Any remaining paginator.X -> page.paginator.X
+        content = content.replaceAll("(?<!page\\.)\\bpaginator\\.", "page.paginator.");
+
+        // Guard conditionals: page.paginator is null on non-paginated pages
+        Pattern pattern = Pattern.compile("(\\{#(?:if|else if) )(?!page\\.paginator &&)(page\\.paginator\\.[^}]+\\})");
+        content = pattern.matcher(content).replaceAll("$1page.paginator && $2");
+
+        if (!content.equals(original)) {
+            conversionsApplied.add("Converted Jekyll paginator to Roq pagination");
+        }
+        return content;
+    }
+
     private String convertLoops(String content) {
         String original = content;
 
@@ -1365,21 +1396,44 @@ public class LiquidToQuteConverter {
 
     private String convertCustomPageFields(String content) {
         // Roq's Page model has specific built-in properties. Custom frontmatter must use page.data.*
-        // Known Page properties (from Roq docs):
+        // This applies to 'page' and page-like loop variables like 'post'
         String knownPageProps = "url|title|description|image|imageExists|date|data|content|contentAbstract|" +
                 "rawTemplate|sourcePath|sourceFileName|baseFileName|id|draft|files|file|fileExists|source|site|" +
-                "collectionId|collection|next|nextPage|previous|prev|previousPage|prevPage|hidden|paginator";
+                "collectionId|collection|next|nextPage|previous|prev|previousPage|prevPage|hidden|paginator|" +
+                "tags|tagsCount";
 
-        // Match page.customField (not page.data.*, page.url.*, or known properties)
-        // and convert to page.data.customField
+        // Match page.customField or post.customField (not *.data.*, *.url.*, or known properties)
+        // and convert to *.data.customField
         Pattern pattern = Pattern.compile(
-                "\\b(page)\\.((?!(?:" + knownPageProps + ")\\b|data\\.|url\\.)[a-zA-Z_][a-zA-Z0-9_]*)\\b");
+                "(?<!-)\\b(page|post)\\.((?!(?:" + knownPageProps + ")\\b|data\\.|url\\.)[a-zA-Z_][a-zA-Z0-9_]*)\\b");
         String result = pattern.matcher(content).replaceAll("$1.data.$2");
 
         if (!result.equals(content)) {
             conversionsApplied.add("Converted custom page frontmatter fields to page.data.*");
         }
 
+        return result;
+    }
+
+    private String makePageDataLenient(String content) {
+        // page.data.* and post.data.* access a JsonObject — fields may not exist on every page.
+        // Append ?? to make them lenient (resolve to null instead of throwing).
+        // Skip if already lenient (??) or has a default (?:).
+        Pattern pattern = Pattern.compile("((?<!-)(?:page|post)\\.data\\.[a-zA-Z0-9_.]+)(\\?\\?| \\?:)?");
+        Matcher matcher = pattern.matcher(content);
+        StringBuilder sb = new StringBuilder();
+        while (matcher.find()) {
+            if (matcher.group(2) != null) {
+                matcher.appendReplacement(sb, Matcher.quoteReplacement(matcher.group(0)));
+            } else {
+                matcher.appendReplacement(sb, Matcher.quoteReplacement(matcher.group(1) + "??"));
+            }
+        }
+        matcher.appendTail(sb);
+        String result = sb.toString();
+        if (!result.equals(content)) {
+            conversionsApplied.add("Made page.data.* references lenient");
+        }
         return result;
     }
 

@@ -28,8 +28,8 @@ class LiquidToQuteConverterTest {
 
     @Test
     void testTernaryWithMethodCall() {
-        String input = "{=post.author ?: \"\".split(\",\")}";
-        String expected = "{=(post.author ?: \"\").split(\",\")}";
+        String input = "{=post.data.author ?: \"\".split(\",\")}";
+        String expected = "{=(post.data.author ?: \"\").split(\",\")}";
         assertConverts(input, expected, "Ternary before method call should be wrapped in parentheses");
     }
 
@@ -72,7 +72,7 @@ class LiquidToQuteConverterTest {
     void testDefaultBeforeSplitStripsDefault() {
         String input = "{{post.author | default: \"\" | split: \",\"}}";
         // default is stripped because namespace split handles null
-        String expected = "{=str:split(post.author, \",\")}";
+        String expected = "{=str:split(post.data.author??, \",\")}";
         assertConverts(input, expected, "default before split should be stripped; split uses namespace form");
     }
 
@@ -95,6 +95,54 @@ class LiquidToQuteConverterTest {
         String input = "{% if condition %}content{% endif %}";
         String expected = "{#if condition}content{/if}";
         assertConverts(input, expected, "If statement should convert");
+    }
+
+    @Test
+    void testPaginatorPostsConverted() {
+        String input = "{% for post in paginator.posts %}{{post.title}}{% endfor %}";
+        String expected = "{#for post in site.collections.get('posts').paginated(page.paginator).orEmpty}{=post.title}{/for}";
+        assertConverts(input, expected,
+                "paginator.posts should convert to Roq collection access");
+    }
+
+    @Test
+    void testPaginatorTotalPages() {
+        String input = "{% if paginator.total_pages > 1 %}yes{% endif %}";
+        String expected = "{#if page.paginator && page.paginator.total > 1}yes{/if}";
+        assertConverts(input, expected,
+                "paginator.total_pages should convert to page.paginator.total with null guard");
+    }
+
+    @Test
+    void testPaginatorNextPage() {
+        String input = "{% if paginator.next_page %}yes{% endif %}";
+        String expected = "{#if page.paginator && page.paginator.next}yes{/if}";
+        assertConverts(input, expected,
+                "paginator.next_page should convert to page.paginator.next");
+    }
+
+    @Test
+    void testPaginatorPreviousPage() {
+        String input = "{% if paginator.previous_page %}yes{% endif %}";
+        String expected = "{#if page.paginator && page.paginator.previous}yes{/if}";
+        assertConverts(input, expected,
+                "paginator.previous_page should convert to page.paginator.previous");
+    }
+
+    @Test
+    void testPaginatorNextPagePath() {
+        String input = "{{paginator.next_page_path}}";
+        String expected = "{=page.paginator.next}";
+        assertConverts(input, expected,
+                "paginator.next_page_path should convert to page.paginator.next");
+    }
+
+    @Test
+    void testPaginatorPreviousPagePath() {
+        String input = "{{paginator.previous_page_path}}";
+        String expected = "{=page.paginator.previous}";
+        assertConverts(input, expected,
+                "paginator.previous_page_path should convert to page.paginator.previous");
     }
 
     @Test
@@ -228,11 +276,11 @@ class LiquidToQuteConverterTest {
 
     @Test
     void testRealWorldAuthorExample() {
-        // This is the actual pattern from _layouts/author.html that was causing issues
-        // post.author stays as-is (post may be a loop variable)
+        // This is the actual pattern from _layouts/author.html
+        // post.author is custom frontmatter -> post.data.author
         // default is stripped; split uses namespace form for null safety
         String input = "{{post.author | default: \"\" | split: \",\"}}";
-        String expected = "{=str:split(post.author, \",\")}";
+        String expected = "{=str:split(post.data.author??, \",\")}";
         assertConverts(input, expected, "Real-world author pattern should convert correctly");
     }
 
@@ -338,7 +386,7 @@ class LiquidToQuteConverterTest {
                        "      {% assign authors_clean = \"\" | split: \"\" %}";
 
         String expected = "      {!  Build multi-author list for this post  !}\n" +
-                         "      {#let authors_raw=str:split(post.author, \",\")}\n" +
+                         "      {#let authors_raw=str:split(post.data.author??, \",\")}\n" +
                          "      {#let authors_clean=str:split(\"\", \"\")}{/let}{/let}";
 
         assertConverts(input, expected, "Author file lines 36-38 should convert without {?:} errors");
@@ -398,7 +446,7 @@ class LiquidToQuteConverterTest {
         // Liquid: {{ path | prepend: site.baseurl }}
         // Qute: cdi:siteConfig.baseurl + path (prepend = concatenate before, siteConfig from data/siteConfig.yml)
         String input = "{{paginator.next_page_path | prepend: site.baseurl}}";
-        String expected = "{=cdi:siteConfig.baseurl + paginator.next_page_path}";
+        String expected = "{=cdi:siteConfig.baseurl + page.paginator.next}";
         assertConverts(input, expected,
                 "Prepend filter should convert to string concatenation with CDI reference for site.baseurl");
     }
@@ -647,6 +695,38 @@ class LiquidToQuteConverterTest {
     }
 
     @Test
+    void testPostCustomFieldConvertToData() {
+        String input = "{{post.author}}";
+        String expected = "{=post.data.author??}";
+        assertConverts(input, expected,
+                "post.customField should convert to post.data.customField (DocumentPage custom frontmatter)");
+    }
+
+    @Test
+    void testPostBuiltInFieldsNotConverted() {
+        String input = "{{post.title}} {{post.url}} {{post.date}} {{post.content}}";
+        String expected = "{=post.title} {=post.url} {=post.date} {=post.content}";
+        assertConverts(input, expected,
+                "post built-in properties should not be converted to post.data.*");
+    }
+
+    @Test
+    void testPostSynopsisConverted() {
+        String input = "{#if post.synopsis}yes{/if}";
+        String expected = "{#if post.data.synopsis??}yes{/if}";
+        assertConverts(input, expected,
+                "post.synopsis should convert to post.data.synopsis");
+    }
+
+    @Test
+    void testIncludePathWithPageNotMangled() {
+        String input = "{% include share-page.html title=post.title url=post.url %}";
+        String expected = "{#include partials/share-page.html title=post.title url=post.url /}";
+        assertConverts(input, expected,
+                "Include paths containing '-page.' should not be treated as page field access");
+    }
+
+    @Test
     void testSiteBaseurlConvertsToCdi() {
         String input = "<a href=\"{{site.baseurl}}/path\">Link</a>";
         String expected = "<a href=\"{=cdi:siteConfig.baseurl}/path\">Link</a>";
@@ -673,9 +753,9 @@ class LiquidToQuteConverterTest {
     @Test
     void testCustomPageFieldConvertToData() {
         String input = "{{page.data.author}}";
-        String expected = "{=page.data.author}";
+        String expected = "{=page.data.author??}";
         assertConverts(input, expected,
-                "Custom page frontmatter fields should convert to page.data.*");
+                "Custom page frontmatter fields should be lenient (may not exist)");
     }
 
     @Test
@@ -689,17 +769,17 @@ class LiquidToQuteConverterTest {
     @Test
     void testMultipleCustomPageFields() {
         String input = "{{page.data.author}} - {{page.synopsis}}";
-        String expected = "{=page.data.author} - {=page.data.synopsis}";
+        String expected = "{=page.data.author??} - {=page.data.synopsis??}";
         assertConverts(input, expected,
-                "Multiple custom fields should all convert to page.data.*");
+                "Multiple custom fields should all convert to page.data.* with lenient operator");
     }
 
     @Test
     void testCustomFieldInConditional() {
         String input = "{% if page.search_wc %}...{% endif %}";
-        String expected = "{#if page.data.search_wc}...{/if}";
+        String expected = "{#if page.data.search_wc??}...{/if}";
         assertConverts(input, expected,
-                "Custom fields in conditionals should convert to page.data.*");
+                "Custom fields in conditionals should convert to page.data.* with lenient operator");
     }
 
     @Test
@@ -737,7 +817,7 @@ class LiquidToQuteConverterTest {
     @Test
     void testPageUrlEqualityComparison() {
         String input = "{#if page.url == '/'}homepage{#else}{=page.data.layout}{/if}";
-        String expected = "{#if page.url.path == '/'}homepage{#else}{=page.data.layout}{/if}";
+        String expected = "{#if page.url.path == '/'}homepage{#else}{=page.data.layout??}{/if}";
         assertConverts(input, expected,
                 "page.url == should convert to page.url.path == (RoqUrl is not a String)");
     }
@@ -918,7 +998,7 @@ class LiquidToQuteConverterTest {
         @Test
         void testTernaryWrapping() {
             assertConverts("{{post.author | default: \"\" | split: \",\"}}",
-                    "{str:split(post.author, \",\")}",
+                    "{str:split(post.data.author??, \",\")}",
                     "Standard syntax should use namespace split");
         }
 

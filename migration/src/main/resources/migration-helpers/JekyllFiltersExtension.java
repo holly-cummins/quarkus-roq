@@ -12,6 +12,16 @@ import java.util.List;
 public class JekyllFiltersExtension {
 
     /**
+     * Null-safe get for JsonObject. Prevents NPE when key is null (e.g. from ?? operator).
+     */
+    static Object get(JsonObject obj, String key) {
+        if (obj == null || key == null || key.isEmpty()) {
+            return null;
+        }
+        return obj.getValue(key);
+    }
+
+    /**
      * Jekyll's "where" filter: select items from an array where a property matches a value.
      * Usage in Qute: {myArray.where("key", "value")}
      */

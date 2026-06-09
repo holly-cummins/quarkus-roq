@@ -26,6 +26,21 @@ class RoqUrlTest {
     }
 
     @Test
+    void testContains() {
+        RoqUrl url = new RoqUrl(testRoot(), "/version/3.0/guides/getting-started");
+        assertTrue(url.contains("/guides/"));
+        assertTrue(url.contains("/blog/version/"));
+        assertFalse(url.contains("/docs/"));
+    }
+
+    @Test
+    void testContainsEmptyPath() {
+        RoqUrl url = new RoqUrl(testRoot(), "/posts/my-post");
+        assertTrue(url.contains("/blog/")); // Root path is included
+        assertFalse(url.contains("/version/"));
+    }
+
+    @Test
     void testReplaceAll() {
         // Operates on resource path only (without root)
         RoqUrl url = new RoqUrl(testRoot(), "/version/3.0/guides/getting-started");

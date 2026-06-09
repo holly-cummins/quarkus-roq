@@ -1,6 +1,7 @@
 package io.quarkus.tools;
 
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -150,6 +151,30 @@ class LiquidToQuteConverterTest {
         String input = "{% include \"header.html\" %}";
         String expected = "{#include partials/header.html /}";
         assertConverts(input, expected, "Include should convert with partials/ prefix");
+    }
+
+    @Test
+    void testIncludeParamAccess() {
+        String input = "{=include.page_title}";
+        String expected = "{=page_title}";
+        assertConverts(input, expected,
+                "include.param should convert to just param (Qute exposes include params directly)");
+    }
+
+    @Test
+    void testIncludeParamInConditional() {
+        String input = "{#if include.page_title}yes{/if}";
+        String expected = "{#if page_title}yes{/if}";
+        assertConverts(input, expected,
+                "include.param in conditionals should also be stripped");
+    }
+
+    @Test
+    void testIncludeParamInAssignment() {
+        String input = "{% assign x = include.url %}";
+        String expected = "{#let x=url}{/let}";
+        assertConverts(input, expected,
+                "include.param in assignments should be stripped");
     }
 
     @Test
@@ -849,5 +874,72 @@ class LiquidToQuteConverterTest {
         String input = "{% for a in authors_raw %}{{ a }}{% endfor %}";
         String expected = "{#for a in authors_raw.orEmpty}{=a}{/for}";
         assertConverts(input, expected, "Simple variable iterable in for loop should get .orEmpty");
+    }
+
+    @Nested
+    class StandardSyntaxTest {
+
+        private LiquidToQuteConverter converter;
+
+        @BeforeEach
+        void setUp() {
+            converter = new LiquidToQuteConverter(false);
+        }
+
+        private void assertConverts(String input, String expected, String message) {
+            assertEquals(expected, converter.convert(input), message);
+        }
+
+        @Test
+        void testVariable() {
+            assertConverts("{{page.title}}", "{page.title}",
+                    "Standard syntax should use {expr} not {=expr}");
+        }
+
+        @Test
+        void testFilter() {
+            assertConverts("{{text | upcase}}", "{text.toUpperCase}",
+                    "Standard syntax should apply filters inside {expr}");
+        }
+
+        @Test
+        void testDefaultFilter() {
+            assertConverts("{{var | default: \"value\"}}", "{var ?: \"value\"}",
+                    "Standard syntax should convert default filter inside {expr}");
+        }
+
+        @Test
+        void testChainedFilters() {
+            assertConverts("{{page.content | strip_html | truncatewords: 75}}",
+                    "{page.content.stripHtml.wordLimit(75)}",
+                    "Standard syntax should chain filters correctly");
+        }
+
+        @Test
+        void testTernaryWrapping() {
+            assertConverts("{{post.author | default: \"\" | split: \",\"}}",
+                    "{str:split(post.author, \",\")}",
+                    "Standard syntax should use namespace split");
+        }
+
+        @Test
+        void testForLoop() {
+            assertConverts("{% for item in items %}{{item}}{% endfor %}",
+                    "{#for item in items.orEmpty}{item}{/for}",
+                    "Standard syntax for loop should use {expr} for outputs");
+        }
+
+        @Test
+        void testSpaceRemoval() {
+            assertConverts("{variable .trim()}", "{variable.trim()}",
+                    "Standard syntax should remove spaces before methods in expressions");
+        }
+
+        @Test
+        void testExtensionSyntaxDefaultConstructor() {
+            LiquidToQuteConverter ext = new LiquidToQuteConverter();
+            assertEquals("{=page.title}", ext.convert("{{page.title}}"),
+                    "Default constructor should use extension syntax");
+        }
     }
 }

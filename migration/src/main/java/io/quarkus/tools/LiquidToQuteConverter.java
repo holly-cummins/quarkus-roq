@@ -11,7 +11,18 @@ import java.util.regex.Pattern;
 
 public class LiquidToQuteConverter {
 
+    private final boolean useExtensionSyntax;
+    private final String exprOpen;
     private final List<String> conversionsApplied = new ArrayList<>();
+
+    LiquidToQuteConverter() {
+        this(true);
+    }
+
+    LiquidToQuteConverter(boolean useExtensionSyntax) {
+        this.useExtensionSyntax = useExtensionSyntax;
+        this.exprOpen = useExtensionSyntax ? "{=" : "{";
+    }
 
     String convert(String content) {
         String original = content;
@@ -31,6 +42,7 @@ public class LiquidToQuteConverter {
         content = convertLoops(content);
         content = convertConditionals(content);
         content = convertIncludes(content);
+        content = convertIncludeParamAccess(content);
 
         // Convert if/else blocks with assigns to ternary expressions (must run before convertAssignments)
         content = convertIfElseAssignsToTernary(content);
@@ -145,7 +157,7 @@ public class LiquidToQuteConverter {
             // (e.g., {#for post in site.collections.get('posts')}). In Roq, iterated items
             // are page-like objects so post.title, post.url etc. work directly.
 
-            matcher.appendReplacement(sb, "{=" + Matcher.quoteReplacement(var) + "}");
+            matcher.appendReplacement(sb, Matcher.quoteReplacement(exprOpen) + Matcher.quoteReplacement(var) + "}");
         }
         matcher.appendTail(sb);
 
@@ -158,7 +170,9 @@ public class LiquidToQuteConverter {
     }
 
     private String convertFilters(String content) {
-        Pattern blockPattern = Pattern.compile("\\{=[^}]*\\}|\\{%[^%]*%\\}");
+        Pattern blockPattern = useExtensionSyntax
+                ? Pattern.compile("\\{=[^}]*\\}|\\{%[^%]*%\\}")
+                : Pattern.compile("\\{(?![%#/!|])[^}]*\\}|\\{%[^%]*%\\}");
         Matcher matcher = blockPattern.matcher(content);
         StringBuilder sb = new StringBuilder();
 
@@ -901,6 +915,14 @@ public class LiquidToQuteConverter {
         return result;
     }
 
+    private String convertIncludeParamAccess(String content) {
+        String result = content.replaceAll("\\binclude\\.", "");
+        if (!result.equals(content)) {
+            conversionsApplied.add("Converted include.param references to direct param access");
+        }
+        return result;
+    }
+
     private String convertIfElseAssignsToTernary(String content) {
         // Detect if/else blocks where the same variable is assigned in both branches.
         // Replace both assigns with a single ternary assign BEFORE the if block.
@@ -1275,8 +1297,9 @@ public class LiquidToQuteConverter {
 
     private String transformInsideExpressions(String content,
             java.util.function.UnaryOperator<String> transform, String conversionLabel) {
-        // Match Qute expressions: {=...}, {#...}, {/...}, {!...!}
-        Pattern exprPattern = Pattern.compile("\\{[=#/!][^}]*\\}");
+        Pattern exprPattern = useExtensionSyntax
+                ? Pattern.compile("\\{[=#/!][^}]*\\}")
+                : Pattern.compile("\\{[^}]*\\}");
         Matcher matcher = exprPattern.matcher(content);
         StringBuilder sb = new StringBuilder();
 

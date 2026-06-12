@@ -1,10 +1,13 @@
 package io.quarkus.tools;
 
-import static org.junit.jupiter.api.Assertions.*;
-
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class LiquidToQuteConverterTest {
 
@@ -501,44 +504,48 @@ class LiquidToQuteConverterTest {
 
     @Test
     void testPushInLoopCollapsedToSplitTrimmed() {
-        String input = "{% assign authors_raw = post.author | default: \"\" | split: \",\" %}\n" +
-                "{% assign authors_clean = \"\" | split: \"\" %}\n" +
-                "{% for a in authors_raw %}\n" +
-                "{% assign a_trimmed = a | strip %}\n" +
-                "{% if a_trimmed != \"\" %}\n" +
-                "{% assign authors_clean = authors_clean | push: a_trimmed %}\n" +
-                "{% endif %}\n" +
-                "{% endfor %}\n" +
-                "{% for author_key in authors_clean %}\n" +
-                "{{author_key}}\n" +
-                "{% endfor %}";
-        String expected = "{#for author_key in str:splitTrimmed(post.data.author.or(''), \",\").orEmpty}\n" +
-                "{=author_key.raw}\n" +
-                "{/for}";
+        String input = """
+                {% assign authors_raw = post.author | default: "" | split: "," %}
+                {% assign authors_clean = "" | split: "" %}
+                {% for a in authors_raw %}
+                {% assign a_trimmed = a | strip %}
+                {% if a_trimmed != "" %}
+                {% assign authors_clean = authors_clean | push: a_trimmed %}
+                {% endif %}
+                {% endfor %}
+                {% for author_key in authors_clean %}
+                {{author_key}}
+                {% endfor %}""";
+        String expected = """
+                {#for author_key in str:splitTrimmed(post.data.author.or(''), ",").orEmpty}
+                {=author_key.raw}
+                {/for}""";
         assertConverts(input, expected,
                 "Init-empty-list + push-in-loop + iterate should collapse to str:splitTrimmed");
     }
 
     @Test
     void testPushInLoopWithHtmlBetween() {
-        String input = "{% assign authors_raw = post.author | default: \"\" | split: \",\" %}\n" +
-                "{% assign authors_clean = \"\" | split: \"\" %}\n" +
-                "{% for a in authors_raw %}\n" +
-                "{% assign a_trimmed = a | strip %}\n" +
-                "{% if a_trimmed != \"\" %}\n" +
-                "{% assign authors_clean = authors_clean | push: a_trimmed %}\n" +
-                "{% endif %}\n" +
-                "{% endfor %}\n" +
-                "<p class=\"byline\">\n" +
-                "By\n" +
-                "{% for author_key in authors_clean %}\n" +
-                "{{author_key}}\n" +
-                "{% endfor %}";
-        String expected = "<p class=\"byline\">\n" +
-                "By\n" +
-                "{#for author_key in str:splitTrimmed(post.data.author.or(''), \",\").orEmpty}\n" +
-                "{=author_key.raw}\n" +
-                "{/for}";
+        String input = """
+                {% assign authors_raw = post.author | default: "" | split: "," %}
+                {% assign authors_clean = "" | split: "" %}
+                {% for a in authors_raw %}
+                {% assign a_trimmed = a | strip %}
+                {% if a_trimmed != "" %}
+                {% assign authors_clean = authors_clean | push: a_trimmed %}
+                {% endif %}
+                {% endfor %}
+                <p class="byline">
+                By
+                {% for author_key in authors_clean %}
+                {{author_key}}
+                {% endfor %}""";
+        String expected = """
+                <p class="byline">
+                By
+                {#for author_key in str:splitTrimmed(post.data.author.or(''), ",").orEmpty}
+                {=author_key.raw}
+                {/for}""";
         assertConverts(input, expected,
                 "Push-in-loop with HTML between should collapse, preserving the HTML");
     }
@@ -555,13 +562,17 @@ class LiquidToQuteConverterTest {
 
     @Test
     void testAuthorFileLines36to38() {
-        String input = "      {% comment %} Build multi-author list for this post {% endcomment %}\n" +
-                "      {% assign authors_raw = post.author | default: \"\" | split: \",\" %}\n" +
-                "      {% assign authors_clean = \"\" | split: \"\" %}";
+        String input = """
+                      {% comment %} Build multi-author list for this post {% endcomment %}
+                      {% assign authors_raw = post.author | default: "" | split: "," %}
+                      {% assign authors_clean = "" | split: "" %}\
+                """;
 
-        String expected = "      {!  Build multi-author list for this post  !}\n" +
-                "      {#let authors_raw=str:split(post.data.author.or(''), \",\")}\n" +
-                "      {#let authors_clean=str:split(\"\", \"\")}{/let}{/let}";
+        String expected = """
+                      {!  Build multi-author list for this post  !}
+                      {#let authors_raw=str:split(post.data.author.or(''), ",")}
+                      {#let authors_clean=str:split("", "")}{/let}{/let}\
+                """;
 
         assertConverts(input, expected, "Author file lines 36-38 should convert without {?:} errors");
     }
@@ -1284,47 +1295,7 @@ class LiquidToQuteConverterTest {
                 "Trailing content using variable should be duplicated into both branches: " + result);
     }
 
-    @Test
-    void testRelativeUrlFilter() {
-        String input = "{{ '/assets/javascript/highlight.pack.js' | relative_url }}";
-        String expected = "{='/assets/javascript/highlight.pack.js'}";
-        assertConverts(input, expected, "relative_url filter is a no-op in Roq");
-    }
 
-    @Test
-    void testRelativeUrlFilterWithVariable() {
-        String input = "{{ page.url | relative_url }}";
-        String expected = "{='/'.concat(page.url).raw}";
-        assertConverts(input, expected, "relative_url filter on variable prepends /");
-    }
-
-    @Test
-    void testAbsoluteUrlFilter() {
-        String input = "{{ '/feed.xml' | absolute_url }}";
-        String expected = "{='/feed.xml'}";
-        assertConverts(input, expected, "absolute_url filter is a no-op in Roq");
-    }
-
-    @Test
-    void testPrependWithStringLiteral() {
-        String input = "{{ '/assets/images/quarkus_card.png' | prepend: site.url }}";
-        String expected = "{=site.url.resolve('/assets/images/quarkus_card.png').raw}";
-        assertConverts(input, expected, "prepend with string literal containing slashes should work");
-    }
-
-    @Test
-    void testNotEqualsConvertsToNe() {
-        String input = "{% if site.cname != 'quarkus.io' %}content{% endif %}";
-        String expected = "{#if cdi:siteConfig.cname ne 'quarkus.io'}content{/if}";
-        assertConverts(input, expected, "!= should convert to ne in if conditions");
-    }
-
-    @Test
-    void testContentVariableInLayout() {
-        String input = "<div>{{ content }}</div>";
-        String expected = "<div>{#insert /}</div>";
-        assertConverts(input, expected, "{{ content }} in layout should become {#insert /}");
-    }
 
     @Test
     void testContentVariableInPartial() {
@@ -1337,40 +1308,10 @@ class LiquidToQuteConverterTest {
     }
 
     @Test
-    void testSitePostsConversion() {
-        String input = "{% for post in site.posts %}text{% endfor %}";
-        String expected = "{#for post in site.collections.get('posts').orEmpty}text{/for}";
-        assertConverts(input, expected, "site.posts should convert to site.collections.get('posts')");
-    }
-
-    @Test
-    void testForLoopPropertyIterableGetsOrEmpty() {
-        String input = "{% for tag in post.tags %}{{ tag }}{% endfor %}";
-        String expected = "{#for tag in post.tags.orEmpty}{=tag.raw}{/for}";
-        assertConverts(input, expected, "Property-access iterable in for loop should get .orEmpty");
-    }
-
-    @Test
     void testForLoopCdiIterableNoOrEmpty() {
         String input = "{% for item in cdi:books %}text{% endfor %}";
         String expected = "{#for item in cdi:books}text{/for}";
         assertConverts(input, expected, "cdi: iterable should not get .orEmpty");
-    }
-
-    @Test
-    void testSplitWithDefaultUsesNamespaceForm() {
-        // default is stripped, split uses namespace form for null safety
-        String input = "{% assign result = foo.bar | default: \"\" | split: \",\" %}{result}";
-        String result = converter.convert(input);
-        assertTrue(result.contains("{#let result=str:split(foo.bar, \",\")}"),
-                "Should use namespace split form: " + result);
-    }
-
-    @Test
-    void testForLoopSimpleVariableGetsOrEmpty() {
-        String input = "{% for a in authors_raw %}{{ a }}{% endfor %}";
-        String expected = "{#for a in authors_raw.orEmpty}{=a.raw}{/for}";
-        assertConverts(input, expected, "Simple variable iterable in for loop should get .orEmpty");
     }
 
     @Test
@@ -1409,10 +1350,82 @@ class LiquidToQuteConverterTest {
     }
 
     @Test
+    void testRelativeUrlFilter() {
+        String input = "{{ '/assets/javascript/highlight.pack.js' | relative_url }}";
+        String expected = "{=cdi:siteConfig.baseurl + '/assets/javascript/highlight.pack.js'}";
+        assertConverts(input, expected, "relative_url filter should prepend baseurl");
+    }
+
+    @Test
+    void testRelativeUrlFilterWithVariable() {
+        String input = "{{ page.url | relative_url }}";
+        String expected = "{=cdi:siteConfig.baseurl + page.url}";
+        assertConverts(input, expected, "relative_url filter on variable should prepend baseurl");
+    }
+
+    @Test
+    void testAbsoluteUrlFilter() {
+        String input = "{{ '/feed.xml' | absolute_url }}";
+        String expected = "{=cdi:siteConfig.baseurl + '/feed.xml'}";
+        assertConverts(input, expected, "absolute_url filter should prepend baseurl");
+    }
+
+    @Test
+    void testPrependWithStringLiteral() {
+        String input = "{{ '/assets/images/quarkus_card.png' | prepend: site.url }}";
+        String expected = "{=site.url.resolve('/assets/images/quarkus_card.png')}";
+        assertConverts(input, expected, "prepend with string literal containing slashes should work");
+    }
+
+    @Test
+    void testNotEqualsConvertsToNe() {
+        String input = "{% if site.cname != 'quarkus.io' %}content{% endif %}";
+        String expected = "{#if cdi:siteConfig.cname ne 'quarkus.io'}content{/if}";
+        assertConverts(input, expected, "!= should convert to ne in if conditions");
+    }
+
+    @Test
+    void testContentVariableInLayout() {
+        String input = "<div>{{ content }}</div>";
+        String expected = "<div>{#insert /}</div>";
+        assertConverts(input, expected, "{{ content }} in layout should become {#insert /}");
+    }
+
+    @Test
+    void testSitePostsConversion() {
+        String input = "{% for post in site.posts %}text{% endfor %}";
+        String expected = "{#for post in site.collections.get('posts').orEmpty}text{/for}";
+        assertConverts(input, expected, "site.posts should convert to site.collections.get('posts')");
+    }
+
+    @Test
+    void testForLoopPropertyIterableGetsOrEmpty() {
+        String input = "{% for tag in post.tags %}{{ tag }}{% endfor %}";
+        String expected = "{#for tag in post.tags.orEmpty}{=tag}{/for}";
+        assertConverts(input, expected, "Property-access iterable in for loop should get .orEmpty");
+    }
+
+    @Test
     void testUnlessGreaterThanFlipsOperator() {
         String input = "{% unless eol_str > today %}expired{% endunless %}";
         String expected = "{#if eol_str <= today}expired{/if}";
         assertConverts(input, expected, "unless with > should flip to <=");
+    }
+
+    @Test
+    void testSplitWithDefaultUsesNamespaceForm() {
+        // default is stripped, split uses namespace form for null safety
+        String input = "{% assign result = foo.bar | default: \"\" | split: \",\" %}{result}";
+        String result = converter.convert(input);
+        assertTrue(result.contains("{#let result=str:split(foo.bar, \",\")}"),
+                "Should use namespace split form: " + result);
+    }
+
+    @Test
+    void testForLoopSimpleVariableGetsOrEmpty() {
+        String input = "{% for a in authors_raw %}{{ a }}{% endfor %}";
+        String expected = "{#for a in authors_raw.orEmpty}{=a}{/for}";
+        assertConverts(input, expected, "Simple variable iterable in for loop should get .orEmpty");
     }
 
     @Nested
@@ -1494,14 +1507,15 @@ class LiquidToQuteConverterTest {
 
     @Test
     void testPushInNestedLoopCollapsedToMergeTypes() {
-        String input = "{% assign v_type = include.type %}\n" +
-                "{% assign values = \"\" | split: \",\" %}\n" +
-                "{% for source in index -%}\n" +
-                "    {% for item in source[1].types[v_type] -%}\n" +
-                "        {% assign values = values | push: item %}\n" +
-                "    {% endfor -%}\n" +
-                "{% endfor -%}\n" +
-                "{% assign values = values | sort: 'title' %}";
+        String input = """
+                {% assign v_type = include.type %}
+                {% assign values = "" | split: "," %}
+                {% for source in index -%}
+                    {% for item in source[1].types[v_type] -%}
+                        {% assign values = values | push: item %}
+                    {% endfor -%}
+                {% endfor -%}
+                {% assign values = values | sort: 'title' %}""";
         String result = converter.convert(input);
         assertTrue(result.contains("mergeTypes("),
                 "Nested push-in-loop with sort should collapse to mergeTypes(): " + result);
@@ -1607,10 +1621,13 @@ class LiquidToQuteConverterTest {
 
     @Test
     void testMutableMapInitAfterFrontMatter() {
-        String input = "---\nlayout: base\n---\n" +
-                "{% assign active = false %}" +
-                "{#if cond}{% assign active = true %}{/if}" +
-                "{#if active}yes{/if}";
+        String input = """
+                ---
+                layout: base
+                ---
+                {% assign active = false %}\
+                {#if cond}{% assign active = true %}{/if}\
+                {#if active}yes{/if}""";
         String result = converter.convert(input);
         assertTrue(result.startsWith("---\nlayout: base\n---\n{#let _m=mut:map()}"),
                 "Mutable map init should come after front matter, not before: " + result);

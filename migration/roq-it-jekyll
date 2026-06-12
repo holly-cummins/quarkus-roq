@@ -1,56 +1,10 @@
 #! /bin/bash
 
-set -ex
-
-# Add .jbang/bin to PATH if jbang is not already available
-if ! command -v jbang >/dev/null 2>&1; then
-    if [ -f "$HOME/.jbang/bin/jbang" ]; then
-        export PATH="$HOME/.jbang/bin:$PATH"
-    else
-        echo "jbang required. Install: curl -Ls https://sh.jbang.dev | bash -s -"
-        exit 1
-    fi
-fi
-
-# Cross-platform sed in-place edit
-# macOS requires 'sed -i ""' while Linux uses 'sed -i'
-sed_inplace() {
-    if [[ "$OSTYPE" == "darwin"* ]]; then
-        sed -i '' "$@"
-    else
-        sed -i "$@"
-    fi
-}
+set -x
 
 export project_dir=$1
 export tools_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 export tmp_dir=~/tmp
-export ROQ_VERSION=${ROQ_VERSION:-2.1.6}
-
-# Function to strip frontmatter from a file
-strip_frontmatter() {
-    local file="$1"
-    # Check if file starts with frontmatter (---)
-    if head -n 1 "$file" | grep -q "^---$"; then
-        # Remove frontmatter and any leading blank lines after it
-        # (XML files need <?xml as the very first character)
-        awk 'BEGIN {fm=0; skip=1; blank=1} /^---$/ {if(skip) {fm++; if(fm==2) {skip=0} next}} !skip {if(blank && /^[[:space:]]*$/) next; blank=0; print}' "$file" > "$file.tmp"
-        mv "$file.tmp" "$file"
-    fi
-}
-
-# Function to add underscore prefix to filename in place
-add_underscore_prefix() {
-    local file="$1"
-    local dir=$(dirname "$file")
-    local filename=$(basename "$file")
-    
-    # Add underscore prefix if not already present
-    if [[ ! "$filename" =~ ^_ ]]; then
-        local new_filename="_${filename}"
-        mv "$file" "${dir}/${new_filename}"
-    fi
-}
 
 ## Build the converter
 mvn -f ${tools_dir}/pom.xml install -q
@@ -64,366 +18,269 @@ rm -rf ${project_dir}/templates/
 
 rm -f ${project_dir}/application.properties
 
-# Replace /assets/css/ links with {#bundle /} tag using Java converter
-# Handles multiple CSS files, preserves non-assets CSS, fixes TBT regression
-mvn -f ${tools_dir}/pom.xml -q exec:java -Dexec.mainClass="io.quarkus.tools.JekyllLayoutCommand" -Dexec.args="${project_dir}/_layouts/base.html"
+## Generate minimal Roq project files (no roq CLI needed)
+mkdir -p ${project_dir}/config
 
+cat > ${project_dir}/config/application.properties <<'PROPS'
+PROPS
 
-## Generate Roq project skeleton via roq create
-mkdir -p ${tmp_dir}
+# Generate a standalone pom.xml for the converted Roq site
+cat > ${project_dir}/pom.xml <<'POM'
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <groupId>io.quarkus</groupId>
+    <artifactId>quarkusio-converted</artifactId>
+    <version>1.0.0-SNAPSHOT</version>
+    <name>Quarkus.io - Converted from Jekyll</name>
+    <properties>
+        <compiler-plugin.version>3.15.0</compiler-plugin.version>
+        <maven.compiler.release>21</maven.compiler.release>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
+        <quarkus.platform.artifact-id>quarkus-bom</quarkus.platform.artifact-id>
+        <quarkus.platform.group-id>io.quarkus</quarkus.platform.group-id>
+        <quarkus.platform.version>3.35.0</quarkus.platform.version>
+        <quarkus-roq.version>999-SNAPSHOT</quarkus-roq.version>
+        <surefire-plugin.version>3.5.5</surefire-plugin.version>
+    </properties>
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>${quarkus.platform.group-id}</groupId>
+                <artifactId>${quarkus.platform.artifact-id}</artifactId>
+                <version>${quarkus.platform.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+    <dependencies>
+        <dependency>
+            <groupId>io.quarkiverse.roq</groupId>
+            <artifactId>quarkus-roq-frontmatter</artifactId>
+            <version>${quarkus-roq.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.quarkiverse.roq</groupId>
+            <artifactId>quarkus-roq-plugin-markdown</artifactId>
+            <version>${quarkus-roq.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-arc</artifactId>
+        </dependency>
+PLUGIN_DEPS
+    </dependencies>
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>${quarkus.platform.group-id}</groupId>
+                <artifactId>quarkus-maven-plugin</artifactId>
+                <version>${quarkus.platform.version}</version>
+                <extensions>true</extensions>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>build</goal>
+                            <goal>generate-code</goal>
+                            <goal>generate-code-tests</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>${compiler-plugin.version}</version>
+                <configuration>
+                    <parameters>true</parameters>
+                </configuration>
+            </plugin>
+            <plugin>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>${surefire-plugin.version}</version>
+            </plugin>
+        </plugins>
+    </build>
+</project>
+POM
 
-# Generate pom.xml via jbang + roq create in a temp directory
-roq_tmp="${tmp_dir}/roq-create-$$"
-rm -rf ${roq_tmp}
-# Use local jar for 999-SNAPSHOT to avoid downloading from Maven Central
-if [ "${ROQ_VERSION}" = "999-SNAPSHOT" ] && [ -f "${tools_dir}/../roq-cli/target/quarkus-roq-cli-999-SNAPSHOT-runner.jar" ]; then
-    (cd ${tmp_dir} && jbang "${tools_dir}/../roq-cli/target/quarkus-roq-cli-999-SNAPSHOT-runner.jar" create "roq-create-$$" --no-code -x theme:base --roq-version ${ROQ_VERSION})
-else
-    (cd ${tmp_dir} && jbang roq@quarkiverse/quarkus-roq create "roq-create-$$" --no-code -x theme:base --roq-version ${ROQ_VERSION})
-fi
-cp ${roq_tmp}/pom.xml ${project_dir}/pom.xml
-rm -rf ${roq_tmp}
-
-# Add roq-testing for @RoqAndRoll test support
-(cd ${project_dir} && mvn -q quarkus:add-extension \
-    -Dextensions="io.quarkiverse.roq:quarkus-roq-testing:${ROQ_VERSION}")
-
-# Add aliases for jekyll redirection support, and also permalink alternative
-(cd ${project_dir} && mvn -q quarkus:add-extension \
-    -Dextensions="io.quarkiverse.roq:quarkus-roq-plugin-aliases:${ROQ_VERSION}")
-
-
-# Remove Jekyll-specific files (if they exist)
-rm -f ${project_dir}/Gemfile
-rm -f ${project_dir}/Gemfile.lock
-rm -rf ${project_dir}/jekyll-container
-rm -rf ${project_dir}/.jekyll-cache
+# Remove Jekyll-specific files
+rm ${project_dir}/Gemfile
+rm ${project_dir}/Gemfile.lock
 
 # Roq content lives in content
 mkdir -p ${project_dir}/content
 mv ${project_dir}/*md ${project_dir}/content/
-mv ${project_dir}/*.adoc ${project_dir}/content/ 2>/dev/null || true
-
 
 mkdir -p ${project_dir}/templates
-
-# Note: Previously deleted content files when redirects existed, but this was too aggressive.
-# Some redirects coexist with content (e.g., security-webauthn has both the guide and
-# a redirect for backward compatibility). Roq's alias plugin can handle this correctly
-# by creating an alias without needing to delete the original content.
-#
-# The deletion caused issues:
-# - security-webauthn.adoc was deleted due to a circular redirect
-# - Other guides with backward-compat aliases were incorrectly removed
-#
-# Solution: Don't delete anything. Let Roq's alias plugin handle redirects.
 
 # Adjust folder names and locations
 mv ${project_dir}/_posts ${project_dir}/content/posts
 mv ${project_dir}/_data ${project_dir}/data
 # done with a liquid conversion step mv _layouts templates/layouts
 
-# Move _generated-doc into content/ so AsciiDoc include paths resolve unchanged.
-# Guides reference {generated-dir} with relative paths (e.g. ../_generated-doc/latest).
-# In Jekyll, guides lived at _guides/ (depth 1); in Roq, they're at content/guides/ (depth 2).
-# Moving _generated-doc into content/ preserves the same relative distance.
-# Roq's **/_** ignore pattern means these files won't be processed as pages.
-if [ -d "${project_dir}/_generated-doc" ]; then
-    mv ${project_dir}/_generated-doc ${project_dir}/content/_generated-doc
-fi
-
-
-# ... everything in _sass is a partial and needs its name updating
-if [ -d "${project_dir}/_sass" ]; then
-    # Add _ prefix to each file in the moved directory
-    # The contents of _sass are Jekyll partials, and need to be converted to Roq partials
-    find ${project_dir}/_sass -type f | while read -r file; do
-        add_underscore_prefix "$file"
-    done
-fi
-
-## SCSS should live in the web folder
-mv ${project_dir}/_sass ${project_dir}/web
-
-
-# Strip Jekyll frontmatter from SCSS files in assets/css before moving to web
-if [ -d "${project_dir}/assets/css" ]; then
-    find ${project_dir}/assets/css -type f \( -name "*.scss" -o -name "*.css" \) | while read -r file; do
-        strip_frontmatter "$file"
-    done
-fi
-
-mv ${project_dir}/assets/css/* ${project_dir}/web 2>/dev/null || true
-
-# Check for Liquid template syntax in CSS/SCSS files - these won't work in Roq
-# Jekyll processed CSS/SCSS through Liquid if they had frontmatter, but Roq doesn't.
-# Variables like {{ site.baseurl }} need to be replaced with static values or CSS variables.
-echo "Checking for Liquid syntax in CSS/SCSS files..."
-LIQUID_IN_CSS=$(find ${project_dir}/web -type f \( -name "*.css" -o -name "*.scss" \) -exec grep -l '{{.*}}' {} \; 2>/dev/null || true)
-if [ -n "$LIQUID_IN_CSS" ]; then
-    echo "ERROR: Found Liquid template syntax in CSS/SCSS files:"
-    echo "$LIQUID_IN_CSS" | while read -r file; do
-        echo "  $file:"
-        grep -n '{{.*}}' "$file" | head -3 | sed 's/^/    /'
-    done
-    echo ""
-    echo "Liquid syntax like '{{ site.baseurl }}' will not work in Roq."
-    echo "Replace these with static values or CSS custom properties."
-    exit 1
-fi
-
-## Assets maps to public/assets in roq
-mkdir -p ${project_dir}/public
+## Assets maps to public in roq
 mv ${project_dir}/assets ${project_dir}/public
 
-# Move any remaining top-level directories to public/ (e.g., newsletter, downloads, archive).
-# These are typically static asset directories that Jekyll served directly.
-# Excludes: Jekyll reserved dirs (any starting with _), Roq dirs, build artifacts, and config files.
-# Safety check: warns if directory contains markdown/AsciiDoc files (might be content, not static assets).
-ROQ_DIRS="content templates web public data config src target .git .github .idea .vscode node_modules"
-BUILD_TOOLS="jekyll-container working-groups contributors tools"
-CONFIG_FILES="Gemfile Gemfile.lock _config.yml pom.xml package.json"
-
-for dir in ${project_dir}/*/; do
-    [ -d "$dir" ] || continue
-    dirname=$(basename "$dir")
-
-    # Skip any directory starting with underscore (Jekyll convention)
-    # This includes _layouts, _includes, _guides, _versions, _redirects, _generated-doc, etc.
-    if [[ "$dirname" == _* ]]; then
-        continue
-    fi
-
-    # Skip if in Roq directories list
-    if echo " $ROQ_DIRS " | grep -q " $dirname "; then
-        continue
-    fi
-
-    # Skip if in build tools list (JBang scripts, Docker configs, etc.)
-    if echo " $BUILD_TOOLS " | grep -q " $dirname "; then
-        continue
-    fi
-
-    # Skip if it's a config file pattern (though we're checking dirs, be safe)
-    skip=false
-    for pattern in $CONFIG_FILES; do
-        if [[ "$dirname" == $pattern* ]]; then
-            skip=true
-            break
-        fi
-    done
-    [ "$skip" = true ] && continue
-
-    # Safety check: skip if directory contains ANY markdown/AsciiDoc files
-    # (might be content that should go to content/, not static assets for public/)
-    if find "$dir" -type f \( -name "*.md" -o -name "*.adoc" \) 2>/dev/null | head -1 | grep -q .; then
-        echo "WARNING: $dirname contains markdown/AsciiDoc files - might be content, not static assets"
-        echo "  Skipping automatic move. Review manually and move to content/ or public/ as appropriate."
-        continue
-    fi
-
-    # Move to public/ - this catches newsletter, downloads, archives, etc.
-    echo "Moving custom static directory: $dirname → public/$dirname"
-    mv "$dir" "${project_dir}/public/$dirname"
-done
-
-# Roq's static file handler silently renames files with parentheses
-# (e.g. content(1) → content-1) during the build, but does not update
-# HTML references, so images 404 at runtime.
-# Fix: rename source files and update HTML references to match.
-mvn -f ${tools_dir}/pom.xml -q exec:java -Dexec.mainClass="io.quarkus.tools.ParenthesisFileRenamerCommand" -Dexec.args="${project_dir}/public"
-
-# Convert Jekyll XML templates (feed.xml, sitemap.xml) to Qute
-# Strip frontmatter, stage in _includes for the converter, serve from content/
-for xml_file in feed.xml sitemap.xml; do
-    if [ -f "${project_dir}/${xml_file}" ]; then
-        strip_frontmatter "${project_dir}/${xml_file}"
-        mv ${project_dir}/${xml_file} ${project_dir}/_includes/${xml_file}
-        echo "{#include partials/${xml_file} /}" > ${project_dir}/content/${xml_file}
-    fi
-done
-
-# Convert frontmatter (permalinks → aliases, pagination → paginate)
-mvn -f ${tools_dir}/pom.xml -q exec:java -Dexec.mainClass="io.quarkus.tools.migration.jekyll.JekyllFrontMatterCommand" -Dexec.args="${project_dir}"
-
-# Convert Jekyll config to Roq (creates config/application.properties, data/siteConfig.yml, and ConfigMapping classes)
-mvn -f ${tools_dir}/pom.xml -q exec:java -Dexec.mainClass="io.quarkus.tools.JekyllConfigCommand" -Dexec.args="${project_dir}"
-rm -rf ${project_dir}/_config.yml
-
-# Read discovered ConfigMapping sections (written by JekyllConfigConverter)
-CONFIG_MAPPINGS=""
-if [ -f "${project_dir}/config/.migration-config-mappings" ]; then
-    CONFIG_MAPPINGS="--config-mappings $(paste -sd, "${project_dir}/config/.migration-config-mappings")"
+# Replace SCSS source with compiled CSS from _site (Jekyll compiled it)
+if [ -f "${project_dir}/_site/assets/css/main.css" ]; then
+    cp ${project_dir}/_site/assets/css/main.css ${project_dir}/public/css/main.css
+    rm -f ${project_dir}/public/css/main.scss
 fi
 
-# Add index pages for image directories so Roq serves them as attachments.
-# Without an index page, non-template files in content/ are orphaned and silently dropped.
-# This handles both top-level collections (guides/images) and nested ones (versions/3.33/guides/images).
-find ${project_dir}/content -type d -name 'images' | while read -r img_dir; do
-    if [ ! -f "${img_dir}/index.html" ]; then
-        # Extract the path relative to content/ (e.g., "guides" or "versions/3.33/guides")
-        rel_path=$(echo "${img_dir}" | sed "s|${project_dir}/content/||" | sed 's|/images$||')
-        printf '%s\n' '---' "link: /${rel_path}/images/" '---' '<html><body></body></html>' > "${img_dir}/index.html"
-    fi
-done
-
-# Same for javascript directories.
-find ${project_dir}/content -type d -name 'javascript' | while read -r js_dir; do
-    if [ ! -f "${js_dir}/index.html" ]; then
-        # Extract the path relative to content/ (e.g., "guides" or "versions/3.33/guides")
-        rel_path=$(echo "${js_dir}" | sed "s|${project_dir}/content/||" | sed 's|/javascript$||')
-        printf '%s\n' '---' "link: /${rel_path}/javascript/" '---' '<html><body></body></html>' > "${js_dir}/index.html"
-    fi
-done
+mv ${project_dir}/_site/index.html ${project_dir}
 
 # Convert Liquid to Qute; this has the side effect of renaming directories to adjust the structure
 mkdir -p ${project_dir}/templates/partials
-mvn -f ${tools_dir}/pom.xml -q exec:java -Dexec.mainClass="io.quarkus.tools.LiquidToQuteCommand" -Dexec.args="${project_dir}/_includes ${project_dir}/templates/partials --partials ${CONFIG_MAPPINGS}"
-mvn -f ${tools_dir}/pom.xml -q exec:java -Dexec.mainClass="io.quarkus.tools.LiquidToQuteCommand" -Dexec.args="${project_dir}/_layouts ${project_dir}/templates/layouts ${CONFIG_MAPPINGS}"
+mvn -f ${tools_dir}/pom.xml -q exec:java -Dexec.mainClass="io.quarkus.tools.LiquidToQuteCommand" -Dexec.args="${project_dir}/_includes ${project_dir}/templates/partials"
+mvn -f ${tools_dir}/pom.xml -q exec:java -Dexec.mainClass="io.quarkus.tools.LiquidToQuteCommand" -Dexec.args="${project_dir}/_layouts ${project_dir}/templates/layouts"
 
-# Now delete the old includes and layouts
-rm -rf ${project_dir}/_includes
-rm -rf ${project_dir}/_layouts
-
-# Copy static assets from _guides (CSS, etc.) that Liquid converter skipped
-# The converter only processes template files, so stylesheet/, images/, javascript/ get left behind
-if [ -d "${project_dir}/_guides" ]; then
-    # Copy stylesheet directory
-    if [ -d "${project_dir}/_guides/stylesheet" ]; then
-        mkdir -p ${project_dir}/content/guides/stylesheet
-        cp -r ${project_dir}/_guides/stylesheet/* ${project_dir}/content/guides/stylesheet/
-        echo "Copied _guides/stylesheet/ → content/guides/stylesheet/"
-    fi
+# Data directories (subdirs of data/) can't be accessed as single CDI beans.
+# Revert cdi: prefix for these and leave a TODO comment in the templates.
+if [ -d "${project_dir}/data" ]; then
+    for dir in ${project_dir}/data/*/; do
+        dirname=$(basename "$dir")
+        find ${project_dir}/templates ${project_dir}/templates/partials -name '*.html' -exec \
+            sed -i '' "s/cdi:${dirname}/site.data.${dirname}/g" {} + 2>/dev/null
+    done
 fi
 
-# Add index.html to stylesheet directories so files are served as attachments
-# This runs after copying to handle all stylesheet dirs (guides and versions)
-find ${project_dir}/content -type d -name 'stylesheet' | while read -r css_dir; do
-    if [ ! -f "${css_dir}/index.html" ]; then
-        # Extract the path relative to content/ (e.g., "guides" or "versions/3.33/guides")
-        rel_path=$(echo "${css_dir}" | sed "s|${project_dir}/content/||" | sed 's|/stylesheet$||')
-        printf '%s\n' '---' "link: /${rel_path}/stylesheet/" '---' '<html><body></body></html>' > "${css_dir}/index.html"
+# Copy Jekyll filter extensions (where, first, last, size for JsonArray)
+mkdir -p ${project_dir}/src/main/java/io/quarkus/tools/migration
+cp ${tools_dir}/src/main/resources/migration-helpers/JekyllFiltersExtension.java \
+   ${project_dir}/src/main/java/io/quarkus/tools/migration/
+
+# Enable the alternative expression syntax to reduce overhead of escaping braces
+echo quarkus.qute.alt-expr-syntax=true >> ${project_dir}/config/application.properties
+echo "site.date-format=yyyy-MM-dd['T'HH:mm:ss][X]" >> ${project_dir}/config/application.properties
+# Jekyll templates access arbitrary frontmatter fields that may not exist on every page
+echo "quarkus.qute.strict-rendering=false" >> ${project_dir}/config/application.properties
+# Exclude type checking for:
+# - Object.* (JsonArray iteration yields Object at build time)
+# - Page.paginator (only on NormalPage subclass, not visible at compile time)
+# - DocumentPage.* (post loop variables access custom frontmatter via data)
+echo "quarkus.qute.type-check-excludes=java.lang.Object.*,io.quarkiverse.roq.frontmatter.runtime.model.Page.paginator,io.quarkiverse.roq.frontmatter.runtime.model.Page.tags,io.quarkiverse.roq.frontmatter.runtime.model.Page.tagsCount,io.quarkiverse.roq.frontmatter.runtime.model.DocumentPage.*" >> ${project_dir}/config/application.properties
+# Fix asset paths: Jekyll's assets/ dir was moved to public/ which is served at root.
+# Strip /assets/ prefix from all template and CSS references.
+find ${project_dir}/templates -name '*.html' -exec \
+    sed -i '' 's|/assets/|/|g' {} +
+find ${project_dir}/public -name '*.css' -exec \
+    sed -i '' 's|/assets/|/|g' {} +
+
+# TODO: Workaround for Jekyll→Qute variable scoping mismatch in includes.
+# Problem: Jekyll's {% assign %} creates page-scoped variables that are visible inside {% include %} blocks.
+# In Qute, {#let} variables are block-scoped and NOT visible inside {#include} templates. So a variable
+# like search_script assigned in base.html with {#let} is invisible inside {#include partials/head-csp.html /}.
+# This causes PropertyNotFoundThrowException at runtime even with strict-rendering=false.
+#
+# Current fix: Append ?? (or-empty) to all simple standalone variable references in partials, making them
+# resolve to empty string instead of throwing when the variable is missing.
+#
+# Better solutions to explore:
+#   1. Pass variables explicitly as include parameters: {#include partials/head-csp.html search_script=search_script /}
+#      This would require the converter to track which variables are used in each include and auto-generate params.
+#   2. Convert Jekyll assigns to Qute @TemplateData beans or CDI-injected values so they're globally accessible.
+#   3. Restructure templates to inline the partial content where scoped variables are needed.
+#   4. Add a Roq/Qute feature for "transparent includes" that inherit the parent's variable scope (like Jekyll).
+find ${project_dir}/templates/partials -name '*.html' -exec \
+    sed -i '' 's/{=\([a-z_][a-z_0-9]*\)}/{=\1??}/g' {} +
+
+# Comment out blocks using whereExp (no Qute equivalent)
+python3 -c "
+import re, glob, os
+for f in glob.glob(os.path.join('${project_dir}', 'templates', '**', '*.html'), recursive=True) + \
+         glob.glob(os.path.join('${project_dir}', 'includes', '**', '*.html'), recursive=True):
+    with open(f) as fh: content = fh.read()
+    if 'whereExp' not in content: continue
+    # Find the nearest enclosing {#if ...} ... {/if} around whereExp and comment it out
+    content = re.sub(
+        r'(\{#if [^}]*\}(?:(?!\{#if ).)*?whereExp.*?\{/if\})',
+        r'{! TODO: whereExp needs Roq reimplementation\n\1\n!}',
+        content, flags=re.DOTALL)
+    with open(f, 'w') as fh: fh.write(content)
+"
+
+# Extract site properties from _config.yml and create data/siteConfig.yml
+# This makes Jekyll's site.* properties available as cdi:siteConfig.* in Roq
+# Note: Can't use "site" as the name because Roq already has a Site object with that name
+if [ -f "${project_dir}/_config.yml" ]; then
+    mkdir -p ${project_dir}/data
+
+    # Extract CNAME (GitHub Pages custom domain, used by some templates)
+    cname=""
+    if [ -f "${project_dir}/CNAME" ]; then
+        cname=$(cat ${project_dir}/CNAME | tr -d '[:space:]')
     fi
-done
 
-# Copy Jekyll filter extensions ONLY if they don't already exist
-# This prevents overwriting user's custom Java code during re-runs or iterative migrations.
-if [ ! -f "${project_dir}/src/main/java/io/quarkus/tools/migration/JekyllFiltersExtension.java" ]; then
-    mkdir -p ${project_dir}/src/main/java/io/quarkus/tools/migration
-    cp ${tools_dir}/src/main/java/io/quarkus/tools/migration/JekyllFiltersExtension.java \
-       ${project_dir}/src/main/java/io/quarkus/tools/migration/
-    echo "Copied JekyllFiltersExtension.java"
-else
-    echo "SKIP: JekyllFiltersExtension.java already exists"
+    # Extract baseurl (default to empty string if not set)
+    baseurl=$(grep "^baseurl:" ${project_dir}/_config.yml | sed 's/^baseurl: *"\(.*\)".*/\1/' | sed "s/^baseurl: *'\(.*\)'.*/\1/" | sed 's/^baseurl: *\([^ #]*\).*/\1/')
+
+    # Extract language (default to en if not set)
+    language=$(grep "^language:" ${project_dir}/_config.yml | sed 's/^language: *\([^ #]*\).*/\1/')
+    language=${language:-en}
+
+    # Extract twitter_username
+    twitter_username=$(grep "^twitter_username:" ${project_dir}/_config.yml | sed 's/^twitter_username: *\([^ #]*\).*/\1/')
+
+    # Extract nested search config from _config.yml
+    # Note: This is a simplified extraction - complex YAML may need a proper parser
+    search_script_mode=$(grep -A10 "^search:" ${project_dir}/_config.yml | grep "script-mode:" | sed 's/.*script-mode: *"\(.*\)".*/\1/')
+    search_host=$(grep -A10 "^search:" ${project_dir}/_config.yml | grep "host:" | sed 's/.*host: *"\(.*\)".*/\1/')
+    search_script_path=$(grep -A10 "^search:" ${project_dir}/_config.yml | grep "script-path:" | sed 's/.*script-path: *"\(.*\)".*/\1/')
+    search_cached_script_file=$(grep -A10 "^search:" ${project_dir}/_config.yml | grep "cached-script-file:" | sed 's/.*cached-script-file: *"\(.*\)".*/\1/' | sed "s/.*cached-script-file: *\([^ ]*\).*/\1/")
+
+    # Create data/siteConfig.yml with extracted values
+    cat > ${project_dir}/data/siteConfig.yml <<SITEDATA
+cname: "${cname}"
+baseurl: "${baseurl}"
+language: "${language}"
+search:
+  script-mode: "${search_script_mode}"
+  host: "${search_host}"
+  script-path: "${search_script_path}"
+  cached-script-file: "${search_cached_script_file}"
+twitter_username: "${twitter_username}"
+tags: []
+SITEDATA
 fi
-
-# Convert Jekyll plugins (_plugins/*.rb) to Roq equivalents
-mvn -f ${tools_dir}/pom.xml -q exec:java -Dexec.mainClass="io.quarkus.tools.JekyllPluginCommand" -Dexec.args="${project_dir}"
-
-# Convert AsciiDoc link: macros to xref: for cross-document references.
-#
-# Background: In Jekyll, all guides lived at _guides/ (same directory), so relative links
-# like link:building-native-image#anchor worked fine - they resolved to sibling files.
-# In Roq, guides render with directory-style URLs (/guides/foo/) even though source files
-# are flat (content/guides/foo.adoc), so link:bar resolves relative to the page URL:
-# /guides/foo/ + bar → /guides/foo/bar (404).
-#
-# AsciiDoc's xref: cross-reference macro uses relfileprefix/relfilesuffix attributes to
-# construct proper relative paths. Roq sets relfileprefix=../ and relfilesuffix=/, so:
-# xref:building-native-image.adoc#anchor → ../building-native-image/#anchor
-# which resolves correctly from /guides/foo/ to /guides/building-native-image/#anchor.
-#
-# This works at any nesting depth (content/guides/ or content/versions/3.33/guides/)
-# because the page URL depth matches the nesting, and ../ goes up one level.
-#
-# Pattern: link:bare-filename → xref:filename.adoc
-# Preserves anchors (#section) and link text [text].
-# Skips URLs (http/https), absolute paths (/foo), and relative paths (./foo).
-#
-# NOTE: This must run AFTER the Liquid converter, which moves _guides → content/guides
-# and _versions → content/versions as a side effect of the directory renaming.
-mvn -f ${tools_dir}/pom.xml -q exec:java -Dexec.mainClass="io.quarkus.tools.migration.command.AsciiDocLinkToXrefCommand" -Dexec.args="${project_dir}/content"
-
-# Make all extends optional
-# Use bash to run sed_inplace for each file since find -exec doesn't have access to functions
-find ${project_dir}/web -name '*.scss' | while read -r file; do
-    sed_inplace -e 's|@extend \(.*\);|@extend \1 !optional;|g' "$file"
-done
-
-# then fix up any where we double-optionaled
-find ${project_dir}/web -name '*.scss' | while read -r file; do
-    sed_inplace -e 's|!optional !optional;|!optional;|g' "$file"
-done
-
 
 # Detect Jekyll features and add corresponding Roq plugins
 
 # Check for tags usage (in posts or layouts)
-if grep -q "^tags:" ${project_dir}/content/posts/*.md ${project_dir}/content/posts/*.adoc 2>/dev/null || \
-   grep -qE "site\.tags|tagsCount" ${project_dir}/templates/layouts/*.html 2>/dev/null; then
+if grep -q "^tags:" ${project_dir}/content/posts/*.md 2>/dev/null || \
+   grep -q "site.tags" ${project_dir}/templates/layouts/*.html 2>/dev/null; then
     echo "Detected tags usage - adding quarkus-roq-plugin-tagging"
-    (cd ${project_dir} && mvn -q quarkus:add-extension \
-        -Dextensions="io.quarkiverse.roq:quarkus-roq-plugin-tagging:${ROQ_VERSION}")
-    echo 'quarkus.roq.tagging.lowercase=true' >> ${project_dir}/config/application.properties
+
+    # Create plugin dependency block
+    cat > ${tmp_dir}/plugin_deps.xml <<'PLUGIN_DEP'
+        <dependency>
+            <groupId>io.quarkiverse.roq</groupId>
+            <artifactId>quarkus-roq-plugin-tagging</artifactId>
+            <version>${quarkus-roq.version}</version>
+        </dependency>
+PLUGIN_DEP
+
+    # Insert before the PLUGIN_DEPS marker
+    awk '/PLUGIN_DEPS/ {system("cat '${tmp_dir}'/plugin_deps.xml"); next} 1' ${project_dir}/pom.xml > ${tmp_dir}/pom.xml.tmp
+    mv ${tmp_dir}/pom.xml.tmp ${project_dir}/pom.xml
 fi
 
-# Check for AsciiDoc content
-if find ${project_dir}/content -name "*.adoc" -print -quit 2>/dev/null | grep -q .; then
-    echo "Detected AsciiDoc content - adding quarkus-roq-plugin-asciidoc-jruby"
-    (cd ${project_dir} && mvn -q quarkus:add-extension \
-        -Dextensions="io.quarkiverse.roq:quarkus-roq-plugin-asciidoc-jruby:${ROQ_VERSION}")
-fi
+# Remove the PLUGIN_DEPS placeholder
+sed -i.bak '/PLUGIN_DEPS/d' ${project_dir}/pom.xml
+rm -f ${project_dir}/pom.xml.bak
 
-# Check for Playwright test files
-if find ${project_dir}/src/test -name "*.java" -exec grep -l "playwright\|Playwright" {} \; 2>/dev/null | grep -q .; then
-    echo "Detected Playwright tests - adding quarkus-playwright"
-    (cd ${project_dir} && mvn -q quarkus:add-extension \
-        -Dextensions="io.quarkiverse.playwright:quarkus-playwright")
-fi
+# TODO need to add name and simple-name - global config?
 
-# Inject properties that quarkus-roq POMs reference via ${...} but that only resolve
-# through the parent POM chain (which roq-create-generated standalone POMs don't have).
-# Harmless for releases — the parent chain already provides them.
-if [ "${ROQ_VERSION}" = "999-SNAPSHOT" ]; then
-    sed_inplace '/<skipITs>/a\
-\        <quarkus-web-bundler.version>2.3.2</quarkus-web-bundler.version>\
-\        <asciidoctorj-diagram.version>3.2.1</asciidoctorj-diagram.version>
-' ${project_dir}/pom.xml
-fi
-
-# Merge standalone redirect files into their target files as aliases before deletion.
-# Redirect files (e.g., _redirects/guides/old-name/index.md with aliases: /guides/new-name)
-# should add "aliases: /guides/old-name" to the target file (guides/new-name.adoc).
-# This preserves redirects when the redirects/ directory is deleted.
-if [ -d "${project_dir}/content/redirects" ]; then
-    echo "Merging redirect files into target files as aliases..."
-    mvn -f ${tools_dir}/pom.xml -q exec:java -Dexec.mainClass="io.quarkus.tools.migration.command.RedirectMergerCommand" -Dexec.args="${project_dir}"
-fi
-
-# Delete redirects/ directory if it's empty after merging.
-# Merged redirects were deleted by RedirectMergerCommand; remaining files are
-# external URLs, version-prefix redirects, or other redirects that should stay as redirect pages.
-if [ -d "${project_dir}/content/redirects" ]; then
-    # Remove empty subdirectories first
-    find "${project_dir}/content/redirects" -type d -empty -delete 2>/dev/null || true
-    # Remove the redirects directory only if it's now empty
-    if [ -z "$(ls -A ${project_dir}/content/redirects 2>/dev/null)" ]; then
-        echo "Removing empty redirects/ directory..."
-        rmdir "${project_dir}/content/redirects"
-    else
-        echo "Keeping redirects/ directory with $(find ${project_dir}/content/redirects -type f | wc -l) remaining redirect files"
-    fi
-fi
-
-if [ "${LIVE_MODE}" = "true" ]; then
+if [ "${BATCH_MODE}" != "true" ]; then
     (
         cd ${project_dir}
         mvn quarkus:dev
     )
 else
-    echo "Generating static site..."
+    echo "Batch mode: running quarkus:build to check for errors..."
     (
         cd ${project_dir}
-        QUARKUS_ROQ_GENERATOR_BATCH=true mvn -B package quarkus:run -DskipTests 2>&1
-    ) || echo "WARNING: SSG build failed (may need a profile to exclude conflicting pages)"
+        mvn quarkus:build 2>&1
+    )
 fi

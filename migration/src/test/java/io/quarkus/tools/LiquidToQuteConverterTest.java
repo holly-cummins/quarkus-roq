@@ -11,6 +11,11 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
 class LiquidToQuteConverterTest {
 
     private LiquidToQuteConverter converter;
@@ -1289,47 +1294,7 @@ class LiquidToQuteConverterTest {
                 "Trailing content using variable should be duplicated into both branches: " + result);
     }
 
-    @Test
-    void testRelativeUrlFilter() {
-        String input = "{{ '/assets/javascript/highlight.pack.js' | relative_url }}";
-        String expected = "{='/assets/javascript/highlight.pack.js'}";
-        assertConverts(input, expected, "relative_url filter is a no-op in Roq");
-    }
 
-    @Test
-    void testRelativeUrlFilterWithVariable() {
-        String input = "{{ page.url | relative_url }}";
-        String expected = "{=page.url.prepend('/').raw}";
-        assertConverts(input, expected, "relative_url filter on variable should use .prepend() method");
-    }
-
-    @Test
-    void testAbsoluteUrlFilter() {
-        String input = "{{ '/feed.xml' | absolute_url }}";
-        String expected = "{='/feed.xml'}";
-        assertConverts(input, expected, "absolute_url filter is a no-op in Roq");
-    }
-
-    @Test
-    void testPrependWithStringLiteral() {
-        String input = "{{ '/assets/images/quarkus_card.png' | prepend: site.url }}";
-        String expected = "{='/assets/images/quarkus_card.png'.prepend(site.url.root.url).raw}";
-        assertConverts(input, expected, "prepend with string literal should use .prepend() method");
-    }
-
-    @Test
-    void testNotEqualsConvertsToNe() {
-        String input = "{% if site.cname != 'quarkus.io' %}content{% endif %}";
-        String expected = "{#if cdi:siteConfig.cname ne 'quarkus.io'}content{/if}";
-        assertConverts(input, expected, "!= should convert to ne in if conditions");
-    }
-
-    @Test
-    void testContentVariableInLayout() {
-        String input = "<div>{{ content }}</div>";
-        String expected = "<div>{#insert /}</div>";
-        assertConverts(input, expected, "{{ content }} in layout should become {#insert /}");
-    }
 
     @Test
     void testContentVariableInPartial() {
@@ -1342,40 +1307,10 @@ class LiquidToQuteConverterTest {
     }
 
     @Test
-    void testSitePostsConversion() {
-        String input = "{% for post in site.posts %}text{% endfor %}";
-        String expected = "{#for post in site.collections.get('posts').orEmpty}text{/for}";
-        assertConverts(input, expected, "site.posts should convert to site.collections.get('posts')");
-    }
-
-    @Test
-    void testForLoopPropertyIterableGetsOrEmpty() {
-        String input = "{% for tag in post.tags %}{{ tag }}{% endfor %}";
-        String expected = "{#for tag in post.data.tags.asStrings}{=tag.raw}{/for}";
-        assertConverts(input, expected, "Tags iterable should use .asStrings to handle both string and array values");
-    }
-
-    @Test
     void testForLoopCdiIterableNoOrEmpty() {
         String input = "{% for item in cdi:books %}text{% endfor %}";
         String expected = "{#for item in cdi:books}text{/for}";
         assertConverts(input, expected, "cdi: iterable should not get .orEmpty");
-    }
-
-    @Test
-    void testSplitWithDefaultUsesNamespaceForm() {
-        // default is stripped, split uses namespace form for null safety
-        String input = "{% assign result = foo.bar | default: \"\" | split: \",\" %}{result}";
-        String result = converter.convert(input);
-        assertTrue(result.contains("{#let result=str:split(foo.bar, \",\")}"),
-                "Should use namespace split form: " + result);
-    }
-
-    @Test
-    void testForLoopSimpleVariableGetsOrEmpty() {
-        String input = "{% for a in authors_raw %}{{ a }}{% endfor %}";
-        String expected = "{#for a in authors_raw.orEmpty}{=a.raw}{/for}";
-        assertConverts(input, expected, "Simple variable iterable in for loop should get .orEmpty");
     }
 
     @Test
@@ -1414,10 +1349,82 @@ class LiquidToQuteConverterTest {
     }
 
     @Test
+    void testRelativeUrlFilter() {
+        String input = "{{ '/assets/javascript/highlight.pack.js' | relative_url }}";
+        String expected = "{=cdi:siteConfig.baseurl + '/assets/javascript/highlight.pack.js'}";
+        assertConverts(input, expected, "relative_url filter should prepend baseurl");
+    }
+
+    @Test
+    void testRelativeUrlFilterWithVariable() {
+        String input = "{{ page.url | relative_url }}";
+        String expected = "{=cdi:siteConfig.baseurl + page.url}";
+        assertConverts(input, expected, "relative_url filter on variable should prepend baseurl");
+    }
+
+    @Test
+    void testAbsoluteUrlFilter() {
+        String input = "{{ '/feed.xml' | absolute_url }}";
+        String expected = "{=cdi:siteConfig.baseurl + '/feed.xml'}";
+        assertConverts(input, expected, "absolute_url filter should prepend baseurl");
+    }
+
+    @Test
+    void testPrependWithStringLiteral() {
+        String input = "{{ '/assets/images/quarkus_card.png' | prepend: site.url }}";
+        String expected = "{=site.url.resolve('/assets/images/quarkus_card.png')}";
+        assertConverts(input, expected, "prepend with string literal containing slashes should work");
+    }
+
+    @Test
+    void testNotEqualsConvertsToNe() {
+        String input = "{% if site.cname != 'quarkus.io' %}content{% endif %}";
+        String expected = "{#if cdi:siteConfig.cname ne 'quarkus.io'}content{/if}";
+        assertConverts(input, expected, "!= should convert to ne in if conditions");
+    }
+
+    @Test
+    void testContentVariableInLayout() {
+        String input = "<div>{{ content }}</div>";
+        String expected = "<div>{#insert /}</div>";
+        assertConverts(input, expected, "{{ content }} in layout should become {#insert /}");
+    }
+
+    @Test
+    void testSitePostsConversion() {
+        String input = "{% for post in site.posts %}text{% endfor %}";
+        String expected = "{#for post in site.collections.get('posts').orEmpty}text{/for}";
+        assertConverts(input, expected, "site.posts should convert to site.collections.get('posts')");
+    }
+
+    @Test
+    void testForLoopPropertyIterableGetsOrEmpty() {
+        String input = "{% for tag in post.tags %}{{ tag }}{% endfor %}";
+        String expected = "{#for tag in post.data.tags.asStrings}{=tag.raw}{/for}";
+        assertConverts(input, expected, "Tags iterable should use .asStrings to handle both string and array values");
+    }
+
+    @Test
     void testUnlessGreaterThanFlipsOperator() {
         String input = "{% unless eol_str > today %}expired{% endunless %}";
         String expected = "{#if eol_str <= today}expired{/if}";
         assertConverts(input, expected, "unless with > should flip to <=");
+    }
+
+    @Test
+    void testSplitWithDefaultUsesNamespaceForm() {
+        // default is stripped, split uses namespace form for null safety
+        String input = "{% assign result = foo.bar | default: \"\" | split: \",\" %}{result}";
+        String result = converter.convert(input);
+        assertTrue(result.contains("{#let result=str:split(foo.bar, \",\")}"),
+                "Should use namespace split form: " + result);
+    }
+
+    @Test
+    void testForLoopSimpleVariableGetsOrEmpty() {
+        String input = "{% for a in authors_raw %}{{ a }}{% endfor %}";
+        String expected = "{#for a in authors_raw.orEmpty}{=a}{/for}";
+        assertConverts(input, expected, "Simple variable iterable in for loop should get .orEmpty");
     }
 
     @Nested

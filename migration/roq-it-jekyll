@@ -188,6 +188,13 @@ if grep -q "^tags:" ${project_dir}/content/posts/*.md 2>/dev/null || \
         -Dextensions="io.quarkiverse.roq:quarkus-roq-plugin-tagging:${ROQ_VERSION}")
 fi
 
+# Check for Playwright test files
+if find ${project_dir}/src/test -name "*.java" -exec grep -l "playwright\|Playwright" {} \; 2>/dev/null | grep -q .; then
+    echo "Detected Playwright tests - adding quarkus-playwright"
+    (cd ${project_dir} && mvn -q quarkus:add-extension \
+        -Dextensions="io.quarkiverse.playwright:quarkus-playwright")
+fi
+
 # TODO need to add name and simple-name - global config?
 
 if [ "${BATCH_MODE}" != "true" ]; then

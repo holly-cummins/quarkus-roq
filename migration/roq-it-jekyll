@@ -203,9 +203,9 @@ if [ "${BATCH_MODE}" != "true" ]; then
         mvn quarkus:dev
     )
 else
-    echo "Batch mode: running quarkus:build to check for errors..."
+    echo "Batch mode: generating static site..."
     (
         cd ${project_dir}
-        mvn quarkus:build 2>&1
+        QUARKUS_ROQ_GENERATOR_BATCH=true mvn -B package quarkus:run -DskipTests 2>&1
     )
 fi

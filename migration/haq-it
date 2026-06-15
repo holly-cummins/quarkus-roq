@@ -105,6 +105,10 @@ rm ${project_dir}/_posts/2022-06-21-qute-templates-from-db.adoc
 rm ${project_dir}/_posts/2023-10-10-intellij-quarkus-recap.adoc
 rm ${project_dir}/_posts/2025-12-15-quarkus-feature-flags.asciidoc
 
+# Delete Jekyll includes too complex for auto-conversion (allejo/jekyll-toc: pure-Liquid
+# TOC generator using capture-concatenation, continue, slice, times, minus, etc.)
+rm -f ${project_dir}/_includes/templates/toc.html
+
 ${tools_dir}/roq-it-jekyll ${project_dir}
 
 # Add e2e profile to pom.xml (excludes e2e-tagged tests by default, profile enables them)

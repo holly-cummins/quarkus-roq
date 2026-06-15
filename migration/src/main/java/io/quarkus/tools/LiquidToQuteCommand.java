@@ -40,7 +40,7 @@ public class LiquidToQuteCommand implements Callable<Integer> {
             "--extension-syntax" }, description = "Use Qute extension syntax {=expr} instead of standard {expr} (default: true)", defaultValue = "true", negatable = true)
     private boolean extensionSyntax = true;
 
-    @Option(names = { "--partials" }, description = "Converting partials/includes (uses {page.content} instead of {#insert /})")
+    @Option(names = {"--partials"}, description = "Converting partials/includes (uses {page.content} instead of {#insert /})")
     private boolean partials;
 
     private LiquidToQuteConverter converter = new LiquidToQuteConverter();

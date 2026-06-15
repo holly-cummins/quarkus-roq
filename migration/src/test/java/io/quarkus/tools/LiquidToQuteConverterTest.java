@@ -1392,6 +1392,16 @@ class LiquidToQuteConverterTest {
     }
 
     @Test
+    void testContentVariableInPartial() {
+        LiquidToQuteConverter partialConverter = new LiquidToQuteConverter();
+        partialConverter.setConvertingPartials(true);
+        String input = "<div>{{ content }}</div>";
+        String expected = "<div>{=page.content}</div>";
+        assertEquals(expected, partialConverter.convert(input),
+                "{{ content }} in partial should become {=page.content} to avoid infinite recursion");
+    }
+
+    @Test
     void testSitePostsConversion() {
         String input = "{% for post in site.posts %}text{% endfor %}";
         String expected = "{#for post in site.collections.get('posts').orEmpty}text{/for}";

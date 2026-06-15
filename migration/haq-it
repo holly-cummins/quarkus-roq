@@ -24,7 +24,11 @@ export tmp_dir=~/tmp
 (
 cd ${project_dir}
 
-# Reset to upstream/main (keeps changes staged)
+# Fetch latest from all remotes before resetting
+git fetch origin
+git fetch upstream
+
+# Reset to upstream/main
 git reset --hard upstream/main
 
 # Remove untracked files and directories
@@ -35,93 +39,68 @@ rm -rf target/ _site/
 # Skipped: roq-conversion (is the conversion itself), branches already in upstream/main,
 # and duplicate commits across branches.
 
-# --- Content/link fixes (most valuable for conversion validation) ---
-
-# Fix bad link (fix-weather-link)
-git cherry-pick a93b66a695 || git cherry-pick --abort
-
-# Fix bad link for About on fizzylogic.nl (fix-fizzylogic-link)
-git cherry-pick e64f20aeb3 || git cherry-pick --abort
-
-# Fix A2A contributor links: tsabau -> tibisabau, unlink deleted luke-j-smith (fix-a2a-contributor-links)
-git cherry-pick 9e15226a9b || git cherry-pick --abort
+# --- Content/link fixes ---
 
 # Work around lack of os-specific download endpoints (fix-dead-podman-links)
 git cherry-pick a8dea27321 || git cherry-pick --abort
 
-# Fix a few more dead links (cherry-pick-dead-links)
-git cherry-pick a61e4d546b || git cherry-pick --abort
+# Include more blog posts in RSS feed (test/rss-feed-all-posts)
+git cherry-pick 64e7dcdec5 || git cherry-pick --abort
 
-# Fix dead links discovered by external link checker (fix-dead-links-with-known-replacements)
-git cherry-pick 5e72d31912 || git cherry-pick --abort
+# --- add-external-link-checking chain (must be in order, all touch LinkCrawlerTest.java) ---
 
-# Include more blog posts in RSS feed (rss-feed-all-posts)
-git cherry-pick 977dda2ae9 || git cherry-pick --abort
+# Confirm 0s are redirects
+git cherry-pick 0c196e84d6 || git cherry-pick --abort
 
-# Temporarily work around dead link (improve-redirect-detection)
-git cherry-pick d65028cf47 || git cherry-pick --abort
+# Add scheduled CI job to check external links and raise defects
+git cherry-pick c4abc2ef1b || git cherry-pick --abort
 
-# --- CI/infrastructure ---
+# Tune external link checker: treat 403 as OK for medium.com, add example URLs
+git cherry-pick c9b6585113 || git cherry-pick --abort
 
-# Confirm 0s are redirects (improve-redirect-detection; duplicate on add-external-link-checking)
-git cherry-pick c16c107308 || git cherry-pick --abort
+# Add linkedin/pexels to DO_NOT_CHECK, infoq.com 405 handling
+git cherry-pick 6420f4542b || git cherry-pick --abort
 
-# Run link checker incrementally on PRs with few changes (incremental-link-checker; also on test/fragment-anchor-validation)
-git cherry-pick c2215d2749 || git cherry-pick --abort
+# Fix up from bad merge
+git cherry-pick ed064fdce7 || git cherry-pick --abort
 
-# Add Playwright end-to-end tests for link checking (add-external-link-checking)
-git cherry-pick 1bb225b881 || git cherry-pick --abort
+# --- CI infrastructure (all touch build.yml, order matters) ---
 
-# Add scheduled CI job to check external links and raise defects (add-external-link-checking)
-git cherry-pick c1c224d009 || git cherry-pick --abort
+# Start java test server (start-test-server)
+git cherry-pick 0f16a702f9 || git cherry-pick --abort
 
-# Tune external link checker: treat 403 as OK for medium.com, add example URLs (add-external-link-checking)
-git cherry-pick b7d40bb8b8 || git cherry-pick --abort
-
-# Add linkedin/pexels to DO_NOT_CHECK, infoq.com 405 handling (add-external-link-checking)
-git cherry-pick c386a654a4 || git cherry-pick --abort
+# Add missing guard for starting the test server (add-missing-guard)
+git cherry-pick ff1631ff45 || git cherry-pick --abort
 
 # CI: allow build to continue if Java tests fail (ci-continue-on-test-failure)
 git cherry-pick 4433e5d095 || git cherry-pick --abort
 
 # CI: add test report summary to job output (ci-test-report)
-git cherry-pick 9750384d4c || git cherry-pick --abort
-
-# Add missing guard for starting the test server (add-missing-guard)
-git cherry-pick ff1631ff45 || git cherry-pick --abort
-
-# Start java test server (start-test-server)
-git cherry-pick 0f16a702f9 || git cherry-pick --abort
+git cherry-pick 3e42a6eab8 || git cherry-pick --abort
 
 # CI: make site output directory configurable (ci-flexible-site-dir)
+# LAST in CI group — renames check_jekyll/check_roq → detect, replaces _site → site_dir
 git cherry-pick 44e75fe697 || git cherry-pick --abort
 
-# --- Playwright test branches ---
+# --- Playwright test branches (independent of each other) ---
 
 # Add page title sanity check tests (test/page-title-sanity)
-git cherry-pick a163da566e || git cherry-pick --abort
-
-# Add more critical pages to smoke tests (test/expand-smoke-pages)
-git cherry-pick a341e05c6f || git cherry-pick --abort
+git cherry-pick 61b89ca49e || git cherry-pick --abort
 
 # Add mobile navigation tests (test/mobile-navigation)
-git cherry-pick bd08673733 || git cherry-pick --abort
+git cherry-pick ac3436624a || git cherry-pick --abort
 
 # Add fragment anchor validation test (test/fragment-anchor-validation)
-git cherry-pick 38f512505e || git cherry-pick --abort
+git cherry-pick 020721c917 || git cherry-pick --abort
 
 # Add blog page content tests (test/blog-page-content)
-git cherry-pick 9f1674f576 || git cherry-pick --abort
+git cherry-pick 74897e26c4 || git cherry-pick --abort
 
 # Add insights page content tests (test/insights-page-content)
-git cherry-pick f1fd0bad0e || git cherry-pick --abort
+git cherry-pick cf5614e820 || git cherry-pick --abort
 
 # Add working groups page content test (test/working-groups-content)
-git cherry-pick 14e88dd7c0 || git cherry-pick --abort
-
-# Add color mode toggle tests (test/color-mode-toggle)
-git cherry-pick c62f57f74e || git cherry-pick --abort
-git cherry-pick 882b613fe7 || git cherry-pick --abort
+git cherry-pick 1f8d8f3daf || git cherry-pick --abort
 )
 
 # TODO need to handle qute stuff

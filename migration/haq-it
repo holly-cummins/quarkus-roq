@@ -66,21 +66,16 @@ git cherry-pick ed064fdce7 || git cherry-pick --abort
 
 # --- CI infrastructure (all touch build.yml, order matters) ---
 
-# Start java test server (start-test-server)
-git cherry-pick 0f16a702f9 || git cherry-pick --abort
 
-# Add missing guard for starting the test server (add-missing-guard)
-git cherry-pick ff1631ff45 || git cherry-pick --abort
+# CI: make site output directory configurable (ci-flexible-site-dir)
+git cherry-pick 2271f625e4d2101921249f2ff964ff66d0edf617 || git cherry-pick --abort
+
 
 # CI: allow build to continue if Java tests fail (ci-continue-on-test-failure)
 git cherry-pick 4433e5d095 || git cherry-pick --abort
 
 # CI: add test report summary to job output (ci-test-report)
 git cherry-pick 3e42a6eab8 || git cherry-pick --abort
-
-# CI: make site output directory configurable (ci-flexible-site-dir)
-# LAST in CI group — renames check_jekyll/check_roq → detect, replaces _site → site_dir
-git cherry-pick 44e75fe697 || git cherry-pick --abort
 
 # --- Playwright test branches (independent of each other) ---
 

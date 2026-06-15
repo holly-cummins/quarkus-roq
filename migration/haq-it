@@ -1,0 +1,152 @@
+#! /bin/bash
+
+set -x
+
+# Parse options
+export BATCH_MODE=false
+while [[ "$1" == --* ]]; do
+  case "$1" in
+    --batch) BATCH_MODE=true; shift ;;
+    *) echo "Unknown option: $1"; exit 1 ;;
+  esac
+done
+
+# TODO this only works in a new shell, do a source?
+# TODO or just the mvn commands
+# or a pre-script?
+# curl -Ls https://sh.jbang.dev | bash -s - trust add https://repo1.maven.org/maven2/io/quarkiverse/roq/
+# curl -Ls https://sh.jbang.dev | bash -s - app install --fresh --force roq@quarkiverse/quarkus-roq
+
+export project_dir=$1
+export tools_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+export tmp_dir=~/tmp
+
+(
+cd ${project_dir}
+
+# Reset to upstream/main (keeps changes staged)
+git reset --hard upstream/main
+
+# Remove untracked files and directories
+git clean -fd
+
+# Cherry-pick unmerged branch commits to validate conversion handles real changes.
+# Skipped: roq-conversion (is the conversion itself), branches already in upstream/main,
+# and duplicate commits across branches.
+
+# --- Content/link fixes (most valuable for conversion validation) ---
+
+# Fix bad link (fix-weather-link)
+git cherry-pick a93b66a695 || git cherry-pick --abort
+
+# Fix bad link for About on fizzylogic.nl (fix-fizzylogic-link)
+git cherry-pick e64f20aeb3 || git cherry-pick --abort
+
+# Fix A2A contributor links: tsabau -> tibisabau, unlink deleted luke-j-smith (fix-a2a-contributor-links)
+git cherry-pick 9e15226a9b || git cherry-pick --abort
+
+# Work around lack of os-specific download endpoints (fix-dead-podman-links)
+git cherry-pick a8dea27321 || git cherry-pick --abort
+
+# Fix a few more dead links (cherry-pick-dead-links)
+git cherry-pick a61e4d546b || git cherry-pick --abort
+
+# Fix dead links discovered by external link checker (fix-dead-links-with-known-replacements)
+git cherry-pick 5e72d31912 || git cherry-pick --abort
+
+# Include more blog posts in RSS feed (rss-feed-all-posts)
+git cherry-pick 977dda2ae9 || git cherry-pick --abort
+
+# Temporarily work around dead link (improve-redirect-detection)
+git cherry-pick d65028cf47 || git cherry-pick --abort
+
+# --- CI/infrastructure ---
+
+# Confirm 0s are redirects (improve-redirect-detection; duplicate on add-external-link-checking)
+git cherry-pick c16c107308 || git cherry-pick --abort
+
+# Run link checker incrementally on PRs with few changes (incremental-link-checker; also on test/fragment-anchor-validation)
+git cherry-pick c2215d2749 || git cherry-pick --abort
+
+# Add Playwright end-to-end tests for link checking (add-external-link-checking)
+git cherry-pick 1bb225b881 || git cherry-pick --abort
+
+# Add scheduled CI job to check external links and raise defects (add-external-link-checking)
+git cherry-pick c1c224d009 || git cherry-pick --abort
+
+# Tune external link checker: treat 403 as OK for medium.com, add example URLs (add-external-link-checking)
+git cherry-pick b7d40bb8b8 || git cherry-pick --abort
+
+# Add linkedin/pexels to DO_NOT_CHECK, infoq.com 405 handling (add-external-link-checking)
+git cherry-pick c386a654a4 || git cherry-pick --abort
+
+# CI: allow build to continue if Java tests fail (ci-continue-on-test-failure)
+git cherry-pick 4433e5d095 || git cherry-pick --abort
+
+# CI: add test report summary to job output (ci-test-report)
+git cherry-pick 9750384d4c || git cherry-pick --abort
+
+# --- Playwright test branches ---
+
+# Add page title sanity check tests (test/page-title-sanity)
+git cherry-pick a163da566e || git cherry-pick --abort
+
+# Add more critical pages to smoke tests (test/expand-smoke-pages)
+git cherry-pick a341e05c6f || git cherry-pick --abort
+
+# Add mobile navigation tests (test/mobile-navigation)
+git cherry-pick bd08673733 || git cherry-pick --abort
+
+# Add fragment anchor validation test (test/fragment-anchor-validation)
+git cherry-pick 38f512505e || git cherry-pick --abort
+
+# Add blog page content tests (test/blog-page-content)
+git cherry-pick 9f1674f576 || git cherry-pick --abort
+
+# Add insights page content tests (test/insights-page-content)
+git cherry-pick f1fd0bad0e || git cherry-pick --abort
+
+# Add working groups page content test (test/working-groups-content)
+git cherry-pick 14e88dd7c0 || git cherry-pick --abort
+
+# Add color mode toggle tests (test/color-mode-toggle)
+git cherry-pick c62f57f74e || git cherry-pick --abort
+git cherry-pick 882b613fe7 || git cherry-pick --abort
+)
+
+# TODO need to handle qute stuff
+## Hack: delete files with Qute example code that the Qute parser would interpret as real template syntax
+rm ${project_dir}/_posts/2020-02-24-qute.adoc
+rm ${project_dir}/_posts/2022-06-21-qute-templates-from-db.adoc
+rm ${project_dir}/_posts/2023-10-10-intellij-quarkus-recap.adoc
+
+${tools_dir}/roq-it-jekyll ${project_dir}
+
+# Add test dependencies for cherry-picked Playwright test files
+(cd ${project_dir} && mvn -q quarkus:add-extension \
+    -Dextensions="io.quarkiverse.playwright:quarkus-playwright")
+
+if [ "${BATCH_MODE}" = "true" ]; then
+    # Install Playwright browsers
+    (cd ${project_dir} && mvn exec:java -e -Dexec.classpathScope=test \
+        -Dexec.mainClass=com.microsoft.playwright.CLI \
+        -Dexec.args="install --with-deps chromium")
+
+    # Kill anything already on port 8090
+    lsof -ti:8090 | xargs kill 2>/dev/null || true
+    sleep 1
+
+    # Start dev server in background on port 8090
+    (cd ${project_dir} && mvn quarkus:dev -Dquarkus.http.port=8090 \
+        > ${tmp_dir}/roq-server.log 2>&1) &
+    SERVER_PID=$!
+    timeout 120 bash -c 'until curl -sf http://localhost:8090 > /dev/null 2>&1; do sleep 1; done'
+    echo "Dev server started (PID $SERVER_PID)"
+
+    # Run tests against the dev server
+    # Use a separate Maven invocation with -pl to avoid stomping the dev server's target/
+    (cd ${project_dir} && mvn -B surefire:test -Dtest.url=http://localhost:8090) || true
+
+    kill $SERVER_PID 2>/dev/null
+    wait $SERVER_PID 2>/dev/null
+fi

@@ -106,6 +106,31 @@ rm ${project_dir}/_posts/2023-10-10-intellij-quarkus-recap.adoc
 
 ${tools_dir}/roq-it-jekyll ${project_dir}
 
+# Add e2e profile to pom.xml (excludes e2e-tagged tests by default, profile enables them)
+sed -i '' '/<artifactId>maven-surefire-plugin<\/artifactId>/{
+N
+N
+s|<configuration>|<configuration>\
+                    <excludedGroups>e2e</excludedGroups>|
+}' ${project_dir}/pom.xml
+
+sed -i '' '/<profiles>/a\
+\        <profile>\
+\            <id>e2e</id>\
+\            <build>\
+\                <plugins>\
+\                    <plugin>\
+\                        <artifactId>maven-surefire-plugin</artifactId>\
+\                        <configuration>\
+\                            <groups>e2e</groups>\
+\                            <excludedGroups combine.self="override"/>\
+\                        </configuration>\
+\                    </plugin>\
+\                </plugins>\
+\            </build>\
+\        </profile>
+' ${project_dir}/pom.xml
+
 if [ "${BATCH_MODE}" = "true" ]; then
     # Install Playwright browsers
     (cd ${project_dir} && mvn exec:java -e -Dexec.classpathScope=test \

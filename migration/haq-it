@@ -125,10 +125,6 @@ rm ${project_dir}/_posts/2023-10-10-intellij-quarkus-recap.adoc
 
 ${tools_dir}/roq-it-jekyll ${project_dir}
 
-# Add test dependencies for cherry-picked Playwright test files
-(cd ${project_dir} && mvn -q quarkus:add-extension \
-    -Dextensions="io.quarkiverse.playwright:quarkus-playwright")
-
 if [ "${BATCH_MODE}" = "true" ]; then
     # Install Playwright browsers
     (cd ${project_dir} && mvn exec:java -e -Dexec.classpathScope=test \

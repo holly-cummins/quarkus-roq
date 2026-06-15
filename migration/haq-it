@@ -29,6 +29,7 @@ git reset --hard upstream/main
 
 # Remove untracked files and directories
 git clean -fd
+rm -rf target/ _site/
 
 # Cherry-pick unmerged branch commits to validate conversion handles real changes.
 # Skipped: roq-conversion (is the conversion itself), branches already in upstream/main,
@@ -88,6 +89,12 @@ git cherry-pick 9750384d4c || git cherry-pick --abort
 
 # Add missing guard for starting the test server (add-missing-guard)
 git cherry-pick ff1631ff45 || git cherry-pick --abort
+
+# Start java test server (start-test-server)
+git cherry-pick 0f16a702f9 || git cherry-pick --abort
+
+# CI: make site output directory configurable (ci-flexible-site-dir)
+git cherry-pick 44e75fe697 || git cherry-pick --abort
 
 # --- Playwright test branches ---
 

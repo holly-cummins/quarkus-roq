@@ -86,6 +86,9 @@ git cherry-pick 4433e5d095 || git cherry-pick --abort
 # CI: add test report summary to job output (ci-test-report)
 git cherry-pick 9750384d4c || git cherry-pick --abort
 
+# Add missing guard for starting the test server (add-missing-guard)
+git cherry-pick ff1631ff45 || git cherry-pick --abort
+
 # --- Playwright test branches ---
 
 # Add page title sanity check tests (test/page-title-sanity)

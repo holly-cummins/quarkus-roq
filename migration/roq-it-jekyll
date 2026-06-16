@@ -46,6 +46,7 @@ rm ${project_dir}/Gemfile.lock
 mkdir -p ${project_dir}/content
 mv ${project_dir}/*md ${project_dir}/content/
 
+
 mkdir -p ${project_dir}/templates
 
 # Adjust folder names and locations
@@ -54,23 +55,28 @@ mv ${project_dir}/_data ${project_dir}/data
 # done with a liquid conversion step mv _layouts templates/layouts
 
 ## SCSS should live in the web folder
-# TODO compile error, needed? mv ${project_dir}/assets/css ${project_dir}/web
 mv ${project_dir}/_sass ${project_dir}/web
 mv ${project_dir}/assets/css/* ${project_dir}/web
 
-## Assets maps to public in roq
+## Assets maps to public/assets in roq
+mkdir ${project_dir}/public
 mv ${project_dir}/assets ${project_dir}/public
 
 # TODO do this more flexibly, with a search, since this is specific to quarkusio
 mv ${project_dir}/newsletter ${project_dir}/public
 
-
 mv ${project_dir}/_site/index.html ${project_dir}
+
+# Turn the old feed.xml into a template, and make a new feed.xml in the right place
+tail -n +5 ${project_dir}/feed.xml > ${project_dir}/_layouts/feed.html
+rm ${project_dir}/feed.xml
+echo '{#include feed.html /}' > ${project_dir}/content/feed.xml
 
 # Convert Liquid to Qute; this has the side effect of renaming directories to adjust the structure
 mkdir -p ${project_dir}/templates/partials
 mvn -f ${tools_dir}/pom.xml -q exec:java -Dexec.mainClass="io.quarkus.tools.LiquidToQuteCommand" -Dexec.args="${project_dir}/_includes ${project_dir}/templates/partials --partials"
 mvn -f ${tools_dir}/pom.xml -q exec:java -Dexec.mainClass="io.quarkus.tools.LiquidToQuteCommand" -Dexec.args="${project_dir}/_layouts ${project_dir}/templates/layouts"
+
 
 # Data directories (subdirs of data/) can't be accessed as single CDI beans.
 # Revert cdi: prefix for these and leave a TODO comment in the templates.
@@ -97,15 +103,6 @@ echo "quarkus.qute.strict-rendering=false" >> ${project_dir}/config/application.
 # - Page.paginator (only on NormalPage subclass, not visible at compile time)
 # - DocumentPage.* (post loop variables access custom frontmatter via data)
 echo "quarkus.qute.type-check-excludes=java.lang.Object.*,io.quarkiverse.roq.frontmatter.runtime.model.Page.paginator,io.quarkiverse.roq.frontmatter.runtime.model.Page.tags,io.quarkiverse.roq.frontmatter.runtime.model.Page.tagsCount,io.quarkiverse.roq.frontmatter.runtime.model.DocumentPage.*" >> ${project_dir}/config/application.properties
-# Fix asset paths: Jekyll's assets/ dir was moved to public/ which is served at root.
-# Strip /assets/ prefix from all template and CSS references.
-# TODO would it be better to just leave the paths as they are?
-find ${project_dir}/templates -name '*.html' -exec \
-    sed -i  '' -e 's|/assets/|/|g' {} +
-find ${project_dir}/public -name '*.css' -exec \
-    sed -i '' -e 's|/assets/|/|g' {} +
-find ${project_dir}/web -name '*.scss' -exec \
-    sed -i  '' -e 's|/assets/|/|g' {} +
 
 # Make all extends optional
 find ${project_dir}/web -name '*.scss' -exec \

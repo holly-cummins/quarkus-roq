@@ -62,7 +62,7 @@ mv ${project_dir}/assets/css/* ${project_dir}/web
 mv ${project_dir}/assets ${project_dir}/public
 
 # TODO do this more flexibly, with a search, since this is specific to quarkusio
-mv ${project_dir}/newsletters ${project_dir}/public
+mv ${project_dir}/newsletter ${project_dir}/public
 
 
 mv ${project_dir}/_site/index.html ${project_dir}

@@ -76,6 +76,9 @@ git cherry-pick eaafef317b2155c53fb35943d987af4a1dc54d32 || git cherry-pick --ab
 git cherry-pick 029beddd2e3d63c315540c10ff7398ea8b688b71 || git cherry-pick --abort
 git cherry-pick f3e489ba412ab9e5a4ff70eb89aebabd9cdedb2a || git cherry-pick --abort
 
+# Fix forward reference in scss
+git cherry-pick b982e9141b3950715b4f90fd2a1e99e947fa473e || git cherry-pick --abort
+
 
 # CI: allow build to continue if Java tests fail (ci-continue-on-test-failure)
 git cherry-pick 4433e5d095 || git cherry-pick --abort
@@ -120,7 +123,7 @@ sed -i '' 's|href="{{ '"'"'/assets/css/main.css'"'"' | relative_url }}?2021-07-2
 sed -i '' -e 's|<head>|<head>  <link rel="stylesheet" href="/static/bundle/app.css" />|g' ${project_dir}/_layouts/base.html
 
 
-
+#
 # TOD jekyll accepts position as a mixin name, roq scss does not
 find ${project_dir}/_sass -name '*.scss' -exec \
     sed -i '' -e 's|@mixin position|@mixin hackposition|g' {} +

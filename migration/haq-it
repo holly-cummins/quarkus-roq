@@ -74,6 +74,7 @@ git cherry-pick 121c20fbf7 || git cherry-pick --abort
 git cherry-pick eaafef317b2155c53fb35943d987af4a1dc54d32 || git cherry-pick --abort
 # CI: make site assets directory configurable (ci-flexible-statics-dir)
 git cherry-pick 029beddd2e3d63c315540c10ff7398ea8b688b71 || git cherry-pick --abort
+git cherry-pick f3e489ba412ab9e5a4ff70eb89aebabd9cdedb2a || git cherry-pick --abort
 
 
 # CI: allow build to continue if Java tests fail (ci-continue-on-test-failure)

@@ -53,17 +53,17 @@ mv ${project_dir}/_posts ${project_dir}/content/posts
 mv ${project_dir}/_data ${project_dir}/data
 # done with a liquid conversion step mv _layouts templates/layouts
 
+## SCSS should live in the web folder
+# TODO compile error, needed? mv ${project_dir}/assets/css ${project_dir}/web
+mv ${project_dir}/_sass ${project_dir}/web
+mv ${project_dir}/assets/css/* ${project_dir}/web
+
 ## Assets maps to public in roq
 mv ${project_dir}/assets ${project_dir}/public
 
 # TODO do this more flexibly, with a search, since this is specific to quarkusio
 mv ${project_dir}/newsletters ${project_dir}/public
 
-# Replace SCSS source with compiled CSS from _site (Jekyll compiled it)
-if [ -f "${project_dir}/_site/assets/css/main.css" ]; then
-    cp ${project_dir}/_site/assets/css/main.css ${project_dir}/public/css/main.css
-    rm -f ${project_dir}/public/css/main.scss
-fi
 
 mv ${project_dir}/_site/index.html ${project_dir}
 
@@ -99,10 +99,21 @@ echo "quarkus.qute.strict-rendering=false" >> ${project_dir}/config/application.
 echo "quarkus.qute.type-check-excludes=java.lang.Object.*,io.quarkiverse.roq.frontmatter.runtime.model.Page.paginator,io.quarkiverse.roq.frontmatter.runtime.model.Page.tags,io.quarkiverse.roq.frontmatter.runtime.model.Page.tagsCount,io.quarkiverse.roq.frontmatter.runtime.model.DocumentPage.*" >> ${project_dir}/config/application.properties
 # Fix asset paths: Jekyll's assets/ dir was moved to public/ which is served at root.
 # Strip /assets/ prefix from all template and CSS references.
+# TODO would it be better to just leave the paths as they are?
 find ${project_dir}/templates -name '*.html' -exec \
-    sed -i '' 's|/assets/|/|g' {} +
+    sed -i  '' -e 's|/assets/|/|g' {} +
 find ${project_dir}/public -name '*.css' -exec \
-    sed -i '' 's|/assets/|/|g' {} +
+    sed -i '' -e 's|/assets/|/|g' {} +
+find ${project_dir}/web -name '*.scss' -exec \
+    sed -i  '' -e 's|/assets/|/|g' {} +
+
+# Make all extends optional
+find ${project_dir}/web -name '*.scss' -exec \
+    sed -i  '' -e 's|@extend \(.*\);|@extend \1 !optional;|g' {} +
+
+# then fix up any where we double-optionaled
+find ${project_dir}/web -name '*.scss' -exec \
+    sed -i  '' -e 's|!optional !optional;|!optional;|g' {} +
 
 # TODO: Workaround for Jekyll→Qute variable scoping mismatch in includes.
 # Problem: Jekyll's {% assign %} creates page-scoped variables that are visible inside {% include %} blocks.

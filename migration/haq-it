@@ -72,6 +72,8 @@ git cherry-pick 121c20fbf7 || git cherry-pick --abort
 
 # CI: make site statics directory configurable (ci-flexible-statics-dir)
 git cherry-pick eaafef317b2155c53fb35943d987af4a1dc54d32 || git cherry-pick --abort
+# CI: make site assets directory configurable (ci-flexible-statics-dir)
+git cherry-pick 029beddd2e3d63c315540c10ff7398ea8b688b71 || git cherry-pick --abort
 
 
 # CI: allow build to continue if Java tests fail (ci-continue-on-test-failure)
@@ -99,7 +101,38 @@ git cherry-pick cf5614e820 || git cherry-pick --abort
 
 # Add working groups page content test (test/working-groups-content)
 git cherry-pick 1f8d8f3daf || git cherry-pick --abort
+
+# Sanitise some background-image urls
+git cherry-pick ee4e5ab34f268c2e5656b5f4d5f38f3433ba0002 || git cherry-pick --abort
 )
+
+# TODO manually hack the stylesheet
+cp ${tools_dir}/hacked-css ${project_dir}/assets/css/main.scss
+
+mv ${project_dir}/_sass/includes/brand.css ${project_dir}/_sass/includes/brand.scss
+
+
+# TODO make this generic
+sed -i '' 's|href="{{ '"'"'/assets/css/main.css'"'"' | relative_url }}?2021-07-29"|href="static/bundle/app.css"|g' ${project_dir}/_layouts/base.html
+#sed -i '' -e "@{{ '/assets/css/main.css' | relative_url }}?2021-07-29/@/static/bundle/app.css@" ${project_dir}/_layouts/base.html
+# TODO regular expressions are hard, sed is hard, previous regexp does not work
+sed -i '' -e 's|<head>|<head>  <link rel="stylesheet" href="/static/bundle/app.css" />|g' ${project_dir}/_layouts/base.html
+
+
+
+# TOD jekyll accepts position as a mixin name, roq scss does not
+find ${project_dir}/_sass -name '*.scss' -exec \
+    sed -i '' -e 's|@mixin position|@mixin hackposition|g' {} +
+find ${project_dir}/_sass -name '*.scss' -exec \
+    sed -i  '' -e 's|@include position|@include hackposition|g' {} +
+
+# Do a brutal sanitisation of scss that doesn't bundle cleanly TODO
+find ${project_dir}/_sass -name '*.scss' -exec \
+    sed -i '' 's|(\$baseurl|("http://localhost:8090/"|g' {} +
+find ${project_dir}/_sass -name '*.scss' -exec \
+    sed -i '' 's|:\(.*\)\$|:\1|g' {} +
+find ${project_dir}/_sass -name '*.scss' -exec \
+    sed -i '' 's|@mixin hackposition($pos: relative, $top: null, $right: null, $bottom: null, left: null) {|@mixin hackposition($pos: relative, $top: null, $right: null, $bottom: null, $left: null) {|g' {} +
 
 # TODO need to handle qute stuff
 ## Hack: delete files with Qute example code that the Qute parser would interpret as real template syntax
@@ -138,6 +171,7 @@ sed -i '' '/<profiles>/a\
 \            </build>\
 \        </profile>
 ' ${project_dir}/pom.xml
+
 
 if [ "${BATCH_MODE}" = "true" ]; then
     # Install Playwright browsers

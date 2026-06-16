@@ -56,6 +56,9 @@ mv ${project_dir}/_data ${project_dir}/data
 ## Assets maps to public in roq
 mv ${project_dir}/assets ${project_dir}/public
 
+# TODO do this more flexibly, with a search, since this is specific to quarkusio
+mv ${project_dir}/newsletters ${project_dir}/public
+
 # Replace SCSS source with compiled CSS from _site (Jekyll compiled it)
 if [ -f "${project_dir}/_site/assets/css/main.css" ]; then
     cp ${project_dir}/_site/assets/css/main.css ${project_dir}/public/css/main.css

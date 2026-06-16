@@ -70,6 +70,9 @@ git cherry-pick ed064fdce7 || git cherry-pick --abort
 # CI: make site output directory configurable (ci-flexible-site-dir)
 git cherry-pick 121c20fbf7 || git cherry-pick --abort
 
+# CI: make site statics directory configurable (ci-flexible-statics-dir)
+git cherry-pick eaafef317b2155c53fb35943d987af4a1dc54d32 || git cherry-pick --abort
+
 
 # CI: allow build to continue if Java tests fail (ci-continue-on-test-failure)
 git cherry-pick 4433e5d095 || git cherry-pick --abort

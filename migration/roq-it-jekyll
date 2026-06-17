@@ -46,6 +46,15 @@ rm -rf ${project_dir}/templates/
 
 rm -f ${project_dir}/application.properties
 
+# TODO make this generic
+sed -i '' 's|href="{{ '"'"'/assets/css/main.css'"'"' | relative_url }}?2021-07-29"|href="static/bundle/app.css"|g' ${project_dir}/_layouts/base.html
+#sed -i '' -e "@{{ '/assets/css/main.css' | relative_url }}?2021-07-29/@/static/bundle/app.css@" ${project_dir}/_layouts/base.html
+# TODO regular expressions are hard, sed is hard, previous regexp does not work
+# TODO need to strip local stylesheet references
+# TODO need to do this for all templates
+sed -i '' -e 's|<head>|<head>  {#bundle /}|g' ${project_dir}/_layouts/base.html
+
+
 ## Generate Roq project skeleton via roq create
 mkdir -p ${project_dir}/config ${tmp_dir}
 
@@ -62,6 +71,11 @@ rm -rf ${roq_tmp}
 # Add roq-testing for @RoqAndRoll test support
 (cd ${project_dir} && mvn -q quarkus:add-extension \
     -Dextensions="io.quarkiverse.roq:quarkus-roq-testing:${ROQ_VERSION}")
+
+# Add aliases for jekyll redirection support, and also permalink alternative
+(cd ${project_dir} && mvn -q quarkus:add-extension \
+    -Dextensions="io.quarkiverse.roq:quarkus-roq-plugin-aliases:${ROQ_VERSION}")
+
 
 # Remove Jekyll-specific files
 rm ${project_dir}/Gemfile
@@ -117,11 +131,38 @@ mv ${project_dir}/_site/index.html ${project_dir}
 # TODO breaks everything
 #echo '{#include feed.html /}' > ${project_dir}/content/feed.xml
 
+# Process permalink frontmatter in content files
+if [ -d "${project_dir}/content" ]; then
+    find ${project_dir}/content -type f \( -name "*.md" -o -name "*.adoc" \) | while read -r file; do
+        # Extract the filename without extension
+        filename=$(basename "$file")
+        filename_no_ext="${filename%.*}"
+        
+        # Check if file has frontmatter with permalink
+        if head -n 20 "$file" | grep -q "^permalink:"; then
+            # Extract permalink value (strip leading/trailing slashes and quotes)
+            permalink=$(grep "^permalink:" "$file" | head -n 1 | sed 's/^permalink: *//; s/^["'\'']*//; s/["'\'']*$//; s/^\/\+//; s/\/\+$//')
+            
+            # Check if permalink matches filename (with .md or .adoc extension)
+            if [ "$permalink" = "$filename_no_ext" ]; then
+                # Delete the entire permalink line
+                sed -i '' '/^permalink:/d' "$file"
+            else
+                # Replace permalink: with aliases:
+                sed -i '' "s#^permalink:#aliases:#" "$file"
+            fi
+        fi
+    done
+fi
+
 # Convert Liquid to Qute; this has the side effect of renaming directories to adjust the structure
 mkdir -p ${project_dir}/templates/partials
 mvn -f ${tools_dir}/pom.xml -q exec:java -Dexec.mainClass="io.quarkus.tools.LiquidToQuteCommand" -Dexec.args="${project_dir}/_includes ${project_dir}/templates/partials --partials"
 mvn -f ${tools_dir}/pom.xml -q exec:java -Dexec.mainClass="io.quarkus.tools.LiquidToQuteCommand" -Dexec.args="${project_dir}/_layouts ${project_dir}/templates/layouts"
 
+# Now delete the old includes and layouts
+rm -rf ${project_dir}/_includes
+rm -rf ${project_dir}/_layouts
 
 # Data directories (subdirs of data/) can't be accessed as single CDI beans.
 # Revert cdi: prefix for these and leave a TODO comment in the templates.

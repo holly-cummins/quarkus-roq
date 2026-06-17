@@ -116,14 +116,8 @@ git cherry-pick ee4e5ab34f268c2e5656b5f4d5f38f3433ba0002 || git cherry-pick --ab
 
 mv ${project_dir}/_sass/includes/brand.css ${project_dir}/_sass/includes/brand.scss
 
-
-# TODO make this generic
-sed -i '' 's|href="{{ '"'"'/assets/css/main.css'"'"' | relative_url }}?2021-07-29"|href="static/bundle/app.css"|g' ${project_dir}/_layouts/base.html
-#sed -i '' -e "@{{ '/assets/css/main.css' | relative_url }}?2021-07-29/@/static/bundle/app.css@" ${project_dir}/_layouts/base.html
-# TODO regular expressions are hard, sed is hard, previous regexp does not work
-sed -i '' -e 's|<head>|<head>  <link rel="stylesheet" href="/static/bundle/app.css" />|g' ${project_dir}/_layouts/base.html
-
 # Sanitise away any base urls
+# TODO how to handle this properly?
 find ${project_dir}/_sass -name '*.scss' -exec \
     sed -i '' 's|(\$baseurl|("http://localhost:8090/"|g' {} +
 

@@ -68,9 +68,10 @@ mv ${project_dir}/newsletter ${project_dir}/public
 mv ${project_dir}/_site/index.html ${project_dir}
 
 # Turn the old feed.xml into a template, and make a new feed.xml in the right place
-tail -n +5 ${project_dir}/feed.xml > ${project_dir}/_layouts/feed.html
-rm ${project_dir}/feed.xml
-echo '{#include feed.html /}' > ${project_dir}/content/feed.xml
+#tail -n +5 ${project_dir}/feed.xml > ${project_dir}/_layouts/feed.html
+#rm ${project_dir}/feed.xml
+# TODO breaks everything
+#echo '{#include feed.html /}' > ${project_dir}/content/feed.xml
 
 # Convert Liquid to Qute; this has the side effect of renaming directories to adjust the structure
 mkdir -p ${project_dir}/templates/partials

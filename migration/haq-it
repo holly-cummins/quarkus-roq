@@ -113,8 +113,6 @@ git cherry-pick 1f8d8f3daf || git cherry-pick --abort
 git cherry-pick ee4e5ab34f268c2e5656b5f4d5f38f3433ba0002 || git cherry-pick --abort
 )
 
-# TODO manually hack the stylesheet
-cp ${tools_dir}/hacked-css ${project_dir}/assets/css/main.scss
 
 mv ${project_dir}/_sass/includes/brand.css ${project_dir}/_sass/includes/brand.scss
 
@@ -125,21 +123,9 @@ sed -i '' 's|href="{{ '"'"'/assets/css/main.css'"'"' | relative_url }}?2021-07-2
 # TODO regular expressions are hard, sed is hard, previous regexp does not work
 sed -i '' -e 's|<head>|<head>  <link rel="stylesheet" href="/static/bundle/app.css" />|g' ${project_dir}/_layouts/base.html
 
-
-#
-# TOD jekyll accepts position as a mixin name, roq scss does not
-find ${project_dir}/_sass -name '*.scss' -exec \
-    sed -i '' -e 's|@mixin position|@mixin hackposition|g' {} +
-find ${project_dir}/_sass -name '*.scss' -exec \
-    sed -i  '' -e 's|@include position|@include hackposition|g' {} +
-
-# Do a brutal sanitisation of scss that doesn't bundle cleanly TODO
+# Sanitise away any base urls
 find ${project_dir}/_sass -name '*.scss' -exec \
     sed -i '' 's|(\$baseurl|("http://localhost:8090/"|g' {} +
-find ${project_dir}/_sass -name '*.scss' -exec \
-    sed -i '' 's|:\(.*\)\$|:\1|g' {} +
-find ${project_dir}/_sass -name '*.scss' -exec \
-    sed -i '' 's|@mixin hackposition($pos: relative, $top: null, $right: null, $bottom: null, left: null) {|@mixin hackposition($pos: relative, $top: null, $right: null, $bottom: null, $left: null) {|g' {} +
 
 # TODO need to handle qute stuff
 ## Hack: delete files with Qute example code that the Qute parser would interpret as real template syntax

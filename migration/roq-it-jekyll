@@ -9,6 +9,31 @@ export tools_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 export tmp_dir=~/tmp
 export ROQ_VERSION=${ROQ_VERSION:-999-SNAPSHOT}
 
+# Function to strip frontmatter from a file
+strip_frontmatter() {
+    local file="$1"
+    # Check if file starts with frontmatter (---)
+    if head -n 1 "$file" | grep -q "^---$"; then
+        # Create temp file without frontmatter
+        # Skip lines from first --- to second ---, then keep the rest
+        awk 'BEGIN {fm=0; skip=1} /^---$/ {if(skip) {fm++; if(fm==2) skip=0; next}} !skip' "$file" > "$file.tmp"
+        mv "$file.tmp" "$file"
+    fi
+}
+
+# Function to add underscore prefix to filename in place
+add_underscore_prefix() {
+    local file="$1"
+    local dir=$(dirname "$file")
+    local filename=$(basename "$file")
+    
+    # Add underscore prefix if not already present
+    if [[ ! "$filename" =~ ^_ ]]; then
+        local new_filename="_${filename}"
+        mv "$file" "${dir}/${new_filename}"
+    fi
+}
+
 ## Build the converter
 mvn -f ${tools_dir}/pom.xml install -q
 
@@ -54,9 +79,28 @@ mv ${project_dir}/_posts ${project_dir}/content/posts
 mv ${project_dir}/_data ${project_dir}/data
 # done with a liquid conversion step mv _layouts templates/layouts
 
+
+# ... everything in _sass is a partial and needs its name updating
+if [ -d "${project_dir}/_sass" ]; then
+    # Add _ prefix to each file in the moved directory
+    # The contents of _sass are Jekyll partials, and need to be converted to Roq partials
+    find ${project_dir}/_sass -type f | while read -r file; do
+        add_underscore_prefix "$file"
+    done
+fi
+
 ## SCSS should live in the web folder
 mv ${project_dir}/_sass ${project_dir}/web
-mv ${project_dir}/assets/css/* ${project_dir}/web
+
+
+# Strip Jekyll frontmatter from SCSS files in assets/css before moving to web
+if [ -d "${project_dir}/assets/css" ]; then
+    find ${project_dir}/assets/css -type f \( -name "*.scss" -o -name "*.css" \) | while read -r file; do
+        strip_frontmatter "$file"
+    done
+fi
+
+mv ${project_dir}/assets/css/* ${project_dir}/web 2>/dev/null || true
 
 ## Assets maps to public/assets in roq
 mkdir ${project_dir}/public

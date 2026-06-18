@@ -56,10 +56,7 @@ sed -i '' -e 's|<head>|<head>  {#bundle /}|g' ${project_dir}/_layouts/base.html
 
 
 ## Generate Roq project skeleton via roq create
-mkdir -p ${project_dir}/config ${tmp_dir}
-
-cat > ${project_dir}/config/application.properties <<'PROPS'
-PROPS
+mkdir -p ${tmp_dir}
 
 # Generate pom.xml via jbang + roq create in a temp directory
 roq_tmp="${tmp_dir}/roq-create-$$"
@@ -156,6 +153,9 @@ if [ -d "${project_dir}/content" ]; then
     done
 fi
 
+# Convert Jekyll config to Roq (creates config/application.properties and data/siteConfig.yml)
+mvn -f ${tools_dir}/pom.xml -q exec:java -Dexec.mainClass="io.quarkus.tools.JekyllConfigCommand" -Dexec.args="${project_dir}"
+
 # Convert Liquid to Qute; this has the side effect of renaming directories to adjust the structure
 mkdir -p ${project_dir}/templates/partials
 mvn -f ${tools_dir}/pom.xml -q exec:java -Dexec.mainClass="io.quarkus.tools.LiquidToQuteCommand" -Dexec.args="${project_dir}/_includes ${project_dir}/templates/partials --partials"
@@ -179,17 +179,6 @@ fi
 mkdir -p ${project_dir}/src/main/java/io/quarkus/tools/migration
 cp ${tools_dir}/src/main/resources/migration-helpers/JekyllFiltersExtension.java \
    ${project_dir}/src/main/java/io/quarkus/tools/migration/
-
-# Enable the alternative expression syntax to reduce overhead of escaping braces
-echo quarkus.qute.alt-expr-syntax=true >> ${project_dir}/config/application.properties
-echo "site.date-format=yyyy-MM-dd['T'HH:mm:ss][X]" >> ${project_dir}/config/application.properties
-# Jekyll templates access arbitrary frontmatter fields that may not exist on every page
-echo "quarkus.qute.strict-rendering=false" >> ${project_dir}/config/application.properties
-# Exclude type checking for:
-# - Object.* (JsonArray iteration yields Object at build time)
-# - Page.paginator (only on NormalPage subclass, not visible at compile time)
-# - DocumentPage.* (post loop variables access custom frontmatter via data)
-echo "quarkus.qute.type-check-excludes=java.lang.Object.*,io.quarkiverse.roq.frontmatter.runtime.model.Page.paginator,io.quarkiverse.roq.frontmatter.runtime.model.Page.tags,io.quarkiverse.roq.frontmatter.runtime.model.Page.tagsCount,io.quarkiverse.roq.frontmatter.runtime.model.DocumentPage.*" >> ${project_dir}/config/application.properties
 
 # Make all extends optional
 find ${project_dir}/web -name '*.scss' -exec \
@@ -231,50 +220,6 @@ for f in glob.glob(os.path.join('${project_dir}', 'templates', '**', '*.html'), 
         content, flags=re.DOTALL)
     with open(f, 'w') as fh: fh.write(content)
 "
-
-# Extract site properties from _config.yml and create data/siteConfig.yml
-# This makes Jekyll's site.* properties available as cdi:siteConfig.* in Roq
-# Note: Can't use "site" as the name because Roq already has a Site object with that name
-if [ -f "${project_dir}/_config.yml" ]; then
-    mkdir -p ${project_dir}/data
-
-    # Extract CNAME (GitHub Pages custom domain, used by some templates)
-    cname=""
-    if [ -f "${project_dir}/CNAME" ]; then
-        cname=$(cat ${project_dir}/CNAME | tr -d '[:space:]')
-    fi
-
-    # Extract baseurl (default to empty string if not set)
-    baseurl=$(grep "^baseurl:" ${project_dir}/_config.yml | sed 's/^baseurl: *"\(.*\)".*/\1/' | sed "s/^baseurl: *'\(.*\)'.*/\1/" | sed 's/^baseurl: *\([^ #]*\).*/\1/')
-
-    # Extract language (default to en if not set)
-    language=$(grep "^language:" ${project_dir}/_config.yml | sed 's/^language: *\([^ #]*\).*/\1/')
-    language=${language:-en}
-
-    # Extract twitter_username
-    twitter_username=$(grep "^twitter_username:" ${project_dir}/_config.yml | sed 's/^twitter_username: *\([^ #]*\).*/\1/')
-
-    # Extract nested search config from _config.yml
-    # Note: This is a simplified extraction - complex YAML may need a proper parser
-    search_script_mode=$(grep -A10 "^search:" ${project_dir}/_config.yml | grep "script-mode:" | sed 's/.*script-mode: *"\(.*\)".*/\1/')
-    search_host=$(grep -A10 "^search:" ${project_dir}/_config.yml | grep "host:" | sed 's/.*host: *"\(.*\)".*/\1/')
-    search_script_path=$(grep -A10 "^search:" ${project_dir}/_config.yml | grep "script-path:" | sed 's/.*script-path: *"\(.*\)".*/\1/')
-    search_cached_script_file=$(grep -A10 "^search:" ${project_dir}/_config.yml | grep "cached-script-file:" | sed 's/.*cached-script-file: *"\(.*\)".*/\1/' | sed "s/.*cached-script-file: *\([^ ]*\).*/\1/")
-
-    # Create data/siteConfig.yml with extracted values
-    cat > ${project_dir}/data/siteConfig.yml <<SITEDATA
-cname: "${cname}"
-baseurl: "${baseurl}"
-language: "${language}"
-search:
-  script-mode: "${search_script_mode}"
-  host: "${search_host}"
-  script-path: "${search_script_path}"
-  cached-script-file: "${search_cached_script_file}"
-twitter_username: "${twitter_username}"
-tags: []
-SITEDATA
-fi
 
 # Detect Jekyll features and add corresponding Roq plugins
 

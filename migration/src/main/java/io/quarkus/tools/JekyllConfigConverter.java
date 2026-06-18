@@ -28,11 +28,21 @@ public class JekyllConfigConverter {
 
     /**
      * Create application.properties values with standard Roq properties for Jekyll compatibility.
-     * Replaces roq-it-jekyll lines 184-192.
      *
-     * @return Application properties
+     * @return Application properties (without plugin-dependent properties)
      */
     public Properties createApplicationProperties() {
+        return createApplicationProperties(null);
+    }
+
+    /**
+     * Create application.properties values with standard Roq properties for Jekyll compatibility,
+     * including properties derived from detected Jekyll plugins.
+     *
+     * @param config Parsed _config.yml (can be null)
+     * @return Application properties
+     */
+    public Properties createApplicationProperties(JsonNode config) {
         Properties properties = new Properties();
 
         // Always enable the alternative expression syntax to reduce overhead of escaping braces
@@ -50,6 +60,11 @@ public class JekyllConfigConverter {
                         + "io.quarkiverse.roq.frontmatter.runtime.model.Page.tags,"
                         + "io.quarkiverse.roq.frontmatter.runtime.model.Page.tagsCount,"
                         + "io.quarkiverse.roq.frontmatter.runtime.model.DocumentPage.*");
+
+        if (hasPlugin(config, "jekyll-auto-authors")) {
+            addAutoAuthorProperties(config, properties);
+        }
+
         return properties;
     }
 
@@ -64,9 +79,13 @@ public class JekyllConfigConverter {
      * @throws IOException if parsing fails
      */
     public String createSiteConfigYaml(String configYaml, String cnameContent) throws IOException {
-        // Parse the original config
-        JsonNode config = yamlMapper.readTree(configYaml);
-        
+        return createSiteConfigYaml(yamlMapper.readTree(configYaml), cnameContent);
+    }
+
+    /**
+     * Create a siteConfig.yml from a pre-parsed config.
+     */
+    public String createSiteConfigYaml(JsonNode config, String cnameContent) throws IOException {
         // Build a new config with selected properties
         Map<String, Object> siteConfig = new LinkedHashMap<>();
         
@@ -124,21 +143,72 @@ public class JekyllConfigConverter {
         Files.createDirectories(configDir);
         Path propsFile = configDir.resolve("application.properties");
 
+        JsonNode config = yamlMapper.readTree(configYaml);
+
         // Write properties manually — Properties.store() escapes colons in values,
         // which corrupts date format patterns like yyyy-MM-dd['T'HH:mm:ss][X]
         try (Writer writer = Files.newBufferedWriter(propsFile)) {
-            Properties props = createApplicationProperties();
+            Properties props = createApplicationProperties(config);
             for (String key : props.stringPropertyNames().stream().sorted().toList()) {
                 writer.write(key + "=" + props.getProperty(key) + "\n");
             }
         }
         
         // Create data/siteConfig.yml
-        String siteConfigYaml = createSiteConfigYaml(configYaml, cnameContent);
+        String siteConfigYaml = createSiteConfigYaml(config, cnameContent);
         Path dataDir = projectDir.resolve("data");
         Files.createDirectories(dataDir);
         Path siteConfigFile = dataDir.resolve("siteConfig.yml");
         Files.writeString(siteConfigFile, siteConfigYaml);
+    }
+
+    private boolean hasPlugin(JsonNode config, String pluginName) {
+        if (config == null || !config.has("plugins")) {
+            return false;
+        }
+        JsonNode plugins = config.get("plugins");
+        if (!plugins.isArray()) {
+            return false;
+        }
+        for (JsonNode plugin : plugins) {
+            if (pluginName.equals(plugin.asText())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private void addAutoAuthorProperties(JsonNode config, Properties properties) {
+        String layout = "author";
+        String dataName = "authors";
+
+        if (config != null && config.has("autopages")) {
+            JsonNode autopages = config.get("autopages");
+            if (autopages.has("authors")) {
+                JsonNode authors = autopages.get("authors");
+                if (authors.has("layouts") && authors.get("layouts").isArray()
+                        && authors.get("layouts").size() > 0) {
+                    layout = stripExtension(authors.get("layouts").get(0).asText());
+                }
+                if (authors.has("data")) {
+                    dataName = stripExtension(stripPath(authors.get("data").asText()));
+                }
+            }
+        }
+
+        properties.setProperty("site.collections.author.layout", layout);
+        properties.setProperty("site.collections.author.from-data.id-key", "_key");
+        properties.setProperty("site.collections.author.from-data.name", dataName);
+    }
+
+    private String stripExtension(String filename) {
+        int dot = filename.lastIndexOf('.');
+        return dot > 0 ? filename.substring(0, dot) : filename;
+    }
+
+    private String stripPath(String path) {
+        int slash = path.lastIndexOf('/');
+        return slash >= 0 ? path.substring(slash + 1) : path;
     }
 
     private void copyIfPresent(JsonNode source, Map<String, Object> target, String key) {

@@ -38,12 +38,6 @@ public class JekyllConfigCommand implements Callable<Integer> {
             return 1;
         }
 
-        Path configFile = projectDir.resolve("_config.yml");
-        if (!Files.exists(configFile)) {
-            System.err.println("Error: _config.yml not found in " + projectDir);
-            return 1;
-        }
-
         try {
             converter.convertProject(projectDir);
 

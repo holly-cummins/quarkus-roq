@@ -141,8 +141,9 @@ if [ -d "${project_dir}/content" ]; then
         # Check if file has frontmatter with permalink
         if head -n 20 "$file" | grep -q "^permalink:"; then
             # Extract permalink value (strip leading/trailing slashes and quotes)
-            permalink=$(grep "^permalink:" "$file" | head -n 1 | sed 's/^permalink: *//; s/^["'\'']*//; s/["'\'']*$//; s/^\/\+//; s/\/\+$//')
-            
+            # note that in this sed expression, the second slash is treated optional even though it's not obviously marked as such
+            permalink=$(grep "^permalink:" "$file" | head -n 1 | sed 's|permalink: */*\(.*\)/|\1|')
+
             # Check if permalink matches filename (with .md or .adoc extension)
             if [ "$permalink" = "$filename_no_ext" ]; then
                 # Delete the entire permalink line

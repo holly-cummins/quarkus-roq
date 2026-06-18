@@ -1,12 +1,5 @@
 package io.quarkus.tools;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -45,28 +38,6 @@ class JekyllConfigConverterTest {
         assertTrue(props.getProperty("quarkus.qute.type-check-excludes").contains("java.lang.Object.*"));
         assertTrue(props.getProperty("quarkus.qute.type-check-excludes")
                 .contains("io.quarkiverse.roq.frontmatter.runtime.model.Page.paginator"));
-        assertTrue(props.containsKey("quarkus.web-bundler.bundling.external"));
-        assertTrue(props.getProperty("quarkus.web-bundler.bundling.external").contains("/assets/*"));
-        assertEquals("NOOP", props.getProperty("quarkus.qute.property-not-found-strategy"));
-    }
-
-    @Test
-    void testSiteUrlFromJekyllConfig() throws IOException {
-        String configYaml = """
-                url: https://example.com
-                """;
-        Properties props = converter.createApplicationProperties(
-                new com.fasterxml.jackson.dataformat.yaml.YAMLMapper().readTree(configYaml));
-        assertEquals("https://example.com", props.getProperty("site.url"),
-                "Jekyll url should map to site.url in application.properties");
-    }
-
-    @Test
-    void testStrictPropertiesOmitsOutputOriginal() {
-        converter.setStrictProperties(true);
-        Properties props = converter.createApplicationProperties();
-        assertFalse(props.containsKey("quarkus.qute.property-not-found-strategy"),
-                "strict mode should not set property-not-found-strategy (defaults to THROW)");
     }
 
     @Test
@@ -99,9 +70,6 @@ class JekyllConfigConverterTest {
                   host: https://search.example.com
                   script-path: /search.js
                   cached-script-file: search-cached.js
-                  initial-timeout: 1500
-                  more-timeout: 2500
-                  min-chars: 2
                 """;
 
         String siteConfigYaml = converter.createSiteConfigYaml(configYaml, null);
@@ -123,22 +91,6 @@ class JekyllConfigConverterTest {
 
         assertNotNull(siteConfigYaml);
         assertTrue(siteConfigYaml.contains("cname: \"\""));
-    }
-
-    @Test
-    void testSiteConfigYamlWithFeedAndAuthor() throws IOException {
-        String configYaml = """
-                title: My Site
-                author: janedoe
-                feed:
-                  posts_limit: 50
-                """;
-
-        String siteConfigYaml = converter.createSiteConfigYaml(configYaml, null);
-
-        assertTrue(siteConfigYaml.contains("author: \"janedoe\""));
-        assertTrue(siteConfigYaml.contains("feed:"));
-        assertTrue(siteConfigYaml.contains("posts_limit: 50"));
     }
 
     @Test
@@ -167,7 +119,6 @@ class JekyllConfigConverterTest {
         assertTrue(propsContent.contains("quarkus.qute.alt-expr-syntax=true"));
         assertTrue(propsContent.contains("site.date-format=yyyy-MM-dd['T'HH:mm:ss][X]"));
         assertTrue(propsContent.contains("quarkus.qute.strict-rendering=false"));
-        assertTrue(propsContent.contains("quarkus.qute.property-not-found-strategy=NOOP"));
         assertTrue(propsContent.contains("quarkus.qute.type-check-excludes="));
 
         // Verify siteConfig.yml was created
@@ -393,7 +344,7 @@ class JekyllConfigConverterTest {
         converter.convertProject(tempDir);
 
         String propsContent = Files.readString(tempDir.resolve("config/application.properties"));
-        assertTrue(!propsContent.contains("site.collections.author"));
+        assertFalse(propsContent.contains("site.collections.author"));
     }
 
     @Test

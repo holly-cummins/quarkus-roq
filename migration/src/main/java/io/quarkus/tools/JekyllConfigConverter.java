@@ -49,7 +49,6 @@ public class JekyllConfigConverter {
 
     /**
      * Create application.properties values with standard Roq properties for Jekyll compatibility.
-     * Replaces roq-it-jekyll lines 184-192.
      *
      * @return Application properties (without plugin-dependent properties)
      */
@@ -198,6 +197,8 @@ public class JekyllConfigConverter {
 
         // Track config mappings from main config too
         Map<String, JsonNode> configMappingsToGenerate = new LinkedHashMap<>();
+
+        JsonNode config = yamlMapper.readTree(configYaml);
 
         // Write properties manually — Properties.store() escapes colons in values,
         // which corrupts date format patterns like yyyy-MM-dd['T'HH:mm:ss][X]
@@ -705,6 +706,55 @@ public class JekyllConfigConverter {
             }
         }
         return null;
+    }
+
+    private boolean hasPlugin(JsonNode config, String pluginName) {
+        if (config == null || !config.has("plugins")) {
+            return false;
+        }
+        JsonNode plugins = config.get("plugins");
+        if (!plugins.isArray()) {
+            return false;
+        }
+        for (JsonNode plugin : plugins) {
+            if (pluginName.equals(plugin.asText())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private void addAutoAuthorProperties(JsonNode config, Properties properties) {
+        String layout = "author";
+        String dataName = "authors";
+
+        if (config != null && config.has("autopages")) {
+            JsonNode autopages = config.get("autopages");
+            if (autopages.has("authors")) {
+                JsonNode authors = autopages.get("authors");
+                if (authors.has("layouts") && authors.get("layouts").isArray()
+                        && authors.get("layouts").size() > 0) {
+                    layout = stripExtension(authors.get("layouts").get(0).asText());
+                }
+                if (authors.has("data")) {
+                    dataName = stripExtension(stripPath(authors.get("data").asText()));
+                }
+            }
+        }
+
+        properties.setProperty("site.collections.author.layout", layout);
+        properties.setProperty("site.collections.author.from-data.id-key", "_key");
+        properties.setProperty("site.collections.author.from-data.name", dataName);
+    }
+
+    private String stripExtension(String filename) {
+        int dot = filename.lastIndexOf('.');
+        return dot > 0 ? filename.substring(0, dot) : filename;
+    }
+
+    private String stripPath(String path) {
+        int slash = path.lastIndexOf('/');
+        return slash >= 0 ? path.substring(slash + 1) : path;
     }
 
     private void copyIfPresent(JsonNode source, Map<String, Object> target, String key) {

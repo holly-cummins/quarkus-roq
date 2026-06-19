@@ -122,12 +122,15 @@ mv ${project_dir}/newsletter ${project_dir}/public
 
 mv ${project_dir}/_site/index.html ${project_dir}
 
-# Convert Jekyll feed.xml to a Qute template (strip frontmatter, let the converter handle it)
-if [ -f "${project_dir}/feed.xml" ]; then
-    strip_frontmatter "${project_dir}/feed.xml"
-    mv ${project_dir}/feed.xml ${project_dir}/_layouts/feed.xml
-    echo '{#include feed.xml /}' > ${project_dir}/content/feed.xml
-fi
+# Convert Jekyll XML templates (feed.xml, sitemap.xml) to Qute
+# Strip frontmatter, stage in _includes for the converter, serve from content/
+for xml_file in feed.xml sitemap.xml; do
+    if [ -f "${project_dir}/${xml_file}" ]; then
+        strip_frontmatter "${project_dir}/${xml_file}"
+        mv ${project_dir}/${xml_file} ${project_dir}/_includes/${xml_file}
+        echo "{#include partials/${xml_file} /}" > ${project_dir}/content/${xml_file}
+    fi
+done
 
 # Convert frontmatter (permalinks → aliases, pagination → paginate)
 mvn -f ${tools_dir}/pom.xml -q exec:java -Dexec.mainClass="io.quarkus.tools.migration.jekyll.JekyllFrontMatterCommand" -Dexec.args="${project_dir}"

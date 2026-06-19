@@ -117,6 +117,9 @@ git cherry-pick ee4e5ab34f268c2e5656b5f4d5f38f3433ba0002 || git cherry-pick --ab
 
 # Rename brand.css page
 git cherry-pick 87470c5822b7a9fe1b6e8ead1d96f55f893ed6a7 || git cherry-pick --abort
+
+# Add sitemap.xml validation test
+git cherry-pick 79d3768f8d || git cherry-pick --abort
 )
 
 

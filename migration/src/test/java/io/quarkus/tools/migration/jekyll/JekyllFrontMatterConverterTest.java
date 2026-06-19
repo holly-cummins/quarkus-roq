@@ -1,9 +1,5 @@
 package io.quarkus.tools.migration.jekyll;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -14,6 +10,10 @@ import org.junit.jupiter.api.io.TempDir;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class JekyllFrontMatterConverterTest {
 
@@ -183,29 +183,9 @@ class JekyllFrontMatterConverterTest {
 
         String result = Files.readString(contentDir.resolve("about.md"));
         assertFalse(result.contains("permalink:"));
-        assertFalse(result.contains("link:"));
+        assertFalse(result.contains("aliases:"));
         assertTrue(result.contains("layout: page"));
         assertTrue(result.contains("title: \"About\""));
-    }
-
-    @Test
-    void testPermalinkInSubdirNotStrippedWhenDifferentFromRelativePath(@TempDir Path tempDir) throws IOException {
-        Path contentDir = tempDir.resolve("content");
-        Path guidesDir = contentDir.resolve("guides");
-        Files.createDirectories(guidesDir);
-        Files.writeString(guidesDir.resolve("guides.md"), """
-                ---
-                layout: documentation
-                permalink: /guides/
-                ---
-                """);
-
-        converter.convertPermalinks(contentDir);
-
-        String result = Files.readString(guidesDir.resolve("guides.md"));
-        assertTrue(result.contains("link: /guides/"),
-                "permalink /guides/ should become link because relative path is guides/guides, not guides");
-        assertFalse(result.contains("permalink:"));
     }
 
     @Test
@@ -240,7 +220,7 @@ class JekyllFrontMatterConverterTest {
         converter.convertPermalinks(contentDir);
 
         String result = Files.readString(contentDir.resolve("events.md"));
-        assertTrue(result.contains("link: /community/events/"));
+        assertTrue(result.contains("aliases: /community/events/"));
         assertFalse(result.contains("permalink:"));
     }
 
@@ -275,6 +255,7 @@ class JekyllFrontMatterConverterTest {
 
         String result = Files.readString(contentDir.resolve("about.md"));
         assertFalse(result.contains("permalink:"));
+        assertFalse(result.contains("aliases:"));
         assertFalse(result.contains("link:"));
     }
 

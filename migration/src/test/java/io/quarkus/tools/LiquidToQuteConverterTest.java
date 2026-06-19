@@ -756,6 +756,28 @@ class LiquidToQuteConverterTest {
                 "Ternary before property-style method should use .or() for chaining");
     }
 
+    @Test
+    void testForLoopWithVariableLimit() {
+        String input = "{% for item in items limit: my_limit %}{{item}}{% endfor %}";
+        String expected = "{#for item in items.orEmpty.limit(my_limit)}{=item}{/for}";
+        assertConverts(input, expected,
+                "Loop with variable limit should convert to .limit(variable)");
+    }
+
+    @Test
+    void testXmlEscapeFilter() {
+        String input = "{{ post.title | xml_escape }}";
+        String expected = "{=post.title.escapeHtml}";
+        assertConverts(input, expected, "xml_escape filter should convert to escapeHtml");
+    }
+
+    @Test
+    void testDateToRfc822Filter() {
+        String input = "{{ post.date | date_to_rfc822 }}";
+        String expected = "{=post.date.rfc822}";
+        assertConverts(input, expected, "date_to_rfc822 filter should convert to .rfc822");
+    }
+
     // --- Layout tag tests ---
 
     @Test

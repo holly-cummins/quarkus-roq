@@ -156,16 +156,25 @@ fi
 # Convert Jekyll pagination frontmatter to Roq paginate syntax
 # Jekyll-paginate-v2 uses global `pagination.collection` in _config.yml (default: 'posts')
 # and per-page `pagination: enabled: true`. Roq uses `paginate: <collection>`.
+# Jekyll's pagination permalink is relative to the paginating page, so we derive
+# the link pattern from each page's filename (e.g. blog.md -> blog/page/:page).
 paginate_collection=$(grep -A20 '^pagination:' ${project_dir}/_config.yml 2>/dev/null | grep 'collection:' | head -1 | sed "s/.*collection: *['\"]*//" | sed "s/['\"].*//")
 paginate_collection=${paginate_collection:-posts}
+paginate_size=$(grep -A20 '^pagination:' ${project_dir}/_config.yml 2>/dev/null | grep 'per_page:' | head -1 | sed 's/.*per_page: *//')
+paginate_size=${paginate_size:-10}
 if [ -d "${project_dir}/content" ]; then
     find ${project_dir}/content -type f \( -name "*.md" -o -name "*.adoc" \) | while read -r file; do
         if grep -q "^pagination:" "$file"; then
-            # Replace `pagination:` block (with indented children) with `paginate: <collection>`
+            page_slug=$(basename "$file" | sed 's/\.[^.]*$//')
             python3 -c "
 import re, sys
 with open(sys.argv[1]) as f: content = f.read()
-content = re.sub(r'^pagination:[ \t]*\n([ \t]+.*\n)*', 'paginate: ${paginate_collection}\n', content, flags=re.MULTILINE)
+replacement = '''paginate:
+  collection: ${paginate_collection}
+  size: ${paginate_size}
+  link: ${page_slug}/page/:page
+'''
+content = re.sub(r'^pagination:[ \t]*\n([ \t]+.*\n)*', replacement, content, flags=re.MULTILINE)
 with open(sys.argv[1], 'w') as f: f.write(content)
 " "$file"
         fi

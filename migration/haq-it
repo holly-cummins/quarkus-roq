@@ -112,11 +112,12 @@ git cherry-pick cf5614e820 || git cherry-pick --abort
 # Add working groups page content test (test/working-groups-content)
 git cherry-pick 1f8d8f3daf || git cherry-pick --abort
 
+# More blog and author tests
+git cherry-pick 8dccdf954397a09a607b340b378ef7d0b914840f || git cherry-pick --abort
+
+
 # Sanitise some background-image urls
 git cherry-pick ee4e5ab34f268c2e5656b5f4d5f38f3433ba0002 || git cherry-pick --abort
-
-# Rename brand.css page
-git cherry-pick 87470c5822b7a9fe1b6e8ead1d96f55f893ed6a7 || git cherry-pick --abort
 
 # Add sitemap.xml validation test
 git cherry-pick 79d3768f8d || git cherry-pick --abort

@@ -103,6 +103,9 @@ git cherry-pick 020721c917 || git cherry-pick --abort
 # Add blog page content tests (test/blog-page-content)
 git cherry-pick 74897e26c4 || git cherry-pick --abort
 
+# Add blog pagination navigation test (test/blog-pagination-navigation)
+git cherry-pick 5ebeeb4797 || git cherry-pick --abort
+
 # Add insights page content tests (test/insights-page-content)
 git cherry-pick cf5614e820 || git cherry-pick --abort
 

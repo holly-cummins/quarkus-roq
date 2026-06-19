@@ -137,6 +137,7 @@ mvn -f ${tools_dir}/pom.xml -q exec:java -Dexec.mainClass="io.quarkus.tools.migr
 
 # Convert Jekyll config to Roq (creates config/application.properties and data/siteConfig.yml)
 mvn -f ${tools_dir}/pom.xml -q exec:java -Dexec.mainClass="io.quarkus.tools.JekyllConfigCommand" -Dexec.args="${project_dir}"
+rm -rf ${project_dir}/_config.yml
 
 # Convert Liquid to Qute; this has the side effect of renaming directories to adjust the structure
 mkdir -p ${project_dir}/templates/partials

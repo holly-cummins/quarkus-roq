@@ -38,6 +38,8 @@ class JekyllConfigConverterTest {
         assertTrue(props.getProperty("quarkus.qute.type-check-excludes").contains("java.lang.Object.*"));
         assertTrue(props.getProperty("quarkus.qute.type-check-excludes")
                 .contains("io.quarkiverse.roq.frontmatter.runtime.model.Page.paginator"));
+        assertTrue(props.containsKey("quarkus.web-bundler.bundling.external"));
+        assertTrue(props.getProperty("quarkus.web-bundler.bundling.external").contains("/assets/*"));
     }
 
     @Test

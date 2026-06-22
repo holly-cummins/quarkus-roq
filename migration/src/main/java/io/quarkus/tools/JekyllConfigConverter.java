@@ -61,6 +61,10 @@ public class JekyllConfigConverter {
                         + "io.quarkiverse.roq.frontmatter.runtime.model.Page.tagsCount,"
                         + "io.quarkiverse.roq.frontmatter.runtime.model.DocumentPage.*");
 
+        // Jekyll SCSS often uses absolute url('/assets/...') references. EsBuild can't resolve
+        // these at build time since it doesn't know public/ is the site root. Mark them as external.
+        properties.setProperty("quarkus.web-bundler.bundling.external", "/assets/*");
+
         if (hasPlugin(config, "jekyll-auto-authors")) {
             addAutoAuthorProperties(config, properties);
         }

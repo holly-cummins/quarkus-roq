@@ -1144,8 +1144,9 @@ public class LiquidToQuteConverter {
             String expr = expressions.get(i);
 
             int scopeEnd = findScopeBoundary(content, assignEnd);
+            String letExpr = expr.contains("?:") ? "(" + expr + ")" : expr;
             content = content.substring(0, assignStart)
-                    + "{#let " + var + "=" + expr + "}"
+                    + "{#let " + var + "=" + letExpr + "}"
                     + content.substring(assignEnd, scopeEnd)
                     + "{/let}"
                     + content.substring(scopeEnd);
@@ -1385,7 +1386,11 @@ public class LiquidToQuteConverter {
     }
 
     private String wrapTernaryInExpression(String expr) {
-        Pattern pattern = Pattern.compile("([a-zA-Z0-9_\\.\\[\\]]+)\\s*\\?:\\s*([\"'][^\"']*[\"']|[a-zA-Z0-9_\\.\\[\\]]+)\\.([a-zA-Z0-9_]+)\\s*\\(");
+        // Match ?: where the default value is followed by a method/property call:
+        //   expr ?: "val".method(   →  (expr ?: "val").method(
+        //   expr ?: "val".property  →  (expr ?: "val").property
+        Pattern pattern = Pattern.compile(
+                "([a-zA-Z0-9_\\.\\[\\]]+)\\s*\\?:\\s*([\"'][^\"']*[\"']|[a-zA-Z0-9_\\.\\[\\]]+)\\.([a-zA-Z0-9_]+)(\\s*\\()?");
         Matcher matcher = pattern.matcher(expr);
         StringBuilder sb = new StringBuilder();
 
@@ -1393,7 +1398,8 @@ public class LiquidToQuteConverter {
             String variable = matcher.group(1);
             String defaultVal = matcher.group(2);
             String method = matcher.group(3);
-            String replacement = "(" + variable + " ?: " + defaultVal + ")." + method + "(";
+            String paren = matcher.group(4) != null ? matcher.group(4) : "";
+            String replacement = "(" + variable + " ?: " + defaultVal + ")." + method + paren;
             matcher.appendReplacement(sb, Matcher.quoteReplacement(replacement));
         }
         matcher.appendTail(sb);

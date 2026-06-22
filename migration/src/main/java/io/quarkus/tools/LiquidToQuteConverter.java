@@ -832,17 +832,36 @@ public class LiquidToQuteConverter {
         // We find each {#for VAR in ...} and replace forloop.* references with VAR_* in the loop body.
         content = replaceLoopVariables(content);
 
-        // Handle limit and offset (numeric or variable)
+        // Handle limit and offset: wrap loop body with a count guard
+        // since Roq collections don't have .limit()/.skip() methods.
+        // {#for x in list limit: N} → {#for x in list}{#if x_count <= N}...{/if}{/for}
         Pattern limitPattern = Pattern.compile("\\{#for\\s+(\\w+)\\s+in\\s+([^}]+?)\\s+limit:\\s*(\\w+)(?:\\s+offset:\\s*(\\w+))?\\s*\\}");
         Matcher limitMatcher = limitPattern.matcher(content);
-        StringBuilder sb = new StringBuilder();
-
         while (limitMatcher.find()) {
-            String replacement = buildLimitedForLoop(limitMatcher);
-            limitMatcher.appendReplacement(sb, Matcher.quoteReplacement(replacement));
+            String var = limitMatcher.group(1);
+            String collection = limitMatcher.group(2);
+            String limit = limitMatcher.group(3);
+            String offset = limitMatcher.group(4);
+
+            int forEnd = limitMatcher.end();
+            int endForPos = findMatchingEndFor(content, forEnd);
+            if (endForPos < 0) continue;
+
+            String loopBody = content.substring(forEnd, endForPos);
+            String forOpen;
+            if (offset != null && !offset.equals("0")) {
+                forOpen = "{#for " + var + " in " + collection + "}"
+                        + "{#if " + var + "_count > " + offset + " && " + var + "_count <= " + offset + " + " + limit + "}";
+            } else {
+                forOpen = "{#for " + var + " in " + collection + "}"
+                        + "{#if " + var + "_count <= " + limit + "}";
+            }
+
+            content = content.substring(0, limitMatcher.start())
+                    + forOpen + loopBody + "{/if}{/for}"
+                    + content.substring(endForPos + "{/for}".length());
+            limitMatcher = limitPattern.matcher(content);
         }
-        limitMatcher.appendTail(sb);
-        content = sb.toString();
 
         if (!content.equals(original)) {
             conversionsApplied.add("Converted loops");
@@ -923,19 +942,6 @@ public class LiquidToQuteConverter {
             }
         }
         return content.length();
-    }
-
-    private static String buildLimitedForLoop(Matcher limitMatcher) {
-        String var = limitMatcher.group(1);
-        String collection = limitMatcher.group(2);
-        String limit = limitMatcher.group(3);
-        String offset = limitMatcher.group(4);
-
-        if (offset != null && !offset.equals("0")) {
-            return "{#for " + var + " in " + collection + ".skip(" + offset + ").limit(" + limit + ")}";
-        } else {
-            return "{#for " + var + " in " + collection + ".limit(" + limit + ")}";
-        }
     }
 
     private String convertIncludes(String content) {
@@ -1620,7 +1626,7 @@ public class LiquidToQuteConverter {
         // Note: Using "siteConfig" instead of "site" to avoid conflict with Roq's built-in Site object
         String knownSiteProps = "url|title|description|image|imageExists|data|pages|allPages|collections|" +
                 "index|files|file|fileExists|page|normalPage|document|imagesDirUrl|pageContent|" +
-                "posts|tags";
+                "posts|tags|time";
 
         // Convert site.<section>.* to cdi:<section>Config.* for each ConfigMapping section
         for (String section : configMappingSections) {
@@ -1787,6 +1793,18 @@ public class LiquidToQuteConverter {
         if (!content.equals(original)) {
             conversionsApplied.add("Converted site.posts to site.collections.get('posts')");
         }
+
+        // Jekyll's site.time is the build time (not config). Convert to Roq's now global.
+        // The date_to_rfc822 filter conversion produces .rfc822, which needs ZonedDateTime,
+        // so we use now.format() with RFC-822 pattern instead.
+        original = content;
+        content = content.replaceAll("\\bsite\\.time\\.rfc822\\b",
+                "now.format('EEE, dd MMM yyyy HH:mm:ss Z')");
+        content = content.replaceAll("\\bsite\\.time\\b", "now");
+        if (!content.equals(original)) {
+            conversionsApplied.add("Converted site.time to now (Roq build-time global)");
+        }
+
         return content;
     }
 

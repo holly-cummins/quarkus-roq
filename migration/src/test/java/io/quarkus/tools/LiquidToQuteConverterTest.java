@@ -589,17 +589,17 @@ class LiquidToQuteConverterTest {
     @Test
     void testForLoopWithLimitAndOffset() {
         String input = "{% for item in items limit:3 offset:2 %}{{item}}{% endfor %}";
-        String expected = "{#for item in items.orEmpty.skip(2).limit(3)}{=item}{/for}";
+        String expected = "{#for item in items.orEmpty}{#if item_count > 2 && item_count <= 2 + 3}{=item}{/if}{/for}";
         assertConverts(input, expected,
-                "Loop with limit and offset should convert to .skip().limit()");
+                "Loop with limit and offset should use count guard");
     }
 
     @Test
     void testForLoopWithVariableLimit() {
         String input = "{% for item in items limit: my_limit %}{{item}}{% endfor %}";
-        String expected = "{#for item in items.orEmpty.limit(my_limit)}{=item}{/for}";
+        String expected = "{#for item in items.orEmpty}{#if item_count <= my_limit}{=item}{/if}{/for}";
         assertConverts(input, expected,
-                "Loop with variable limit should convert to .limit(variable)");
+                "Loop with variable limit should use count guard");
     }
 
     @Test
@@ -614,6 +614,14 @@ class LiquidToQuteConverterTest {
         String input = "{{ post.date | date_to_rfc822 }}";
         String expected = "{=post.date.rfc822}";
         assertConverts(input, expected, "date_to_rfc822 filter should convert to .rfc822");
+    }
+
+    @Test
+    void testSiteTimeRfc822() {
+        String input = "{{ site.time | date_to_rfc822 }}";
+        String expected = "{=now.format('EEE, dd MMM yyyy HH:mm:ss Z')}";
+        assertConverts(input, expected,
+                "site.time with date_to_rfc822 should use now.format() since rfc822 needs ZonedDateTime");
     }
 
     @Test

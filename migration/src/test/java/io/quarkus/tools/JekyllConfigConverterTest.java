@@ -94,6 +94,22 @@ class JekyllConfigConverterTest {
     }
 
     @Test
+    void testSiteConfigYamlWithFeedAndAuthor() throws IOException {
+        String configYaml = """
+                title: My Site
+                author: janedoe
+                feed:
+                  posts_limit: 50
+                """;
+
+        String siteConfigYaml = converter.createSiteConfigYaml(configYaml, null);
+
+        assertTrue(siteConfigYaml.contains("author: \"janedoe\""));
+        assertTrue(siteConfigYaml.contains("feed:"));
+        assertTrue(siteConfigYaml.contains("posts_limit: 50"));
+    }
+
+    @Test
     void testConvertProjectCreatesFiles(@TempDir Path tempDir) throws IOException {
         // Create _config.yml
         String configYaml = """

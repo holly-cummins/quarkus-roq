@@ -111,6 +111,19 @@ public class JekyllConfigConverter {
             }
         }
         
+        // Copy feed config (e.g. posts_limit) — used by converted feed.xml template
+        if (config.has("feed")) {
+            JsonNode feed = config.get("feed");
+            Map<String, Object> feedConfig = new LinkedHashMap<>();
+            copyIfPresent(feed, feedConfig, "posts_limit");
+            if (!feedConfig.isEmpty()) {
+                siteConfig.put("feed", feedConfig);
+            }
+        }
+
+        // Copy author (site-level default author for feed/posts)
+        copyIfPresent(config, siteConfig, "author");
+
         // Add empty tags array (for Jekyll compatibility)
         siteConfig.put("tags", new Object[0]);
         

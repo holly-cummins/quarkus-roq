@@ -40,18 +40,7 @@ rm -rf _site/
 # Skipped: roq-conversion (is the conversion itself), branches already in upstream/main,
 # and duplicate commits across branches.
 
-# --- Content/link fixes ---
-
-# Work around lack of os-specific download endpoints (fix-dead-podman-links)
-git cherry-pick a8dea27321 || git cherry-pick --abort
-
-# Include more blog posts in RSS feed (test/rss-feed-all-posts)
-git cherry-pick 64e7dcdec5 || git cherry-pick --abort
-
 # --- add-external-link-checking chain (must be in order, all touch LinkCrawlerTest.java) ---
-
-# Confirm 0s are redirects
-git cherry-pick 0c196e84d6 || git cherry-pick --abort
 
 # Add scheduled CI job to check external links and raise defects
 git cherry-pick c4abc2ef1b || git cherry-pick --abort
@@ -79,48 +68,16 @@ git cherry-pick f3e489ba412ab9e5a4ff70eb89aebabd9cdedb2a || git cherry-pick --ab
 git cherry-pick 9e5210b0dc0845d0c6ca56b844a722e35791c1a6 || git cherry-pick --abort
 git cherry-pick f1a3f96ef235d6956be6b45861b81a8fd930e700 || git cherry-pick --abort
 
-# Fix forward reference in scss
-git cherry-pick b982e9141b3950715b4f90fd2a1e99e947fa473e || git cherry-pick --abort
-
-
 # CI: allow build to continue if Java tests fail (ci-continue-on-test-failure)
 git cherry-pick 4433e5d095 || git cherry-pick --abort
 
-# CI: add test report summary to job output (ci-test-report)
-git cherry-pick 3e42a6eab8 || git cherry-pick --abort
-
 # --- Playwright test branches (independent of each other) ---
-
-# Add page title sanity check tests (test/page-title-sanity)
-git cherry-pick 61b89ca49e || git cherry-pick --abort
-
-# Add mobile navigation tests (test/mobile-navigation)
-git cherry-pick ac3436624a || git cherry-pick --abort
 
 # Add fragment anchor validation test (test/fragment-anchor-validation)
 git cherry-pick 020721c917 || git cherry-pick --abort
 
-# Add blog page content tests (test/blog-page-content)
-git cherry-pick 74897e26c4 || git cherry-pick --abort
-
-# Add blog pagination navigation test (test/blog-pagination-navigation)
-git cherry-pick 5ebeeb4797 || git cherry-pick --abort
-
-# Add insights page content tests (test/insights-page-content)
-git cherry-pick cf5614e820 || git cherry-pick --abort
-
-# Add working groups page content test (test/working-groups-content)
-git cherry-pick 1f8d8f3daf || git cherry-pick --abort
-
-# More blog and author tests
-git cherry-pick 8dccdf954397a09a607b340b378ef7d0b914840f || git cherry-pick --abort
-
-
 # Sanitise some background-image urls
 git cherry-pick ee4e5ab34f268c2e5656b5f4d5f38f3433ba0002 || git cherry-pick --abort
-
-# Add sitemap.xml validation test
-git cherry-pick 79d3768f8d || git cherry-pick --abort
 )
 
 

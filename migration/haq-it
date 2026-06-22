@@ -76,15 +76,15 @@ git cherry-pick 4433e5d095 || git cherry-pick --abort
 # Add fragment anchor validation test (test/fragment-anchor-validation)
 git cherry-pick 020721c917 || git cherry-pick --abort
 
-# Sanitise some background-image urls
-git cherry-pick ee4e5ab34f268c2e5656b5f4d5f38f3433ba0002 || git cherry-pick --abort
 )
 
 
-# Sanitise away any base urls
-# TODO how to handle this properly?
+# WORKAROUND: SCSS files use absolute url('/assets/images/...') which EsBuild can't resolve.
+# The images exist in public/assets/images/ but EsBuild doesn't know public/ is the site root.
+# Proper fix: the web bundler should resolve absolute CSS url() paths against the public/ dir.
+# For now, rewrite to full URLs so EsBuild treats them as external.
 find ${project_dir}/_sass -name '*.scss' -exec \
-    sed -i '' 's|(\$baseurl|("http://localhost:8090/"|g' {} +
+    sed -i '' "s|url('/assets/|url('http://localhost:8090/assets/|g" {} +
 
 # TODO need to handle qute stuff
 ## Hack: delete files with Qute example code that the Qute parser would interpret as real template syntax

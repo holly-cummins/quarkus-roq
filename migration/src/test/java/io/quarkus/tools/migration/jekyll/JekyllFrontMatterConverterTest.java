@@ -258,6 +258,63 @@ class JekyllFrontMatterConverterTest {
         assertFalse(result.contains("aliases:"));
     }
 
+    // --- Redirect deduplication tests ---
+
+    @Test
+    void testMergeRedirectDuplicates(@TempDir Path tempDir) throws IOException {
+        Path contentDir = tempDir.resolve("content");
+        Path redirectsDir = contentDir.resolve("redirects/guides");
+        Files.createDirectories(redirectsDir);
+
+        Files.writeString(redirectsDir.resolve("foo-guide.html"), """
+                ---
+                permalink: /guides/foo-guide.html
+                newUrl: /guides/foo
+                ---
+                """);
+        Files.writeString(redirectsDir.resolve("foo-guide.md"), """
+                ---
+                permalink: /guides/foo-guide/index.html
+                newUrl: /guides/foo
+                ---
+                """);
+
+        converter.mergeRedirectDuplicates(contentDir);
+
+        assertTrue(Files.exists(redirectsDir.resolve("foo-guide.html")));
+        assertFalse(Files.exists(redirectsDir.resolve("foo-guide.md")));
+
+        String result = Files.readString(redirectsDir.resolve("foo-guide.html"));
+        assertTrue(result.contains("/guides/foo-guide.html"));
+        assertTrue(result.contains("/guides/foo-guide/index.html"));
+        assertTrue(result.contains("newUrl: /guides/foo"));
+    }
+
+    @Test
+    void testMergeRedirectDuplicatesNoMatch(@TempDir Path tempDir) throws IOException {
+        Path contentDir = tempDir.resolve("content");
+        Path redirectsDir = contentDir.resolve("redirects/guides");
+        Files.createDirectories(redirectsDir);
+
+        Files.writeString(redirectsDir.resolve("only-md.md"), """
+                ---
+                permalink: /guides/only-md/index.html
+                newUrl: /guides/something
+                ---
+                """);
+        Files.writeString(redirectsDir.resolve("only-html.html"), """
+                ---
+                permalink: /guides/only-html.html
+                newUrl: /guides/other
+                ---
+                """);
+
+        converter.mergeRedirectDuplicates(contentDir);
+
+        assertTrue(Files.exists(redirectsDir.resolve("only-md.md")));
+        assertTrue(Files.exists(redirectsDir.resolve("only-html.html")));
+    }
+
     // --- Integration test ---
 
     @Test

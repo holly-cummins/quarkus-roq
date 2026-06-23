@@ -3,6 +3,8 @@ package io.quarkus.tools.migration.jekyll;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
@@ -37,6 +39,7 @@ public class JekyllFrontMatterConverter {
                 ? yamlMapper.readTree(Files.readString(configFile))
                 : null;
 
+        mergeRedirectDuplicates(contentDir);
         convertPermalinks(contentDir);
         convertPagination(contentDir, config);
     }
@@ -94,6 +97,47 @@ public class JekyllFrontMatterConverter {
 
             content = PAGINATION_BLOCK.matcher(content).replaceFirst(replacement);
             Files.writeString(file, content);
+        }
+    }
+
+    /**
+     * Merge duplicate redirect files where both foo.html and foo.md exist.
+     * Jekyll redirect collections often have pairs covering both /foo.html and /foo/index.html URLs.
+     * In Roq, .md compiles to .html, causing duplicate template errors.
+     * Merges the .md permalink into the .html file as a YAML list of aliases, then deletes the .md.
+     */
+    public void mergeRedirectDuplicates(Path contentDir) throws IOException {
+        try (Stream<Path> paths = Files.walk(contentDir)) {
+            Map<String, Path> htmlFiles = new HashMap<>();
+            paths.filter(Files::isRegularFile)
+                    .filter(p -> p.getFileName().toString().endsWith(".html"))
+                    .forEach(p -> htmlFiles.put(stripExtension(p.getFileName().toString()), p));
+
+            for (Map.Entry<String, Path> entry : htmlFiles.entrySet()) {
+                Path mdFile = entry.getValue().getParent().resolve(entry.getKey() + ".md");
+                if (!Files.exists(mdFile)) {
+                    continue;
+                }
+
+                String htmlContent = Files.readString(entry.getValue());
+                String mdContent = Files.readString(mdFile);
+
+                Matcher htmlPermalink = PERMALINK_LINE.matcher(htmlContent);
+                Matcher mdPermalink = PERMALINK_LINE.matcher(mdContent);
+
+                if (!htmlPermalink.find() || !mdPermalink.find()) {
+                    continue;
+                }
+
+                String htmlPl = htmlPermalink.group(1).trim().replaceAll("^['\"]|['\"]$", "");
+                String mdPl = mdPermalink.group(1).trim().replaceAll("^['\"]|['\"]$", "");
+
+                String merged = PERMALINK_LINE.matcher(htmlContent)
+                        .replaceFirst("aliases:\n  - " + htmlPl + "\n  - " + mdPl + "\n");
+
+                Files.writeString(entry.getValue(), merged);
+                Files.delete(mdFile);
+            }
         }
     }
 

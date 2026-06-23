@@ -69,6 +69,8 @@ public class JekyllConfigConverter {
             addAutoAuthorProperties(config, properties);
         }
 
+        addCollectionProperties(config, properties);
+
         return properties;
     }
 
@@ -179,10 +181,39 @@ public class JekyllConfigConverter {
         Path siteConfigFile = dataDir.resolve("siteConfig.yml");
         Files.writeString(siteConfigFile, siteConfigYaml);
 
+        // Move Jekyll collection directories (_<name>) to Roq content/<name>
+        moveCollectionDirectories(projectDir, config);
+
         // Add site description to index page frontmatter (Roq reads site.description from there)
         if (config.has("description")) {
             addDescriptionToIndexPage(projectDir, config.get("description").asText());
         }
+    }
+
+    void moveCollectionDirectories(Path projectDir, JsonNode config) throws IOException {
+        if (!config.has("collections")) {
+            return;
+        }
+        JsonNode collections = config.get("collections");
+        if (!collections.isObject()) {
+            return;
+        }
+        Path contentDir = projectDir.resolve("content");
+        collections.fieldNames().forEachRemaining(name -> {
+            if ("posts".equals(name)) {
+                return;
+            }
+            Path source = projectDir.resolve("_" + name);
+            if (Files.isDirectory(source)) {
+                Path target = contentDir.resolve(name);
+                try {
+                    Files.createDirectories(target.getParent());
+                    Files.move(source, target);
+                } catch (IOException e) {
+                    System.err.println("Warning: could not move _" + name + " to content/" + name + ": " + e.getMessage());
+                }
+            }
+        });
     }
 
     void addDescriptionToIndexPage(Path projectDir, String description) throws IOException {
@@ -226,6 +257,34 @@ public class JekyllConfigConverter {
             }
         }
         return false;
+    }
+
+    private void addCollectionProperties(JsonNode config, Properties properties) {
+        if (config == null || !config.has("collections")) {
+            return;
+        }
+        JsonNode collections = config.get("collections");
+        if (!collections.isObject()) {
+            return;
+        }
+        collections.fields().forEachRemaining(entry -> {
+            String name = entry.getKey();
+            if ("posts".equals(name)) {
+                return;
+            }
+            JsonNode collectionConfig = entry.getValue();
+            boolean output = collectionConfig.isObject()
+                    && collectionConfig.has("output")
+                    && collectionConfig.get("output").asBoolean(false);
+            if (!output) {
+                return;
+            }
+            properties.setProperty("site.collections." + name, "true");
+            if (collectionConfig.has("layout")) {
+                properties.setProperty("site.collections." + name + ".layout",
+                        collectionConfig.get("layout").asText());
+            }
+        });
     }
 
     private void addAutoAuthorProperties(JsonNode config, Properties properties) {

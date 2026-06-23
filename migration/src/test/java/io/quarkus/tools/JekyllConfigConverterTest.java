@@ -319,6 +319,140 @@ class JekyllConfigConverterTest {
     }
 
     @Test
+    void testCollectionsWithOutputTrueGeneratesProperties(@TempDir Path tempDir) throws IOException {
+        String configYaml = """
+                title: Test Site
+                collections:
+                  guides:
+                    output: true
+                  redirects:
+                    output: true
+                  versions:
+                    output: true
+                """;
+        Files.writeString(tempDir.resolve("_config.yml"), configYaml);
+
+        converter.convertProject(tempDir);
+
+        String propsContent = Files.readString(tempDir.resolve("config/application.properties"));
+        assertTrue(propsContent.contains("site.collections.guides=true"),
+                "Should have guides collection: " + propsContent);
+        assertTrue(propsContent.contains("site.collections.redirects=true"),
+                "Should have redirects collection: " + propsContent);
+        assertTrue(propsContent.contains("site.collections.versions=true"),
+                "Should have versions collection: " + propsContent);
+    }
+
+    @Test
+    void testCollectionsWithoutOutputAreSkipped(@TempDir Path tempDir) throws IOException {
+        String configYaml = """
+                title: Test Site
+                collections:
+                  drafts:
+                    output: false
+                  internal:
+                    foo: bar
+                """;
+        Files.writeString(tempDir.resolve("_config.yml"), configYaml);
+
+        converter.convertProject(tempDir);
+
+        String propsContent = Files.readString(tempDir.resolve("config/application.properties"));
+        assertTrue(!propsContent.contains("site.collections.drafts"),
+                "Should not have drafts collection: " + propsContent);
+        assertTrue(!propsContent.contains("site.collections.internal"),
+                "Should not have internal collection: " + propsContent);
+    }
+
+    @Test
+    void testCollectionsSkipsPosts(@TempDir Path tempDir) throws IOException {
+        String configYaml = """
+                title: Test Site
+                collections:
+                  posts:
+                    output: true
+                  guides:
+                    output: true
+                """;
+        Files.writeString(tempDir.resolve("_config.yml"), configYaml);
+
+        converter.convertProject(tempDir);
+
+        String propsContent = Files.readString(tempDir.resolve("config/application.properties"));
+        assertTrue(!propsContent.contains("site.collections.posts"),
+                "Should not emit posts collection (Roq built-in): " + propsContent);
+        assertTrue(propsContent.contains("site.collections.guides=true"),
+                "Should have guides collection: " + propsContent);
+    }
+
+    @Test
+    void testCollectionWithLayoutGeneratesLayoutProperty(@TempDir Path tempDir) throws IOException {
+        String configYaml = """
+                title: Test Site
+                collections:
+                  guides:
+                    output: true
+                    layout: guide
+                """;
+        Files.writeString(tempDir.resolve("_config.yml"), configYaml);
+
+        converter.convertProject(tempDir);
+
+        String propsContent = Files.readString(tempDir.resolve("config/application.properties"));
+        assertTrue(propsContent.contains("site.collections.guides=true"),
+                "Should have guides collection: " + propsContent);
+        assertTrue(propsContent.contains("site.collections.guides.layout=guide"),
+                "Should have guides layout: " + propsContent);
+    }
+
+    @Test
+    void testConvertProjectMovesCollectionDirectories(@TempDir Path tempDir) throws IOException {
+        String configYaml = """
+                title: Test Site
+                collections:
+                  guides:
+                    output: true
+                  versions:
+                    output: true
+                """;
+        Files.writeString(tempDir.resolve("_config.yml"), configYaml);
+
+        Files.createDirectories(tempDir.resolve("_guides"));
+        Files.writeString(tempDir.resolve("_guides/getting-started.adoc"), "= Getting Started");
+        Files.createDirectories(tempDir.resolve("_versions/main"));
+        Files.writeString(tempDir.resolve("_versions/main/index.md"), "---\ntitle: Main\n---");
+
+        converter.convertProject(tempDir);
+
+        assertTrue(Files.exists(tempDir.resolve("content/guides/getting-started.adoc")),
+                "guides should be moved to content/guides");
+        assertTrue(Files.exists(tempDir.resolve("content/versions/main/index.md")),
+                "versions should be moved to content/versions");
+        assertTrue(!Files.exists(tempDir.resolve("_guides")),
+                "_guides should no longer exist");
+        assertTrue(!Files.exists(tempDir.resolve("_versions")),
+                "_versions should no longer exist");
+    }
+
+    @Test
+    void testConvertProjectDoesNotMovePostsDirectory(@TempDir Path tempDir) throws IOException {
+        String configYaml = """
+                title: Test Site
+                collections:
+                  posts:
+                    output: true
+                """;
+        Files.writeString(tempDir.resolve("_config.yml"), configYaml);
+        Files.createDirectories(tempDir.resolve("_posts"));
+        Files.writeString(tempDir.resolve("_posts/2024-01-01-hello.md"), "---\ntitle: Hello\n---");
+
+        converter.convertProject(tempDir);
+
+        assertTrue(Files.exists(tempDir.resolve("_posts/2024-01-01-hello.md")),
+                "_posts should NOT be moved by the converter (handled by roq-it-jekyll)");
+    }
+
+    @Test
     void testComplexNestedConfig() throws IOException {
         String configYaml = """
                 title: Complex Site

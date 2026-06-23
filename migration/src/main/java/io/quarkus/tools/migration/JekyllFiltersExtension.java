@@ -88,6 +88,20 @@ public class JekyllFiltersExtension {
     }
 
     /**
+     * Jekyll's "xml_escape" / "escape" filter: escape HTML/XML special characters.
+     * Qute auto-escapes in .html templates but not in .xml/.txt files.
+     * Usage in Qute: {=myString.escapeHtml}
+     */
+    static String escapeHtml(String str) {
+        if (str == null) return "";
+        return str.replace("&", "&amp;")
+                .replace("<", "&lt;")
+                .replace(">", "&gt;")
+                .replace("\"", "&quot;")
+                .replace("'", "&#39;");
+    }
+
+    /**
      * Jekyll/Liquid's "capitalize" filter: uppercase the first character.
      * Usage in Qute: {myString.capitalize}
      */

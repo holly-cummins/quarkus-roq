@@ -53,15 +53,41 @@ public class JekyllFrontMatterConverter {
                     });
         }
         convertPermalinks(contentDir);
+        // Also convert permalinks in pre-move _<collection> dirs.
+        // Pass the collection name as a path prefix so that e.g. _guides/guides.md
+        // compares against "guides/guides" (its post-move path), not just "guides".
+        try (Stream<Path> collDirs = Files.list(projectDir)) {
+            collDirs.filter(Files::isDirectory)
+                    .filter(p -> p.getFileName().toString().startsWith("_"))
+                    .filter(p -> !p.getFileName().toString().equals("_posts"))
+                    .forEach(p -> {
+                        try {
+                            String collectionName = p.getFileName().toString().substring(1);
+                            convertPermalinks(p, collectionName);
+                        } catch (IOException e) {
+                            System.err.println("Warning: could not convert permalinks in " + p + ": " + e.getMessage());
+                        }
+                    });
+        }
         convertPagination(contentDir, config);
     }
 
     /**
      * Convert Jekyll permalink frontmatter to Roq aliases.
-     * If the permalink matches the filename, it's redundant and removed.
+     * If the permalink matches the file's effective path, it's redundant and removed.
      * Otherwise it becomes an alias.
      */
     public void convertPermalinks(Path contentDir) throws IOException {
+        convertPermalinks(contentDir, "");
+    }
+
+    /**
+     * Convert Jekyll permalink frontmatter to Roq aliases.
+     *
+     * @param pathPrefix prepended to the relative path for comparison — used for
+     *                   pre-move collection dirs where _foo/bar.md will become content/foo/bar.md
+     */
+    public void convertPermalinks(Path contentDir, String pathPrefix) throws IOException {
         for (Path file : findContentFiles(contentDir)) {
             String content = Files.readString(file);
             Matcher matcher = PERMALINK_LINE.matcher(content);
@@ -71,13 +97,15 @@ public class JekyllFrontMatterConverter {
 
             String permalinkValue = matcher.group(1).trim()
                     .replaceAll("^['\"]|['\"]$", "");
-            // Strip leading and trailing slashes
             String normalized = permalinkValue.replaceAll("^/|/$", "");
 
             String relativePathNoExt = stripExtension(
                     contentDir.relativize(file).toString());
+            String effectivePath = pathPrefix.isEmpty()
+                    ? relativePathNoExt
+                    : pathPrefix + "/" + relativePathNoExt;
 
-            if (normalized.equals(relativePathNoExt)) {
+            if (normalized.equals(effectivePath)) {
                 content = PERMALINK_LINE.matcher(content).replaceFirst("");
             } else {
                 content = PERMALINK_LINE.matcher(content).replaceFirst("aliases: " + Matcher.quoteReplacement(matcher.group(1)) + "\n");

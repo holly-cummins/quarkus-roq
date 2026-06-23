@@ -1653,11 +1653,9 @@ public class LiquidToQuteConverter {
         }
 
         // Jekyll's site.time is the build time (not config). Convert to Roq's now global.
-        // The date_to_rfc822 filter conversion produces .rfc822, which needs ZonedDateTime,
-        // so we use now.format() with RFC-822 pattern instead.
+        // The rfc822 extension in JekyllFiltersExtension handles LocalDateTime (assumes UTC).
         original = content;
-        content = content.replaceAll("\\bsite\\.time\\.rfc822\\b",
-                "now.format('EEE, dd MMM yyyy HH:mm:ss Z')");
+        content = content.replaceAll("\\bsite\\.time\\.rfc822\\b", "now.rfc822");
         content = content.replaceAll("\\bsite\\.time\\b", "now");
         if (!content.equals(original)) {
             conversionsApplied.add("Converted site.time to now (Roq build-time global)");

@@ -1571,24 +1571,21 @@ public class LiquidToQuteConverter {
     }
 
     private String makePageDataLenient(String content) {
-        // page.data.* and post.data.* access a JsonObject — fields may not exist on every page.
-        // Append ?? to make them lenient (resolve to null instead of throwing).
-        // Skip if already lenient (??), has a default (?:), uses .or() fallback,
-        // or is followed by a method chain (. — ?? would become part of the key name).
-        Pattern pattern = Pattern.compile("((?<!-)(?:page|post)\\.data\\.[a-zA-Z0-9_]+)(\\?\\?| \\?:|\\.or\\(|\\.)?");
+        // page.data.* and post.data.* access a JsonObject. DO NOT append ?? to these:
+        // Qute passes "property??" as the literal key name to JsonObject.getValue(),
+        // which fails because the actual key is "property" (without ??).
+        // strict-rendering=false handles missing properties by resolving to empty.
+        // Strip any existing ?? that may have been added by other conversion steps.
+        Pattern pattern = Pattern.compile("((?<!-)(?:page|post)\\.data\\.[a-zA-Z0-9_]+)\\?\\?");
         Matcher matcher = pattern.matcher(content);
         StringBuilder sb = new StringBuilder();
         while (matcher.find()) {
-            if (matcher.group(2) != null) {
-                matcher.appendReplacement(sb, Matcher.quoteReplacement(matcher.group(0)));
-            } else {
-                matcher.appendReplacement(sb, Matcher.quoteReplacement(matcher.group(1) + "??"));
-            }
+            matcher.appendReplacement(sb, Matcher.quoteReplacement(matcher.group(1)));
         }
         matcher.appendTail(sb);
         String result = sb.toString();
         if (!result.equals(content)) {
-            conversionsApplied.add("Made page.data.* references lenient");
+            conversionsApplied.add("Stripped ?? from page.data.* references (JsonObject incompatible)");
         }
         return result;
     }

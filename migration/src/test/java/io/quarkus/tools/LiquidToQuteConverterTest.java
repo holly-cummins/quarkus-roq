@@ -72,7 +72,7 @@ class LiquidToQuteConverterTest {
     void testDefaultBeforeSplitStripsDefault() {
         String input = "{{post.author | default: \"\" | split: \",\"}}";
         // default is stripped because namespace split handles null
-        String expected = "{=str:split(post.data.author??, \",\")}";
+        String expected = "{=str:split(post.data.author, \",\")}";
         assertConverts(input, expected, "default before split should be stripped; split uses namespace form");
     }
 
@@ -289,7 +289,7 @@ class LiquidToQuteConverterTest {
         // post.author is custom frontmatter -> post.data.author
         // default is stripped; split uses namespace form for null safety
         String input = "{{post.author | default: \"\" | split: \",\"}}";
-        String expected = "{=str:split(post.data.author??, \",\")}";
+        String expected = "{=str:split(post.data.author, \",\")}";
         assertConverts(input, expected, "Real-world author pattern should convert correctly");
     }
 
@@ -392,7 +392,7 @@ class LiquidToQuteConverterTest {
                 "{% for author_key in authors_clean %}\n" +
                 "{{author_key}}\n" +
                 "{% endfor %}";
-        String expected = "{#for author_key in str:splitTrimmed(post.data.author??, \",\").orEmpty}\n" +
+        String expected = "{#for author_key in str:splitTrimmed(post.data.author, \",\").orEmpty}\n" +
                 "{=author_key}\n" +
                 "{/for}";
         assertConverts(input, expected,
@@ -416,7 +416,7 @@ class LiquidToQuteConverterTest {
                 "{% endfor %}";
         String expected = "<p class=\"byline\">\n" +
                 "By\n" +
-                "{#for author_key in str:splitTrimmed(post.data.author??, \",\").orEmpty}\n" +
+                "{#for author_key in str:splitTrimmed(post.data.author, \",\").orEmpty}\n" +
                 "{=author_key}\n" +
                 "{/for}";
         assertConverts(input, expected,
@@ -440,7 +440,7 @@ class LiquidToQuteConverterTest {
                        "      {% assign authors_clean = \"\" | split: \"\" %}";
 
         String expected = "      {!  Build multi-author list for this post  !}\n" +
-                         "      {#let authors_raw=str:split(post.data.author??, \",\")}\n" +
+                         "      {#let authors_raw=str:split(post.data.author, \",\")}\n" +
                          "      {#let authors_clean=str:split(\"\", \"\")}{/let}{/let}";
 
         assertConverts(input, expected, "Author file lines 36-38 should convert without {?:} errors");
@@ -821,7 +821,7 @@ class LiquidToQuteConverterTest {
     @Test
     void testPostCustomFieldConvertToData() {
         String input = "{{post.author}}";
-        String expected = "{=post.data.author??}";
+        String expected = "{=post.data.author}";
         assertConverts(input, expected,
                 "post.customField should convert to post.data.customField (DocumentPage custom frontmatter)");
     }
@@ -837,7 +837,7 @@ class LiquidToQuteConverterTest {
     @Test
     void testPostSynopsisConverted() {
         String input = "{#if post.synopsis}yes{/if}";
-        String expected = "{#if post.data.synopsis??}yes{/if}";
+        String expected = "{#if post.data.synopsis}yes{/if}";
         assertConverts(input, expected,
                 "post.synopsis should convert to post.data.synopsis");
     }
@@ -901,9 +901,9 @@ class LiquidToQuteConverterTest {
     @Test
     void testCustomPageFieldConvertToData() {
         String input = "{{page.data.author}}";
-        String expected = "{=page.data.author??}";
+        String expected = "{=page.data.author}";
         assertConverts(input, expected,
-                "Custom page frontmatter fields should be lenient (may not exist)");
+                "Custom page frontmatter should not get ?? (breaks JsonObject key lookup)");
     }
 
     @Test
@@ -917,17 +917,17 @@ class LiquidToQuteConverterTest {
     @Test
     void testMultipleCustomPageFields() {
         String input = "{{page.data.author}} - {{page.synopsis}}";
-        String expected = "{=page.data.author??} - {=page.data.synopsis??}";
+        String expected = "{=page.data.author} - {=page.data.synopsis}";
         assertConverts(input, expected,
-                "Multiple custom fields should all convert to page.data.* with lenient operator");
+                "Multiple custom fields should not get ?? (breaks JsonObject key lookup)");
     }
 
     @Test
     void testCustomFieldInConditional() {
         String input = "{% if page.search_wc %}...{% endif %}";
-        String expected = "{#if page.data.search_wc??}...{/if}";
+        String expected = "{#if page.data.search_wc}...{/if}";
         assertConverts(input, expected,
-                "Custom fields in conditionals should convert to page.data.* with lenient operator");
+                "Custom fields in conditionals should not get ?? (breaks JsonObject key lookup)");
     }
 
     @Test
@@ -965,7 +965,7 @@ class LiquidToQuteConverterTest {
     @Test
     void testPageUrlEqualityComparison() {
         String input = "{#if page.url == '/'}homepage{#else}{=page.data.layout}{/if}";
-        String expected = "{#if page.url.path == '/'}homepage{#else}{=page.data.layout??}{/if}";
+        String expected = "{#if page.url.path == '/'}homepage{#else}{=page.data.layout}{/if}";
         assertConverts(input, expected,
                 "page.url == should convert to page.url.path == (RoqUrl is not a String)");
     }
@@ -1156,7 +1156,7 @@ class LiquidToQuteConverterTest {
         @Test
         void testTernaryWrapping() {
             assertConverts("{{post.author | default: \"\" | split: \",\"}}",
-                    "{str:split(post.data.author??, \",\")}",
+                    "{str:split(post.data.author, \",\")}",
                     "Standard syntax should use namespace split");
         }
 

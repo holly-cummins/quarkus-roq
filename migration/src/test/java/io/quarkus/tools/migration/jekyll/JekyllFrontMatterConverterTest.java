@@ -365,6 +365,49 @@ class JekyllFrontMatterConverterTest {
         assertTrue(result.contains("/guides/bar-guide/index.html"));
     }
 
+    @Test
+    void testConvertProjectConvertsPermalinksInCollectionDirs(@TempDir Path tempDir) throws IOException {
+        Files.createDirectories(tempDir.resolve("content"));
+        Files.writeString(tempDir.resolve("_config.yml"), "title: Test\n");
+
+        Path guidesDir = tempDir.resolve("_guides");
+        Files.createDirectories(guidesDir);
+        Files.writeString(guidesDir.resolve("guides.md"), """
+                ---
+                layout: documentation
+                permalink: /guides/
+                ---
+                """);
+
+        converter.convertProject(tempDir);
+
+        String result = Files.readString(guidesDir.resolve("guides.md"));
+        assertTrue(result.contains("aliases: /guides/"),
+                "permalink /guides/ in _guides/guides.md should become alias because " +
+                "post-move path guides/guides != guides");
+        assertFalse(result.contains("permalink:"));
+    }
+
+    @Test
+    void testConvertProjectStripsRedundantPermalinkInCollectionDir(@TempDir Path tempDir) throws IOException {
+        Files.createDirectories(tempDir.resolve("content"));
+        Files.writeString(tempDir.resolve("_config.yml"), "title: Test\n");
+
+        Path guidesDir = tempDir.resolve("_guides");
+        Files.createDirectories(guidesDir);
+        Files.writeString(guidesDir.resolve("foo.md"), """
+                ---
+                permalink: /guides/foo/
+                ---
+                """);
+
+        converter.convertProject(tempDir);
+
+        String result = Files.readString(guidesDir.resolve("foo.md"));
+        assertFalse(result.contains("permalink:"), "redundant permalink should be stripped");
+        assertFalse(result.contains("aliases:"), "redundant permalink should not become alias");
+    }
+
     // --- Integration test ---
 
     @Test

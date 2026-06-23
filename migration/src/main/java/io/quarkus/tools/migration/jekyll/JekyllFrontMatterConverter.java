@@ -23,10 +23,6 @@ public class JekyllFrontMatterConverter {
 
     private static final Pattern PERMALINK_LINE = Pattern.compile("^permalink:[ \\t]*(.*)\\n", Pattern.MULTILINE);
 
-    private static final Pattern NEWURL_LINE = Pattern.compile("^newUrl:[ \\t]*(.*)\\n", Pattern.MULTILINE);
-
-    private static final Pattern EXCERPT_LINE = Pattern.compile("^excerpt:[ \\t]*(.*)\\n", Pattern.MULTILINE);
-
     private final YAMLMapper yamlMapper = new YAMLMapper();
 
     /**
@@ -73,17 +69,25 @@ public class JekyllFrontMatterConverter {
                         }
                     });
         }
-        convertNewUrlToAliases(contentDir);
-        convertExcerpts(contentDir);
         convertPagination(contentDir, config);
     }
 
     /**
      * Convert Jekyll permalink frontmatter to Roq aliases.
-     * If the permalink matches the filename, it's redundant and removed.
+     * If the permalink matches the file's effective path, it's redundant and removed.
      * Otherwise it becomes an alias.
      */
     public void convertPermalinks(Path contentDir) throws IOException {
+        convertPermalinks(contentDir, "");
+    }
+
+    /**
+     * Convert Jekyll permalink frontmatter to Roq aliases.
+     *
+     * @param pathPrefix prepended to the relative path for comparison — used for
+     *                   pre-move collection dirs where _foo/bar.md will become content/foo/bar.md
+     */
+    public void convertPermalinks(Path contentDir, String pathPrefix) throws IOException {
         for (Path file : findContentFiles(contentDir)) {
             String content = Files.readString(file);
             Matcher matcher = PERMALINK_LINE.matcher(content);
@@ -93,55 +97,20 @@ public class JekyllFrontMatterConverter {
 
             String permalinkValue = matcher.group(1).trim()
                     .replaceAll("^['\"]|['\"]$", "");
-            // Strip leading and trailing slashes
             String normalized = permalinkValue.replaceAll("^/|/$", "");
 
             String relativePathNoExt = stripExtension(
                     contentDir.relativize(file).toString());
+            String effectivePath = pathPrefix.isEmpty()
+                    ? relativePathNoExt
+                    : pathPrefix + "/" + relativePathNoExt;
 
-            if (normalized.equals(relativePathNoExt)) {
+            if (normalized.equals(effectivePath)) {
                 content = PERMALINK_LINE.matcher(content).replaceFirst("");
             } else {
                 content = PERMALINK_LINE.matcher(content).replaceFirst("aliases: " + Matcher.quoteReplacement(matcher.group(1)) + "\n");
             }
 
-            Files.writeString(file, content);
-        }
-    }
-
-    /**
-     * Convert Jekyll redirect {@code newUrl} frontmatter to Roq {@code aliases}.
-     * Jekyll redirects use newUrl to specify the target; Roq uses aliases for redirects.
-     */
-    public void convertNewUrlToAliases(Path contentDir) throws IOException {
-        for (Path file : findContentFiles(contentDir)) {
-            String content = Files.readString(file);
-            Matcher matcher = NEWURL_LINE.matcher(content);
-            if (!matcher.find()) {
-                continue;
-            }
-
-            String newUrlValue = matcher.group(1).trim();
-            content = NEWURL_LINE.matcher(content)
-                    .replaceFirst("aliases:\n  - " + Matcher.quoteReplacement(newUrlValue) + "\n");
-            Files.writeString(file, content);
-        }
-    }
-
-    /**
-     * Rename Jekyll {@code excerpt} frontmatter to Roq {@code description}.
-     * Skips files that already have a {@code description} field.
-     */
-    public void convertExcerpts(Path contentDir) throws IOException {
-        for (Path file : findContentFiles(contentDir)) {
-            String content = Files.readString(file);
-            if (!EXCERPT_LINE.matcher(content).find()) {
-                continue;
-            }
-            if (Pattern.compile("^description:[ \\t]", Pattern.MULTILINE).matcher(content).find()) {
-                continue;
-            }
-            content = EXCERPT_LINE.matcher(content).replaceFirst("description: $1\n");
             Files.writeString(file, content);
         }
     }

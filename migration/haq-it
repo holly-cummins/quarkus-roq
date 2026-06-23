@@ -86,6 +86,8 @@ rm ${project_dir}/_posts/2022-06-21-qute-templates-from-db.adoc
 rm ${project_dir}/_posts/2023-10-10-intellij-quarkus-recap.adoc
 rm ${project_dir}/_posts/2025-12-15-quarkus-feature-flags.asciidoc
 rm ${project_dir}/_guides/dev-ui.adoc
+rm -f ${project_dir}/_guides/qute.adoc
+rm -f ${project_dir}/_guides/qute-reference.adoc
 
 # Delete Jekyll includes too complex for auto-conversion (allejo/jekyll-toc: pure-Liquid
 # TOC generator using capture-concatenation, continue, slice, times, minus, etc.)

@@ -39,7 +39,19 @@ public class JekyllFrontMatterConverter {
                 ? yamlMapper.readTree(Files.readString(configFile))
                 : null;
 
+        // Merge redirect duplicates in content/ and in pre-move _<collection> dirs
         mergeRedirectDuplicates(contentDir);
+        try (Stream<Path> dirs = Files.list(projectDir)) {
+            dirs.filter(Files::isDirectory)
+                    .filter(p -> p.getFileName().toString().startsWith("_"))
+                    .forEach(p -> {
+                        try {
+                            mergeRedirectDuplicates(p);
+                        } catch (IOException e) {
+                            System.err.println("Warning: could not deduplicate redirects in " + p + ": " + e.getMessage());
+                        }
+                    });
+        }
         convertPermalinks(contentDir);
         convertPagination(contentDir, config);
     }

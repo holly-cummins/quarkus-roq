@@ -72,6 +72,15 @@ public class JekyllFiltersExtension {
     }
 
     /**
+     * Jekyll/Liquid's "capitalize" filter: uppercase the first character.
+     * Usage in Qute: {myString.capitalize}
+     */
+    static String capitalize(String str) {
+        if (str == null || str.isEmpty()) return str;
+        return Character.toUpperCase(str.charAt(0)) + str.substring(1);
+    }
+
+    /**
      * Jekyll's "truncate" filter: truncate a string to a given number of characters.
      * Usage in Qute: {myString.truncate(280)}
      */

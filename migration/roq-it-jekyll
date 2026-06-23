@@ -158,9 +158,9 @@ if [ -d "${project_dir}/data" ]; then
     done
 fi
 
-# Copy Jekyll filter extensions (where, first, last, size for JsonArray)
+# Copy Jekyll filter extensions (where, first, last, size, capitalize for JsonArray/String)
 mkdir -p ${project_dir}/src/main/java/io/quarkus/tools/migration
-cp ${tools_dir}/src/main/resources/migration-helpers/JekyllFiltersExtension.java \
+cp ${tools_dir}/src/main/java/io/quarkus/tools/migration/JekyllFiltersExtension.java \
    ${project_dir}/src/main/java/io/quarkus/tools/migration/
 
 # Make all extends optional

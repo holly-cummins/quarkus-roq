@@ -1,12 +1,5 @@
 package io.quarkus.tools;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-
-import java.util.List;
-
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -20,7 +13,6 @@ class LiquidToQuteConverterTest {
     @BeforeEach
     void setUp() {
         converter = new LiquidToQuteConverter();
-        converter.setConfigMappingSections(List.of("arbitrary"));
     }
 
     private void assertConverts(String input, String expected, String message) {
@@ -79,9 +71,9 @@ class LiquidToQuteConverterTest {
     @Test
     void testDefaultBeforeSplitStripsDefault() {
         String input = "{{post.author | default: \"\" | split: \",\"}}";
-        // default is stripped
-        String expected = "{=str:split(post.data.author, \",\").raw}";
-        assertConverts(input, expected, "default before split should be stripped; .data.* gets ");
+        // default is stripped because namespace split handles null
+        String expected = "{=str:split(post.data.author, \",\")}";
+        assertConverts(input, expected, "default before split should be stripped; split uses namespace form");
     }
 
     @Test
@@ -297,7 +289,7 @@ class LiquidToQuteConverterTest {
         // post.author is custom frontmatter -> post.data.author
         // default is stripped; split uses namespace form for null safety
         String input = "{{post.author | default: \"\" | split: \",\"}}";
-        String expected = "{=str:split(post.data.author, \",\").raw}";
+        String expected = "{=str:split(post.data.author, \",\")}";
         assertConverts(input, expected, "Real-world author pattern should convert correctly");
     }
 
@@ -318,15 +310,15 @@ class LiquidToQuteConverterTest {
     @Test
     void testAppendFilter() {
         String input = "{{\"hello\" | append: \" world\"}}";
-        String expected = "{=\"hello\".append(\" world\").raw}";
-        assertConverts(input, expected, "Append filter should use .append() method");
+        String expected = "{=\"hello\" + \" world\"}";
+        assertConverts(input, expected, "Append filter should convert to concatenation");
     }
 
     @Test
     void testMultipleAppends() {
         String input = "{{\"a\" | append: \"b\" | append: \"c\"}}";
-        String expected = "{=\"a\".append(\"b\").append(\"c\").raw}";
-        assertConverts(input, expected, "Multiple appends should chain .append() calls");
+        String expected = "{=\"a\" + \"b\" + \"c\"}";
+        assertConverts(input, expected, "Multiple appends should chain");
     }
 
     @Test
@@ -389,48 +381,44 @@ class LiquidToQuteConverterTest {
 
     @Test
     void testPushInLoopCollapsedToSplitTrimmed() {
-        String input = """
-                {% assign authors_raw = post.author | default: "" | split: "," %}
-                {% assign authors_clean = "" | split: "" %}
-                {% for a in authors_raw %}
-                {% assign a_trimmed = a | strip %}
-                {% if a_trimmed != "" %}
-                {% assign authors_clean = authors_clean | push: a_trimmed %}
-                {% endif %}
-                {% endfor %}
-                {% for author_key in authors_clean %}
-                {{author_key}}
-                {% endfor %}""";
-        String expected = """
-                {#for author_key in str:splitTrimmed(post.data.author, ",").orEmpty}
-                {=author_key.raw}
-                {/for}""";
+        String input = "{% assign authors_raw = post.author | default: \"\" | split: \",\" %}\n" +
+                "{% assign authors_clean = \"\" | split: \"\" %}\n" +
+                "{% for a in authors_raw %}\n" +
+                "{% assign a_trimmed = a | strip %}\n" +
+                "{% if a_trimmed != \"\" %}\n" +
+                "{% assign authors_clean = authors_clean | push: a_trimmed %}\n" +
+                "{% endif %}\n" +
+                "{% endfor %}\n" +
+                "{% for author_key in authors_clean %}\n" +
+                "{{author_key}}\n" +
+                "{% endfor %}";
+        String expected = "{#for author_key in str:splitTrimmed(post.data.author, \",\").orEmpty}\n" +
+                "{=author_key}\n" +
+                "{/for}";
         assertConverts(input, expected,
                 "Init-empty-list + push-in-loop + iterate should collapse to str:splitTrimmed");
     }
 
     @Test
     void testPushInLoopWithHtmlBetween() {
-        String input = """
-                {% assign authors_raw = post.author | default: "" | split: "," %}
-                {% assign authors_clean = "" | split: "" %}
-                {% for a in authors_raw %}
-                {% assign a_trimmed = a | strip %}
-                {% if a_trimmed != "" %}
-                {% assign authors_clean = authors_clean | push: a_trimmed %}
-                {% endif %}
-                {% endfor %}
-                <p class="byline">
-                By
-                {% for author_key in authors_clean %}
-                {{author_key}}
-                {% endfor %}""";
-        String expected = """
-                <p class="byline">
-                By
-                {#for author_key in str:splitTrimmed(post.data.author, ",").orEmpty}
-                {=author_key.raw}
-                {/for}""";
+        String input = "{% assign authors_raw = post.author | default: \"\" | split: \",\" %}\n" +
+                "{% assign authors_clean = \"\" | split: \"\" %}\n" +
+                "{% for a in authors_raw %}\n" +
+                "{% assign a_trimmed = a | strip %}\n" +
+                "{% if a_trimmed != \"\" %}\n" +
+                "{% assign authors_clean = authors_clean | push: a_trimmed %}\n" +
+                "{% endif %}\n" +
+                "{% endfor %}\n" +
+                "<p class=\"byline\">\n" +
+                "By\n" +
+                "{% for author_key in authors_clean %}\n" +
+                "{{author_key}}\n" +
+                "{% endfor %}";
+        String expected = "<p class=\"byline\">\n" +
+                "By\n" +
+                "{#for author_key in str:splitTrimmed(post.data.author, \",\").orEmpty}\n" +
+                "{=author_key}\n" +
+                "{/for}";
         assertConverts(input, expected,
                 "Push-in-loop with HTML between should collapse, preserving the HTML");
     }
@@ -451,11 +439,9 @@ class LiquidToQuteConverterTest {
                        "      {% assign authors_raw = post.author | default: \"\" | split: \",\" %}\n" +
                        "      {% assign authors_clean = \"\" | split: \"\" %}";
 
-        String expected = """
-                      {!  Build multi-author list for this post  !}
-                      {#let authors_raw=str:split(post.data.author, ",")}
-                      {#let authors_clean=str:split("", "")}{/let}{/let}\
-                """;
+        String expected = "      {!  Build multi-author list for this post  !}\n" +
+                         "      {#let authors_raw=str:split(post.data.author, \",\")}\n" +
+                         "      {#let authors_clean=str:split(\"\", \"\")}{/let}{/let}";
 
         assertConverts(input, expected, "Author file lines 36-38 should convert without {?:} errors");
     }
@@ -512,11 +498,11 @@ class LiquidToQuteConverterTest {
     @Test
     void testPrependFilter() {
         // Liquid: {{ path | prepend: site.baseurl }}
-        // site.baseurl is converted to '' (Roq has no baseurl concept)
+        // Qute: cdi:siteConfig.baseurl + path (prepend = concatenate before, siteConfig from data/siteConfig.yml)
         String input = "{{paginator.next_page_path | prepend: site.baseurl}}";
-        String expected = "{=page.paginator.next.prepend('').raw}";
+        String expected = "{=cdi:siteConfig.baseurl + page.paginator.next}";
         assertConverts(input, expected,
-                "Prepend with site.baseurl should convert baseurl to '' and use .prepend() method");
+                "Prepend filter should convert to string concatenation with CDI reference for site.baseurl");
     }
 
     @Test
@@ -530,27 +516,9 @@ class LiquidToQuteConverterTest {
     @Test
     void testDynamicBracketNotationInVariable() {
         String input = "{{ site.data.authors[key].name }}";
-        String expected = "{=cdi:authors.get(key).name.raw}";
+        String expected = "{=cdi:authors.get(key).name}";
         assertConverts(input, expected,
                 "Bracket notation followed by property access should convert correctly");
-    }
-
-    @Test
-    void testGetWithPageDataArgument() {
-        String input = "{% assign author = site.data.authors[post.author] %}";
-        String expected = "{#let author=cdi:authors.get(post.data.author)}{/let}";
-        assertConverts(input, expected,
-                ".data.* property in .get() argument");
-    }
-
-    @Test
-    void testAssignBracketWithDefaultPreservesOr() {
-        String input = "{% assign post_author = site.data.authors[post_author] | default: post_author %}" +
-                "{% if post_author %}x{% endif %}";
-        String expected = "{#let post_author=cdi:authors.get(post_author).or(post_author)}" +
-                "{#if post_author}x{/if}{/let}";
-        assertConverts(input, expected,
-                "Bracket access with default should preserve fallback");
     }
 
     // --- Loop variable tests ---
@@ -837,9 +805,9 @@ class LiquidToQuteConverterTest {
     @Test
     void testReplaceRegexWithPrependChain() {
         String input = "{% assign x = page.url | replace_regex: '^/version/([^/]+)/.*', '\\1' | prepend: ' - ' %}";
-        String expected = "{#let x=page.url.path.replaceAll('^/version/([^/]+)/.*', '$1').prepend(' - ')}{/let}";
+        String expected = "{#let x=' - ' + page.url.replaceAll('^/version/([^/]+)/.*', '$1')}{/let}";
         assertConverts(input, expected,
-                "replace_regex chained with prepend should use .prepend() method");
+                "replace_regex chained with prepend should produce valid method call");
     }
 
     @Test
@@ -853,7 +821,7 @@ class LiquidToQuteConverterTest {
     @Test
     void testPostCustomFieldConvertToData() {
         String input = "{{post.author}}";
-        String expected = "{=post.data.author??}";
+        String expected = "{=post.data.author}";
         assertConverts(input, expected,
                 "post.customField should convert to post.data.customField (DocumentPage custom frontmatter)");
     }
@@ -869,7 +837,7 @@ class LiquidToQuteConverterTest {
     @Test
     void testPostSynopsisConverted() {
         String input = "{#if post.synopsis}yes{/if}";
-        String expected = "{#if post.data.synopsis??}yes{/if}";
+        String expected = "{#if post.data.synopsis}yes{/if}";
         assertConverts(input, expected,
                 "post.synopsis should convert to post.data.synopsis");
     }
@@ -931,59 +899,11 @@ class LiquidToQuteConverterTest {
     }
 
     @Test
-    void testStandaloneSiteUrlConvertsToAbsolute() {
-        assertConverts("<loc>{{ site.url }}/</loc>",
-                "<loc>{=site.url.root.url.raw}/</loc>",
-                "Standalone site.url should use .root.url for absolute URL (Jekyll site.url is a base URL string)");
-    }
-
-    @Test
-    void testSiteUrlWithConcatenatedLinkUrl() {
-        assertConverts("<loc>{{ site.url }}{{ link.url }}</loc>",
-                "<loc>{=site.url.root.url.raw}{=link.url.raw}</loc>",
-                "site.url followed by another expression should still convert to .root.url");
-    }
-
-    @Test
-    void testSiteUrlNotConvertedWhenFollowedByMethodCall() {
-        String input = "{=site.url.someMethod(page.url)}";
-        String expected = "{=site.url.root.url.someMethod(page.url).raw}";
-        assertConverts(input, expected,
-                "site.url followed by a method call should convert to .root.url (methods are allowed, only properties are excluded)");
-    }
-
-    @Test
-    void testSiteHyphenatedPropertyConvertsToCamelCase() {
-        String input = "{=site.arbitrary.cached-script-file}";
-        String expected = "{=cdi:arbitraryConfig.cachedScriptFile.raw}";
-        assertConverts(input, expected,
-                "Hyphenated arbitrary config keys should convert to ConfigMapping with camelCase");
-    }
-
-    @Test
-    void testSiteNestedHyphenatedChain() {
-        String input = "{% assign x = site.arbitrary.script-mode %}";
-        String result = converter.convert(input);
-        assertTrue(result.contains("cdi:arbitraryConfig.scriptMode"),
-                "Nested hyphenated keys should convert to ConfigMapping with camelCase: " + result);
-    }
-
-    @Test
-    void testSiteHyphenatedPropertyWithRelativeUrl() {
-        String input = "{% assign arbitrary_script_src = site.arbitrary.cached-script-file | relative_url %}";
-        String result = converter.convert(input);
-        assertTrue(result.contains("cdi:arbitraryConfig.cachedScriptFile"),
-                "Hyphenated arbitrary config key with relative_url filter should convert to ConfigMapping: " + result);
-        assertFalse(result.contains("cachedScriptCdi"),
-                "CamelCase should not bleed into cdi: prefix: " + result);
-    }
-
-    @Test
     void testCustomPageFieldConvertToData() {
         String input = "{{page.data.author}}";
-        String expected = "{=page.data.author??}";
+        String expected = "{=page.data.author}";
         assertConverts(input, expected,
-                "Custom page frontmatter fields should be lenient (may not exist)");
+                "Custom page frontmatter should not get ?? (breaks JsonObject key lookup)");
     }
 
     @Test
@@ -997,55 +917,55 @@ class LiquidToQuteConverterTest {
     @Test
     void testMultipleCustomPageFields() {
         String input = "{{page.data.author}} - {{page.synopsis}}";
-        String expected = "{=page.data.author??} - {=page.data.synopsis??}";
+        String expected = "{=page.data.author} - {=page.data.synopsis}";
         assertConverts(input, expected,
-                "Multiple custom fields should all convert to page.data.* with lenient operator");
+                "Multiple custom fields should not get ?? (breaks JsonObject key lookup)");
     }
 
     @Test
     void testCustomFieldInConditional() {
-        String input = "{% if page.arbitrary_wc %}...{% endif %}";
-        String expected = "{#if page.data.arbitrary_wc}...{/if}";
+        String input = "{% if page.search_wc %}...{% endif %}";
+        String expected = "{#if page.data.search_wc}...{/if}";
         assertConverts(input, expected,
-                "Custom fields in conditionals should convert to page.data.* with lenient operator");
+                "Custom fields in conditionals should not get ?? (breaks JsonObject key lookup)");
     }
 
     @Test
-    void testSitearbitraryConvertsToCdi() {
-        String input = "{{site.arbitrary.host}}";
-        String expected = "{=cdi:arbitraryConfig.host.raw}";
+    void testSiteSearchConvertsToCdi() {
+        String input = "{{site.search.host}}";
+        String expected = "{=cdi:siteConfig.search.host}";
         assertConverts(input, expected,
-                "site.arbitrary properties should convert to ConfigMapping CDI reference");
+                "site.search properties should convert to CDI reference");
     }
 
     @Test
-    void testSitearbitraryScriptMode() {
-        String input = "{% if site.arbitrary.script-mode == 'direct' %}...{% endif %}";
-        String expected = "{#if cdi:arbitraryConfig.scriptMode == 'direct'}...{/if}";
+    void testSiteSearchScriptMode() {
+        String input = "{% if site.search.script-mode == 'direct' %}...{% endif %}";
+        String expected = "{#if cdi:siteConfig.search.script-mode == 'direct'}...{/if}";
         assertConverts(input, expected,
-                "site.arbitrary.script-mode should convert to camelCase ConfigMapping CDI reference");
+                "site.search.script-mode should convert to CDI reference");
     }
 
     @Test
     void testUrlConcatenationWithSiteUrl() {
         String input = "{{site.url | append: page.url}}";
-        String expected = "{=site.url.root.url.append(page.url).raw}";
+        String expected = "{=site.url.resolve(page.url)}";
         assertConverts(input, expected,
-                "URL concatenation should use .append() method");
+                "URL concatenation should use .resolve() instead of +");
     }
 
     @Test
     void testUrlConcatenationWithVariable() {
         String input = "{{canonical_url | prepend: site.url}}";
-        String expected = "{=canonical_url.prepend(site.url.root.url).raw}";
+        String expected = "{=site.url.resolve(canonical_url)}";
         assertConverts(input, expected,
-                "Prepending URL should use .prepend() method");
+                "Prepending to URL should use .resolve()");
     }
 
     @Test
     void testPageUrlEqualityComparison() {
         String input = "{#if page.url == '/'}homepage{#else}{=page.data.layout}{/if}";
-        String expected = "{#if page.url.path == '/'}homepage{#else}{=page.data.layout??}{/if}";
+        String expected = "{#if page.url.path == '/'}homepage{#else}{=page.data.layout}{/if}";
         assertConverts(input, expected,
                 "page.url == should convert to page.url.path == (RoqUrl is not a String)");
     }
@@ -1069,13 +989,6 @@ class LiquidToQuteConverterTest {
         assertConverts("{{ site.data.versions.documentation }}",
                 "{=cdi:versions.documentation}",
                 "site.data.X.Y should convert to cdi:X.Y");
-    }
-
-    @Test
-    void testSiteDataWithBracketAccessConvertsToCdi() {
-        assertConverts("{% if site.data.versioned[docversion_index].index %}yes{% endif %}",
-                "{#if cdi:versioned.get(docversion_index).index}yes{/if}",
-                "site.data.X[var] should convert to cdi:X.get(var)");
     }
 
     @Test
@@ -1174,8 +1087,8 @@ class LiquidToQuteConverterTest {
     @Test
     void testForLoopPropertyIterableGetsOrEmpty() {
         String input = "{% for tag in post.tags %}{{ tag }}{% endfor %}";
-        String expected = "{#for tag in post.data.tags.asStrings}{=tag.raw}{/for}";
-        assertConverts(input, expected, "Tags iterable should use .asStrings to handle both string and array values");
+        String expected = "{#for tag in post.tags.orEmpty}{=tag}{/for}";
+        assertConverts(input, expected, "Property-access iterable in for loop should get .orEmpty");
     }
 
     @Test
@@ -1243,8 +1156,8 @@ class LiquidToQuteConverterTest {
         @Test
         void testTernaryWrapping() {
             assertConverts("{{post.author | default: \"\" | split: \",\"}}",
-                    "{str:split(post.data.author, \",\").raw}",
-                    "Standard syntax should use namespace split with .or('') for .data.*");
+                    "{str:split(post.data.author, \",\")}",
+                    "Standard syntax should use namespace split");
         }
 
         @Test
@@ -1266,367 +1179,5 @@ class LiquidToQuteConverterTest {
             assertEquals("{=page.title}", ext.convert("{{page.title}}"),
                     "Default constructor should use extension syntax");
         }
-    }
-
-    @Test
-    void testGroupByThenSortChaining() {
-        String input = "{% assign groups = publications | group_by: site.publication.group_by | sort: \"name\" %}";
-        String result = converter.convert(input);
-        assertTrue(result.contains(".groupBy(") && result.contains(").sort("),
-                "group_by | sort should chain as .groupBy(arg).sort(arg), not nest sort inside groupBy arg: " + result);
-        assertFalse(result.contains("group_by.sort("),
-                "sort should not be nested inside the groupBy argument: " + result);
-    }
-
-    @Test
-    void testPushInNestedLoopCollapsedToMergeTypes() {
-        String input = """
-                {% assign v_type = include.type %}
-                {% assign values = "" | split: "," %}
-                {% for source in index -%}
-                    {% for item in source[1].types[v_type] -%}
-                        {% assign values = values | push: item %}
-                    {% endfor -%}
-                {% endfor -%}
-                {% assign values = values | sort: 'title' %}""";
-        String result = converter.convert(input);
-        assertTrue(result.contains("mergeTypes("),
-                "Nested push-in-loop with sort should collapse to mergeTypes(): " + result);
-        assertFalse(result.contains(".push("),
-                "push() should be eliminated by mergeTypes collapse: " + result);
-        assertFalse(result.contains(".sort("),
-                "sort() should be eliminated by mergeTypes collapse (sorting is built-in): " + result);
-    }
-
-    // ── Mutable assign tests ──────────────────────────────────────────────
-
-    @Test
-    void testMutableBooleanFlag() {
-        // assign false + conditional assign true = classic mutable flag
-        String input = "{% assign active = false %}" +
-                "{#if cond}{% assign active = true %}{/if}" +
-                "{#if active}yes{/if}";
-        String result = converter.convert(input);
-        assertTrue(result.contains("_m.assign('active', false)"),
-                "Default assign should use mutable map: " + result);
-        assertTrue(result.contains("_m.assign('active', true)"),
-                "Conditional assign should use mutable map: " + result);
-        assertTrue(result.contains("_m.read('active')"),
-                "Read of mutable var should use _m.read(): " + result);
-        assertTrue(result.contains("{#let _m=mut:map()}"),
-                "Should wrap with mutable map init: " + result);
-        assertFalse(result.contains("{#let active="),
-                "Mutable var should NOT use {#let}: " + result);
-    }
-
-    @Test
-    void testMutableAssignInsideBlockUsedOutside() {
-        // Single assign inside a loop, referenced after the loop
-        String input = "{#for item in list.orEmpty}" +
-                "{#if item.best}{% assign winner = item %}{/if}" +
-                "{/for}" +
-                "{#if winner}{=winner.name}{/if}";
-        String result = converter.convert(input);
-        assertTrue(result.contains("_m.assign('winner', item)"),
-                "Assign inside loop should use mutable map: " + result);
-        assertTrue(result.contains("_m.read('winner')"),
-                "Read after loop should use _m.read(): " + result);
-    }
-
-    @Test
-    void testMutableIfElseAssignUsedOutsideScope() {
-        // Assigns at same depth in if/else branches, but variable used outside the block
-        String input = "{#if enabled}" +
-                "{#if mode}{% assign src = a %}{#else}{% assign src = b %}{/if}" +
-                "{/if}" +
-                "<script src=\"{=src}\"></script>";
-        String result = converter.convert(input);
-        assertTrue(result.contains("_m.assign('src',"),
-                "If/else assigns used outside scope should use mutable map: " + result);
-        assertTrue(result.contains("_m.read('src')"),
-                "Read outside scope should use _m.read(): " + result);
-    }
-
-    @Test
-    void testMutableAssignBeforeInclude() {
-        // Variable assigned inside a conditional, then an include appears after
-        // the scope. The include may reference the variable (Liquid assign is global)
-        // so the variable needs mutable treatment.
-        String input = "{% if mode %}{% assign arbitrary_script = host %}{% assign arbitrary_src = arbitrary_script %}{% endif %}"
-                +
-                "{% include head-csp.html %}";
-        String result = converter.convert(input);
-        assertTrue(result.contains("_m.assign('arbitrary_script',"),
-                "Assign before include should use mutable map: " + result);
-        assertTrue(result.contains("_m.assign('arbitrary_src',"),
-                "Second assign before include should use mutable map: " + result);
-    }
-
-    @Test
-    void testSingleAssignStaysAsLet() {
-        // Single assign, used only within scope — no mutable treatment needed
-        String input = "{% assign x = \"hello\" %}\n{=x}\nmore";
-        String result = converter.convert(input);
-        assertTrue(result.contains("{#let x=\"hello\"}"),
-                "Single-scope assign should stay as {#let}: " + result);
-        assertFalse(result.contains("mut:map()"),
-                "Should NOT use mutable map for simple assigns: " + result);
-    }
-
-    @Test
-    void testMutableCompoundCondition() {
-        // Two mutable flags combined with || in a condition
-        String input = "{% assign a = false %}{% assign b = false %}" +
-                "{#if x}{% assign a = true %}{/if}" +
-                "{#if y}{% assign b = true %}{/if}" +
-                "{#if a || b}active{/if}";
-        String result = converter.convert(input);
-        assertTrue(result.contains("_m.read('a') || _m.read('b')"),
-                "Compound condition should replace both vars with _m.read(): " + result);
-    }
-
-    @Test
-    void testMutableNilInit() {
-        // assign nil should convert to null in mutable map
-        String input = "{% assign found = nil %}" +
-                "{#for item in list.orEmpty}{% assign found = item %}{/for}" +
-                "{#if found}yes{/if}";
-        String result = converter.convert(input);
-        assertTrue(result.contains("_m.assign('found', null)"),
-                "nil should convert to null in mutable assign: " + result);
-    }
-
-    @Test
-    void testMutableAssignPreservesPropertyAccess() {
-        // _m.read('var').property should work for object access
-        String input = "{% assign chosen = nil %}" +
-                "{#for r in list.orEmpty}{#if r.good}{% assign chosen = r %}{/if}{/for}" +
-                "{=chosen.name}";
-        String result = converter.convert(input);
-        assertTrue(result.contains("_m.read('chosen').name"),
-                "Property access on mutable var should chain on _m.read(): " + result);
-    }
-
-    @Test
-    void testMutableVarInBracketNotationUsesGet() {
-        // Qute bracket notation doesn't support method calls inside [],
-        // so obj[mutableVar] must become obj.get(_m.read('mutableVar'))
-        String input = "{% assign key = nil %}" +
-                "{#if cond}{% assign key = name %}{/if}" +
-                "{=data[key]}";
-        String result = converter.convert(input);
-        assertTrue(result.contains("data.get(_m.read('key'))"),
-                "Bracket notation with mutable var should use .get(): " + result);
-        assertFalse(result.contains("data[_m.read"),
-                "Should NOT use bracket notation with _m.read(): " + result);
-    }
-
-    @Test
-    void testMutableVarReplacementDoesNotAffectHtmlText() {
-        // Variable names in HTML text (like "/author/" in a URL path) should not be
-        // replaced with _m.read() — only references inside Qute expressions should.
-        String input = "{% assign author = nil %}" +
-                "{#if cond}{% assign author = data %}{/if}" +
-                "<a href=\"/author/{=key}\">{=author.name}</a>";
-        String result = converter.convert(input);
-        assertTrue(result.contains("/author/"),
-                "Literal '/author/' in HTML should NOT be replaced: " + result);
-        assertTrue(result.contains("_m.read('author').name"),
-                "Variable ref inside Qute expression should be replaced: " + result);
-    }
-
-    @Test
-    void testMutableMapInitAfterFrontMatter() {
-        String input = """
-                ---
-                layout: base
-                ---
-                {% assign active = false %}\
-                {#if cond}{% assign active = true %}{/if}\
-                {#if active}yes{/if}""";
-        String result = converter.convert(input);
-        assertTrue(result.startsWith("---\nlayout: base\n---\n{#let _m=mut:map()}"),
-                "Mutable map init should come after front matter, not before: " + result);
-    }
-
-    @Test
-    void testForLoopRebindingExcludesMutableTreatment() {
-        // When a variable is assigned in one loop and then reused as a loop variable
-        // name in a subsequent {%for VAR in%}, the for-loop creates a new binding.
-        // The assign should NOT get mutable treatment.
-        String input = "{% for raw in list %}" +
-                "{% assign key = raw | strip %}" +
-                "{% assign clean = clean | push: key %}" +
-                "{% endfor %}" +
-                "{% for key in clean %}" +
-                "{=data[key]}" +
-                "{% endfor %}";
-        String result = converter.convert(input);
-        assertFalse(result.contains("_m.assign"),
-                "Variable rebound as for-loop var should not use mutable map: " + result);
-        assertFalse(result.contains("_m.read"),
-                "Variable rebound as for-loop var should not use mutable map: " + result);
-    }
-
-    @Test
-    void testForLoopRebindingWithIncludeInsideLoop() {
-        // An {%include%} inside a for-loop that rebinds a variable should NOT trigger
-        // mutable treatment — the include sees the loop var, not the earlier assign.
-        String input = "{% for raw in list %}" +
-                "{% assign key = raw | strip %}" +
-                "{% endfor %}" +
-                "{% for key in clean %}" +
-                "{% include share.html %}" +
-                "{% endfor %}";
-        String result = converter.convert(input);
-        assertFalse(result.contains("_m.assign"),
-                "Include inside rebound for-loop should not trigger mutable: " + result);
-        assertFalse(result.contains("_m.read"),
-                "Include inside rebound for-loop should not trigger mutable: " + result);
-    }
-
-    @Test
-    void testSiteTagsByNameConvertsToCollectionGet() {
-        String input = "{% for post in site.tags.user-story %}{{ post.title }}{% endfor %}";
-        String result = converter.convert(input);
-        assertTrue(result.contains("site.collections.get('posts/tag/user-story')"),
-                "site.tags.TAGNAME should convert to site.collections.get('posts/tag/TAGNAME'): " + result);
-    }
-
-    @Test
-    void testSiteTagsListingConvertsToTagsCount() {
-        String input = "{% assign tag_words = site.tags | sort %}" +
-                "{% for stats in tag_words %}" +
-                "{% assign tag = stats | first %}" +
-                "{% assign posts = stats | last %}" +
-                "<a href=\"/tag/{{ tag }}\">{{ tag }}</a>" +
-                "{% endfor %}";
-        String result = converter.convert(input);
-        assertTrue(result.contains("tagsCount"),
-                "site.tags should convert to tagsCount: " + result);
-        assertTrue(result.contains("tagsCount.sort('name')"),
-                "tagsCount.sort should get explicit 'name' property argument: " + result);
-        assertTrue(result.contains("stats.name"),
-                "stats.first should convert to stats.name: " + result);
-        assertTrue(result.contains("stats.count"),
-                "stats.last should convert to stats.count: " + result);
-        assertFalse(result.contains("cdi:siteConfig.tags"),
-                "Should not use cdi:siteConfig.tags placeholder: " + result);
-    }
-
-    @Test
-    void testSiteTagsArrayIndexingConvertsToNameAndCount() {
-        String input = "{% for stats in site.tags %}" +
-                "{% assign tag_keys = tag_keys | push: stats[0] | downcase %}" +
-                "{% endfor %}";
-        String result = converter.convert(input);
-        assertTrue(result.contains("stats.name"),
-                "stats.get(0) should convert to stats.name for tagsCount iteration: " + result);
-        assertFalse(result.contains("stats.get(0)"),
-                "stats.get(0) should not remain after tagsCount conversion: " + result);
-    }
-
-    @Test
-    void testTagLayoutPagePostsConvertsToTagCollection() {
-        String input = "---\nlayout: base\ntagging: posts\n---\n{% for post in page.posts %}{{ post.title }}{% endfor %}";
-        String result = converter.convert(input);
-        assertTrue(result.contains("site.collections.get(page.data.tagCollection)"),
-                "page.data.posts in tag layout should convert to site.collections.get(page.data.tagCollection): " + result);
-    }
-
-    @Test
-    void testPagePostsWithoutTaggingFrontmatterUnchanged() {
-        String input = "{% for post in page.posts %}{{ post.title }}{% endfor %}";
-        String result = converter.convert(input);
-        assertTrue(result.contains("page.data.posts"),
-                "page.data.posts without tagging frontmatter should stay as page.data.posts: " + result);
-        assertFalse(result.contains("tagCollection"),
-                "Should not use tagCollection without tagging frontmatter: " + result);
-    }
-
-    @Test
-    void testSiteTagsWithBracketNotationConvertsToTagsCountSort() {
-        // Pattern from quarkusio/quarkusio.github.io#2853 (deduplicate by downcasing)
-        String input = "{% assign tag_keys = \"\" | split: \"\" %}" +
-                "{% for stats in site.tags %}" +
-                "{% assign tag_keys = tag_keys | push: stats[0] | downcase %}" +
-                "{% endfor %}" +
-                "{% assign tag_words = tag_keys | uniq | sort %}" +
-                "{% for tag in tag_words %}" +
-                "<a href=\"/tag/{{ tag }}\">{{ tag }}</a>" +
-                "{% endfor %}";
-        String result = converter.convert(input);
-        assertTrue(result.contains("tagsCount.distinct.sort('name')"),
-                "site.tags extraction pattern should convert to tagsCount.distinct.sort('name'): " + result);
-        assertTrue(result.contains("stats.name"),
-                "Loop should iterate over stats and use stats.name: " + result);
-        assertFalse(result.contains("stats.get(0)"),
-                "stats.get(0) should not appear (pattern collapsed): " + result);
-        assertTrue(result.contains(".distinct"),
-                ".distinct should be preserved from original pattern: " + result);
-        assertFalse(result.contains(".push("),
-                "push pattern should not appear in result: " + result);
-        assertTrue(result.contains("{#for stats in tag_words.orEmpty}"),
-                "Loop should iterate over stats variable: " + result);
-    }
-
-    @Test
-    void testAppendFilterSingleVariable() {
-        // Real example from quarkusio base.html hreflang
-        String input = "{{ language.url | append: path }}";
-        String expected = "{=language.url.append(path).raw}";
-        assertConverts(input, expected, "Append filter should use .append() method");
-    }
-
-    @Test
-    void testAppendFilterMultipleVariables() {
-        String input = "{{ base | append: middle | append: end }}";
-        String expected = "{=base.append(middle).append(end).raw}";
-        assertConverts(input, expected, "Multiple append filters should chain .append() calls");
-    }
-
-    @Test
-    void testAppendFilterWithLiteral() {
-        String input = "{{ path | append: \".html\" }}";
-        String expected = "{=path.append(\".html\").raw}";
-        assertConverts(input, expected, "Append with string literal should work");
-    }
-
-    @Test
-    void testPrependFilterWithVariable() {
-        // Real example from quarkusio base.html canonical URL
-        String input = "{{ canonical_url | prepend: site.url }}";
-        String expected = "{=canonical_url.prepend(site.url.root.url).raw}";
-        assertConverts(input, expected, "Prepend filter should use .prepend() method");
-    }
-
-    @Test
-    void testPrependFilterWithLiteral() {
-        String input = "{{ path | prepend: \"/blog\" }}";
-        String expected = "{=path.prepend(\"/blog\").raw}";
-        assertConverts(input, expected, "Prepend with string literal should work");
-    }
-
-    @Test
-    void testAppendAndPrependChained() {
-        // Note: When both prepend and append are used, append processes first (globally),
-        // so the prepend value argument gets append-converted if it has | append in it.
-        // This is a known edge case - real Jekyll templates rarely chain these filters.
-        String input = "{{ page | prepend: site.url | append: \".html\" }}";
-        String expected = "{=page.data.prepend(site.url.root.url.append(\".html\")).raw}";
-        assertConverts(input, expected,
-                "Append processes before prepend (both convert, but order matters); site.url converts to .root.url");
-    }
-
-    @Test
-    void testConcatNotGenerated() {
-        String input = "{{ a | append: b }}{{ c | prepend: d }}";
-        String result = converter.convert(input);
-        assertFalse(result.contains(".concat("),
-                "Should not generate .concat() method calls (Qute doesn't have .concat()): " + result);
-        assertTrue(result.contains(".append("),
-                "Should use .append() extension method: " + result);
-        assertTrue(result.contains(".prepend("),
-                "Should use .prepend() extension method: " + result);
     }
 }

@@ -1442,8 +1442,9 @@ public class LiquidToQuteConverter {
 
     private String wrapTernaryInExpression(String expr) {
         // Match ?: where the default value is followed by a method/property call:
-        //   expr ?: "val".method(   →  (expr ?: "val").method(
-        //   expr ?: "val".property  →  (expr ?: "val").property
+        //   expr ?: "val".method  →  expr.or("val").method
+        // Qute doesn't support method chaining on parenthesized ternary expressions,
+        // so we use .or() which returns the value or the fallback and supports chaining.
         Pattern pattern = Pattern.compile(
                 "([a-zA-Z0-9_\\.\\[\\]]+)\\s*\\?:\\s*([\"'][^\"']*[\"']|[a-zA-Z0-9_\\.\\[\\]]+)\\.([a-zA-Z0-9_]+)(\\s*\\()?");
         Matcher matcher = pattern.matcher(expr);
@@ -1454,7 +1455,7 @@ public class LiquidToQuteConverter {
             String defaultVal = matcher.group(2);
             String method = matcher.group(3);
             String paren = matcher.group(4) != null ? matcher.group(4) : "";
-            String replacement = "(" + variable + " ?: " + defaultVal + ")." + method + paren;
+            String replacement = variable + ".or(" + defaultVal + ")." + method + paren;
             matcher.appendReplacement(sb, Matcher.quoteReplacement(replacement));
         }
         matcher.appendTail(sb);
@@ -1572,8 +1573,8 @@ public class LiquidToQuteConverter {
     private String makePageDataLenient(String content) {
         // page.data.* and post.data.* access a JsonObject — fields may not exist on every page.
         // Append ?? to make them lenient (resolve to null instead of throwing).
-        // Skip if already lenient (??) or has a default (?:).
-        Pattern pattern = Pattern.compile("((?<!-)(?:page|post)\\.data\\.[a-zA-Z0-9_.]+)(\\?\\?| \\?:)?");
+        // Skip if already lenient (??), has a default (?:), or uses .or() fallback.
+        Pattern pattern = Pattern.compile("((?<!-)(?:page|post)\\.data\\.[a-zA-Z0-9_]+)(\\?\\?| \\?:|\\.or\\()?");
         Matcher matcher = pattern.matcher(content);
         StringBuilder sb = new StringBuilder();
         while (matcher.find()) {

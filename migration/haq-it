@@ -85,9 +85,10 @@ rm ${project_dir}/_posts/2020-02-24-qute.adoc
 rm ${project_dir}/_posts/2022-06-21-qute-templates-from-db.adoc
 rm ${project_dir}/_posts/2023-10-10-intellij-quarkus-recap.adoc
 rm ${project_dir}/_posts/2025-12-15-quarkus-feature-flags.asciidoc
-rm ${project_dir}/_guides/dev-ui.adoc
-rm -f ${project_dir}/_guides/qute.adoc
-rm -f ${project_dir}/_guides/qute-reference.adoc
+# Guides with Java/Qute code samples containing { } that break the Qute parser
+find ${project_dir}/_guides ${project_dir}/_versions -type f \
+    \( -name "dev-ui*.adoc" -o -name "qute*.adoc" -o -name "kafka-dev-ui*.adoc" \) \
+    -delete 2>/dev/null || true
 
 # Delete Jekyll includes too complex for auto-conversion (allejo/jekyll-toc: pure-Liquid
 # TOC generator using capture-concatenation, continue, slice, times, minus, etc.)

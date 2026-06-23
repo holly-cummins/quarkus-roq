@@ -96,7 +96,8 @@ public class JekyllConfigConverter {
         // Add CNAME
         siteConfig.put("cname", cnameContent != null ? cnameContent.trim() : "");
         
-        // Copy common properties
+        // Copy common properties (description is NOT here — it goes in index page frontmatter
+        // so Roq's site.description picks it up)
         copyIfPresent(config, siteConfig, "baseurl");
         copyIfPresent(config, siteConfig, "language");
         copyIfPresent(config, siteConfig, "twitter_username");
@@ -177,6 +178,38 @@ public class JekyllConfigConverter {
         Files.createDirectories(dataDir);
         Path siteConfigFile = dataDir.resolve("siteConfig.yml");
         Files.writeString(siteConfigFile, siteConfigYaml);
+
+        // Add site description to index page frontmatter (Roq reads site.description from there)
+        if (config.has("description")) {
+            addDescriptionToIndexPage(projectDir, config.get("description").asText());
+        }
+    }
+
+    void addDescriptionToIndexPage(Path projectDir, String description) throws IOException {
+        Path indexFile = findIndexFile(projectDir);
+        if (indexFile == null) {
+            return;
+        }
+        String content = Files.readString(indexFile);
+        if (content.contains("description:")) {
+            return;
+        }
+        // Insert description after the opening ---
+        content = content.replaceFirst("(---\\s*\\n)", "$1description: \"" +
+                description.replace("\"", "\\\"") + "\"\n");
+        Files.writeString(indexFile, content);
+    }
+
+    private Path findIndexFile(Path projectDir) {
+        for (String dir : new String[] { "", "content" }) {
+            for (String name : new String[] { "index.md", "index.html", "index.adoc" }) {
+                Path p = projectDir.resolve(dir).resolve(name);
+                if (Files.exists(p)) {
+                    return p;
+                }
+            }
+        }
+        return null;
     }
 
     private boolean hasPlugin(JsonNode config, String pluginName) {

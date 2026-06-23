@@ -975,23 +975,60 @@ public class LiquidToQuteConverter {
         return result;
     }
 
+    private record IfElseBlock(int start, int end, String condition, String ifBranch, String elseBranch) {}
+
+    private List<IfElseBlock> findIfElseBlocks(String content) {
+        List<IfElseBlock> blocks = new ArrayList<>();
+        Pattern ifOpenPattern = Pattern.compile("\\{#if\\s+([^}]+?)\\}");
+        Matcher ifMatcher = ifOpenPattern.matcher(content);
+
+        while (ifMatcher.find()) {
+            int blockStart = ifMatcher.start();
+            String condition = ifMatcher.group(1);
+            int pos = ifMatcher.end();
+            int depth = 0;
+            int elsePos = -1;
+
+            Pattern innerTag = Pattern.compile("\\{#if\\b[^}]*\\}|\\{#else\\}|\\{/if\\}");
+            Matcher inner = innerTag.matcher(content);
+            inner.region(pos, content.length());
+
+            while (inner.find()) {
+                String t = inner.group();
+                if (t.startsWith("{#if")) {
+                    depth++;
+                } else if (t.equals("{#else}") && depth == 0) {
+                    elsePos = inner.start();
+                } else if (t.equals("{/if}")) {
+                    if (depth == 0) {
+                        if (elsePos >= 0) {
+                            String ifBranch = content.substring(pos, elsePos);
+                            String elseBranch = content.substring(elsePos + "{#else}".length(), inner.start());
+                            blocks.add(new IfElseBlock(blockStart, inner.end(), condition, ifBranch, elseBranch));
+                        }
+                        break;
+                    }
+                    depth--;
+                }
+            }
+        }
+        return blocks;
+    }
+
     private String convertIfElseAssignsToTernary(String content) {
         // Detect if/else blocks where the same variable is assigned in both branches.
         // Replace both assigns with a single ternary assign BEFORE the if block.
         // The result is still a {% assign %} tag, so convertAssignments handles scoping.
 
-        Pattern ifElsePattern = Pattern.compile(
-                "\\{#if\\s+([^}]+?)\\}(.*?)\\{#else\\}(.*?)\\{/if\\}",
-                Pattern.DOTALL);
-
-        Matcher matcher = ifElsePattern.matcher(content);
-        StringBuilder sb = new StringBuilder();
+        List<IfElseBlock> blocks = findIfElseBlocks(content);
         boolean changed = false;
 
-        while (matcher.find()) {
-            String condition = matcher.group(1);
-            String ifBranch = matcher.group(2);
-            String elseBranch = matcher.group(3);
+        // Process from last to first so positions stay valid
+        for (int bi = blocks.size() - 1; bi >= 0; bi--) {
+            IfElseBlock block = blocks.get(bi);
+            String condition = block.condition();
+            String ifBranch = block.ifBranch();
+            String elseBranch = block.elseBranch();
 
             Pattern assignPattern = Pattern.compile("\\{%\\s*assign\\s+(\\w+)\\s*=\\s*([^%]+?)\\s*%\\}");
             Matcher ifAssigns = assignPattern.matcher(ifBranch);
@@ -1026,30 +1063,44 @@ public class LiquidToQuteConverter {
                             "(\\S+)\\s+contains\\s+('[^']*'|\"[^\"]*\")",
                             "$1.contains($2)");
 
+                    // Qute's {#let} parser intercepts ?: at the parameter level,
+                    // so we CANNOT use ?: inside {#let} expressions.
                     String combinedExpr;
-                    if (condition.trim().equals(ifExpr.trim())) {
-                        // condition ? condition : fallback  →  condition ?: fallback
-                        combinedExpr = ifExpr + " ?: " + elseExpr;
+                    String condTrimmed = condition.trim();
+                    String ifTrimmed = ifExpr.trim();
+                    String elseTrimmed = elseExpr.trim();
+
+                    if (condTrimmed.equals(ifTrimmed)
+                            && (elseTrimmed.equals("false") || elseTrimmed.equals("nil"))) {
+                        // if X → assign V = X | else → assign V = false
+                        // Just use the condition directly; null is falsy like false.
+                        combinedExpr = ifTrimmed;
+                    } else if ((elseTrimmed.equals("false") || elseTrimmed.equals("nil"))
+                            && ifTrimmed.startsWith(condTrimmed + ".")) {
+                        // if X → assign V = X.method() | else → assign V = false
+                        // Use the direct method call; Qute non-strict mode handles null.
+                        combinedExpr = ifTrimmed;
                     } else {
                         // General case: find trailing content that uses this variable
                         // and duplicate it into each branch so {#let} scope covers it
-                        int afterIfElse = matcher.end();
+                        int afterIfElse = block.end();
                         String trailing = content.substring(afterIfElse);
                         int useEnd = findTrailingUsageEnd(trailing, var);
                         if (useEnd > 0) {
                             String trailingContent = trailing.substring(0, useEnd);
                             String ifAssign = "{% assign " + var + " = " + ifExpr + " %}";
                             String elseAssign = "{% assign " + var + " = " + elseExpr + " %}";
-                            String before = content.substring(0, matcher.start());
+                            String before = content.substring(0, block.start());
                             String after = trailing.substring(useEnd);
-                            String result = before
+                            content = before
                                     + "{#if " + condition + "}"
                                     + ifAssign + trailingContent
                                     + "{#else}"
                                     + elseAssign + trailingContent
                                     + "{/if}" + after;
                             conversionsApplied.add("Inlined trailing content into if/else branches for variable scope");
-                            return result;
+                            changed = true;
+                            break;
                         }
                         continue;
                     }
@@ -1066,8 +1117,6 @@ public class LiquidToQuteConverter {
                 }
 
                 if (ternaryAssigns.length() == 0) {
-                    // No variables could be converted, leave unchanged
-                    matcher.appendReplacement(sb, Matcher.quoteReplacement(matcher.group(0)));
                     continue;
                 }
 
@@ -1077,7 +1126,6 @@ public class LiquidToQuteConverter {
 
                 String replacement;
                 if (ifEmpty && elseEmpty) {
-                    // Both branches are empty after removing assigns — drop the if/else entirely
                     replacement = ternaryAssigns.toString();
                 } else {
                     replacement = ternaryAssigns.toString()
@@ -1088,17 +1136,15 @@ public class LiquidToQuteConverter {
                             + "{/if}";
                 }
 
-                matcher.appendReplacement(sb, Matcher.quoteReplacement(replacement));
+                content = content.substring(0, block.start())
+                        + replacement
+                        + content.substring(block.end());
                 changed = true;
-            } else {
-                matcher.appendReplacement(sb, Matcher.quoteReplacement(matcher.group(0)));
             }
         }
-        matcher.appendTail(sb);
 
         if (changed) {
             conversionsApplied.add("Converted if/else assigns to ternary expressions");
-            return sb.toString();
         }
 
         return content;
@@ -1150,7 +1196,10 @@ public class LiquidToQuteConverter {
             String expr = expressions.get(i);
 
             int scopeEnd = findScopeBoundary(content, assignEnd);
-            String letExpr = expr.contains("?:") ? "(" + expr + ")" : expr;
+            // Qute's {#let} parser intercepts ?: — it cannot appear inside a
+            // {#let} expression. Strip any ?: default introduced by convertDefaultFilter
+            // (the default is silently dropped; non-strict mode handles missing values).
+            String letExpr = expr.replaceFirst("\\s*\\?:\\s*.*$", "");
             content = content.substring(0, assignStart)
                     + "{#let " + var + "=" + letExpr + "}"
                     + content.substring(assignEnd, scopeEnd)

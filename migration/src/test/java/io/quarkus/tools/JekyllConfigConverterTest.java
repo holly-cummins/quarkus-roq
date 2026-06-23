@@ -152,6 +152,51 @@ class JekyllConfigConverterTest {
     }
 
     @Test
+    void testConvertProjectAddsDescriptionToIndexPage(@TempDir Path tempDir) throws IOException {
+        String configYaml = """
+                title: Test Site
+                description: Supersonic Subatomic Java
+                """;
+        Files.writeString(tempDir.resolve("_config.yml"), configYaml);
+        Files.writeString(tempDir.resolve("index.md"), """
+                ---
+                layout: index
+                title: My Site
+                ---
+                Hello
+                """);
+
+        converter.convertProject(tempDir);
+
+        String indexContent = Files.readString(tempDir.resolve("index.md"));
+        assertTrue(indexContent.contains("description: \"Supersonic Subatomic Java\""),
+                "Index page should have description from _config.yml: " + indexContent);
+    }
+
+    @Test
+    void testConvertProjectAddsDescriptionToIndexPageInContentDir(@TempDir Path tempDir) throws IOException {
+        String configYaml = """
+                title: Test Site
+                description: Supersonic Subatomic Java
+                """;
+        Files.writeString(tempDir.resolve("_config.yml"), configYaml);
+        Files.createDirectories(tempDir.resolve("content"));
+        Files.writeString(tempDir.resolve("content/index.md"), """
+                ---
+                layout: index
+                title: My Site
+                ---
+                Hello
+                """);
+
+        converter.convertProject(tempDir);
+
+        String indexContent = Files.readString(tempDir.resolve("content/index.md"));
+        assertTrue(indexContent.contains("description: \"Supersonic Subatomic Java\""),
+                "Index page in content/ should have description from _config.yml: " + indexContent);
+    }
+
+    @Test
     void testConvertProjectWithoutCname(@TempDir Path tempDir) throws IOException {
         // Create _config.yml only
         String configYaml = """

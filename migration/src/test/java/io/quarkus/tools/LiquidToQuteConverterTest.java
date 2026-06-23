@@ -195,11 +195,12 @@ class LiquidToQuteConverterTest {
     }
 
     @Test
-    void testAssignmentWithDefaultWrapsInParens() {
+    void testAssignmentWithDefaultStripsElvisInLet() {
+        // Qute's {#let} parser can't handle ?: so the default is stripped
         String input = "{% assign posts_limit = site.feed.posts_limit | default: 400 %}";
-        String expected = "{#let posts_limit=(cdi:siteConfig.feed.posts_limit ?: 400)}{/let}";
+        String expected = "{#let posts_limit=cdi:siteConfig.feed.posts_limit}{/let}";
         assertConverts(input, expected,
-                "Assign with default should wrap ?: expression in parens for Qute {#let} compatibility");
+                "Assign with default should strip ?: (Qute {#let} can't handle it)");
     }
 
     @Test
@@ -755,18 +756,50 @@ class LiquidToQuteConverterTest {
     @Test
     void testAssignInIfElseBranchesWithFalseElse() {
         String input = "{% if page.title %}{% assign x = page.title %}{% else %}{% assign x = false %}{% endif %}";
-        // condition == ifExpr, so Elvis applies: page.title ?: false
-        String expected = "{#let x=(page.title ?: false)}\n{/let}";
+        // condition == ifExpr and else is false: use condition directly (null is falsy like false)
+        String expected = "{#let x=page.title}\n{/let}";
         assertConverts(input, expected,
-                "Same variable in if/else with false else should convert to Elvis");
+                "Same variable in if/else with false else should use condition directly");
+    }
+
+    @Test
+    void testAssignInIfElseBranchesMethodCallOnCondition() {
+        // When if-expr calls a method on the condition and else-expr is false,
+        // and the variable is used far from the if/else block:
+        // use the direct method call (no ?: which Qute's {#let} can't handle)
+        String input = "{% if page.title %}" +
+                "{% assign starts = page.title | startswith: 'Quarkus -' %}" +
+                "{% else %}" +
+                "{% assign starts = false %}" +
+                "{% endif %}" +
+                "\n\n\n\n\n\n\n\n\n\n" +  // many lines between
+                "<title>{{ page.title }}{% unless starts %} - Quarkus{% endunless %}</title>";
+        String result = new LiquidToQuteConverter().convert(input);
+        assertTrue(result.contains("{#let starts=page.title.startsWith('Quarkus -')}"),
+                "Should use direct method call without ?: : " + result);
+        assertFalse(result.contains("?:"),
+                "Must not contain ?: (breaks Qute {#let} parser): " + result);
+        // The let block must encompass the <title> line
+        int letStart = result.indexOf("{#let starts=");
+        int titlePos = result.indexOf("<title>");
+        int letEnd = result.indexOf("{/let}", titlePos);
+        assertTrue(letStart < titlePos && titlePos < letEnd,
+                "Let scope must encompass title tag. Result: " + result);
     }
 
     @Test
     void testAssignInIfElseBranchesElvisCase() {
-        String input = "{% if page.title %}{% assign x = page.title %}{% else %}{% assign x = 'default' %}{% endif %}";
-        String expected = "{#let x=(page.title ?: 'default')}\n{/let}";
-        assertConverts(input, expected,
-                "Same variable in if/else where condition matches if-value should use Elvis operator");
+        // condition == ifExpr but else is a non-falsy default: can't use ?:  in {#let},
+        // so the if/else stays and each branch gets its own scoped {#let}
+        String input = "{% if page.title %}{% assign x = page.title %}{% else %}{% assign x = 'default' %}{% endif %}" +
+                "{= x }";
+        String result = converter.convert(input);
+        assertTrue(result.contains("{#if page.title}"),
+                "If/else should be preserved when default is non-falsy: " + result);
+        assertTrue(result.contains("{#let x=page.title}"),
+                "If branch should have scoped let: " + result);
+        assertTrue(result.contains("{#let x='default'}"),
+                "Else branch should have scoped let: " + result);
     }
 
     @Test

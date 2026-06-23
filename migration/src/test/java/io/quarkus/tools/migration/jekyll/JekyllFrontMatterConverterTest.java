@@ -315,6 +315,36 @@ class JekyllFrontMatterConverterTest {
         assertTrue(Files.exists(redirectsDir.resolve("only-html.html")));
     }
 
+    @Test
+    void testConvertProjectMergesRedirectsInCollectionDir(@TempDir Path tempDir) throws IOException {
+        Files.createDirectories(tempDir.resolve("content"));
+        Files.writeString(tempDir.resolve("_config.yml"), "title: Test\n");
+
+        Path redirectsDir = tempDir.resolve("_redirects/guides");
+        Files.createDirectories(redirectsDir);
+        Files.writeString(redirectsDir.resolve("bar-guide.html"), """
+                ---
+                permalink: /guides/bar-guide.html
+                newUrl: /guides/bar
+                ---
+                """);
+        Files.writeString(redirectsDir.resolve("bar-guide.md"), """
+                ---
+                permalink: /guides/bar-guide/index.html
+                newUrl: /guides/bar
+                ---
+                """);
+
+        converter.convertProject(tempDir);
+
+        assertTrue(Files.exists(redirectsDir.resolve("bar-guide.html")));
+        assertFalse(Files.exists(redirectsDir.resolve("bar-guide.md")));
+
+        String result = Files.readString(redirectsDir.resolve("bar-guide.html"));
+        assertTrue(result.contains("/guides/bar-guide.html"));
+        assertTrue(result.contains("/guides/bar-guide/index.html"));
+    }
+
     // --- Integration test ---
 
     @Test

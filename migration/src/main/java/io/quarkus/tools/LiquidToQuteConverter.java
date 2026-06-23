@@ -1573,8 +1573,9 @@ public class LiquidToQuteConverter {
     private String makePageDataLenient(String content) {
         // page.data.* and post.data.* access a JsonObject — fields may not exist on every page.
         // Append ?? to make them lenient (resolve to null instead of throwing).
-        // Skip if already lenient (??), has a default (?:), or uses .or() fallback.
-        Pattern pattern = Pattern.compile("((?<!-)(?:page|post)\\.data\\.[a-zA-Z0-9_]+)(\\?\\?| \\?:|\\.or\\()?");
+        // Skip if already lenient (??), has a default (?:), uses .or() fallback,
+        // or is followed by a method chain (. — ?? would become part of the key name).
+        Pattern pattern = Pattern.compile("((?<!-)(?:page|post)\\.data\\.[a-zA-Z0-9_]+)(\\?\\?| \\?:|\\.or\\(|\\.)?");
         Matcher matcher = pattern.matcher(content);
         StringBuilder sb = new StringBuilder();
         while (matcher.find()) {

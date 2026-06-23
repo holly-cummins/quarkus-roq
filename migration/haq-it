@@ -71,6 +71,11 @@ git cherry-pick f1a3f96ef235d6956be6b45861b81a8fd930e700 || git cherry-pick --ab
 # CI: allow build to continue if Java tests fail (ci-continue-on-test-failure)
 git cherry-pick 4433e5d095 || git cherry-pick --abort
 
+# --- Cleanup branches (independent of each other) ---
+
+# Drop stale data-search-api-server attribute referencing undefined search.url
+git cherry-pick aa625cc2a6 || git cherry-pick --abort
+
 # --- Playwright test branches (independent of each other) ---
 
 # Add fragment anchor validation test (test/fragment-anchor-validation)

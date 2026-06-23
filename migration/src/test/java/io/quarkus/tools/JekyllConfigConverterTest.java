@@ -71,6 +71,9 @@ class JekyllConfigConverterTest {
                   host: https://search.example.com
                   script-path: /search.js
                   cached-script-file: search-cached.js
+                  initial-timeout: 1500
+                  more-timeout: 2500
+                  min-chars: 2
                 """;
 
         String siteConfigYaml = converter.createSiteConfigYaml(configYaml, null);
@@ -81,6 +84,9 @@ class JekyllConfigConverterTest {
         assertTrue(siteConfigYaml.contains("host: \"https://search.example.com\""));
         assertTrue(siteConfigYaml.contains("script-path: \"/search.js\""));
         assertTrue(siteConfigYaml.contains("cached-script-file: \"search-cached.js\""));
+        assertTrue(siteConfigYaml.contains("initial-timeout: 1500"));
+        assertTrue(siteConfigYaml.contains("more-timeout: 2500"));
+        assertTrue(siteConfigYaml.contains("min-chars: 2"));
     }
 
     @Test

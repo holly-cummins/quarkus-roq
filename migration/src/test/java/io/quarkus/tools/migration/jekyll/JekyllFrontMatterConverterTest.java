@@ -189,6 +189,26 @@ class JekyllFrontMatterConverterTest {
     }
 
     @Test
+    void testPermalinkInSubdirNotStrippedWhenDifferentFromRelativePath(@TempDir Path tempDir) throws IOException {
+        Path contentDir = tempDir.resolve("content");
+        Path guidesDir = contentDir.resolve("guides");
+        Files.createDirectories(guidesDir);
+        Files.writeString(guidesDir.resolve("guides.md"), """
+                ---
+                layout: documentation
+                permalink: /guides/
+                ---
+                """);
+
+        converter.convertPermalinks(contentDir);
+
+        String result = Files.readString(guidesDir.resolve("guides.md"));
+        assertTrue(result.contains("aliases: /guides/"),
+                "permalink /guides/ should become alias because relative path is guides/guides, not guides");
+        assertFalse(result.contains("permalink:"));
+    }
+
+    @Test
     void testPermalinkRemovalLeavesNoBlankLine(@TempDir Path tempDir) throws IOException {
         Path contentDir = tempDir.resolve("content");
         Files.createDirectories(contentDir);

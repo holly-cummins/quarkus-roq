@@ -102,6 +102,27 @@ rm -f ${project_dir}/_includes/templates/toc.html
 
 ${tools_dir}/roq-it-jekyll ${project_dir}
 
+# Jekyll posts default permalink is /blog/:title/ — inject link: into post layout
+# so Roq serves posts at /blog/:slug/ instead of /posts/:slug/.
+#
+# TODO: This is a Quarkus-site-specific hack. For a general-purpose migration, options:
+#   1. Rename content/posts → content/blog so /:collection/:slug/ gives /blog/:slug/
+#      automatically. But then templates must use site.collections.blog instead of
+#      site.collections.posts, and Roq's built-in posts semantics (date parsing, etc.)
+#      may not apply.
+#   2. Add a collection-level link-template config to Roq (e.g.
+#      site.collections.posts.link=/blog/:slug/) so it works from application.properties
+#      without touching layouts. This would be the cleanest general solution.
+#   3. Read Jekyll _config.yml defaults[].values.permalink per collection type during
+#      migration and translate /:title/ → /:slug/ patterns into Roq link: directives
+#      injected into the appropriate layout frontmatter (what we do here).
+if [ -f "${project_dir}/templates/layouts/post.html" ]; then
+    sed -i '' '/^---$/,/^---$/{
+        /^layout:/a\
+link: /blog/:slug/
+    }' ${project_dir}/templates/layouts/post.html
+fi
+
 # Add e2e profile to pom.xml (excludes e2e-tagged tests by default, profile enables them)
 sed -i '' '/<artifactId>maven-surefire-plugin<\/artifactId>/{
 N

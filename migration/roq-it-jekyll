@@ -14,9 +14,9 @@ strip_frontmatter() {
     local file="$1"
     # Check if file starts with frontmatter (---)
     if head -n 1 "$file" | grep -q "^---$"; then
-        # Create temp file without frontmatter
-        # Skip lines from first --- to second ---, then keep the rest
-        awk 'BEGIN {fm=0; skip=1} /^---$/ {if(skip) {fm++; if(fm==2) skip=0; next}} !skip' "$file" > "$file.tmp"
+        # Remove frontmatter and any leading blank lines after it
+        # (XML files need <?xml as the very first character)
+        awk 'BEGIN {fm=0; skip=1; blank=1} /^---$/ {if(skip) {fm++; if(fm==2) {skip=0} next}} !skip {if(blank && /^[[:space:]]*$/) next; blank=0; print}' "$file" > "$file.tmp"
         mv "$file.tmp" "$file"
     fi
 }

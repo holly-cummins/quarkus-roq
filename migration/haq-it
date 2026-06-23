@@ -86,6 +86,13 @@ rm ${project_dir}/_posts/2022-06-21-qute-templates-from-db.adoc
 rm ${project_dir}/_posts/2023-10-10-intellij-quarkus-recap.adoc
 rm ${project_dir}/_posts/2025-12-15-quarkus-feature-flags.asciidoc
 
+# TODO: This is a sledgehammer — deletes ~290 guides that contain { in code samples.
+# The proper fix is site.escaped-pages but it doesn't seem to work for collection content yet.
+# Once that's fixed, remove this and re-enable addEscapedPages() in JekyllConfigConverter.
+find ${project_dir}/_guides ${project_dir}/_versions -type f \
+    \( -name "*.adoc" -o -name "*.asciidoc" \) \
+    -exec grep -l '{' {} \; -delete 2>/dev/null || true
+
 # Delete Jekyll includes too complex for auto-conversion (allejo/jekyll-toc: pure-Liquid
 # TOC generator using capture-concatenation, continue, slice, times, minus, etc.)
 rm -f ${project_dir}/_includes/templates/toc.html

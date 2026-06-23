@@ -70,6 +70,7 @@ public class JekyllConfigConverter {
         }
 
         addCollectionProperties(config, properties);
+        addEscapedPages(config, properties);
 
         return properties;
     }
@@ -285,6 +286,33 @@ public class JekyllConfigConverter {
                         collectionConfig.get("layout").asText());
             }
         });
+    }
+
+    // TODO: This is too Quarkus-specific — not all Jekyll collections contain code samples
+    // with curly braces. A general-purpose converter shouldn't blindly escape all non-posts
+    // collections. Consider: (1) scanning content for actual { usage, (2) making this
+    // configurable per-site, or (3) moving this to haq-it as a Quarkus-site-specific step.
+    private void addEscapedPages(JsonNode config, Properties properties) {
+        if (config == null || !config.has("collections")) {
+            return;
+        }
+        JsonNode collections = config.get("collections");
+        if (!collections.isObject()) {
+            return;
+        }
+        StringBuilder escaped = new StringBuilder();
+        collections.fieldNames().forEachRemaining(name -> {
+            if ("posts".equals(name)) {
+                return;
+            }
+            if (!escaped.isEmpty()) {
+                escaped.append(",");
+            }
+            escaped.append(name).append("/**");
+        });
+        if (!escaped.isEmpty()) {
+            properties.setProperty("site.escaped-pages", escaped.toString());
+        }
     }
 
     private void addAutoAuthorProperties(JsonNode config, Properties properties) {

@@ -70,7 +70,8 @@ public class JekyllConfigConverter {
         }
 
         addCollectionProperties(config, properties);
-        addEscapedPages(config, properties);
+        // TODO: re-enable once site.escaped-pages works for collection content
+        // addEscapedPages(config, properties);
 
         return properties;
     }

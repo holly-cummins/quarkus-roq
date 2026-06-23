@@ -1571,23 +1571,11 @@ public class LiquidToQuteConverter {
     }
 
     private String makePageDataLenient(String content) {
-        // page.data.* and post.data.* access a JsonObject. DO NOT append ?? to these:
-        // Qute passes "property??" as the literal key name to JsonObject.getValue(),
-        // which fails because the actual key is "property" (without ??).
-        // strict-rendering=false handles missing properties by resolving to empty.
-        // Strip any existing ?? that may have been added by other conversion steps.
-        Pattern pattern = Pattern.compile("((?<!-)(?:page|post)\\.data\\.[a-zA-Z0-9_]+)\\?\\?");
-        Matcher matcher = pattern.matcher(content);
-        StringBuilder sb = new StringBuilder();
-        while (matcher.find()) {
-            matcher.appendReplacement(sb, Matcher.quoteReplacement(matcher.group(1)));
-        }
-        matcher.appendTail(sb);
-        String result = sb.toString();
-        if (!result.equals(content)) {
-            conversionsApplied.add("Stripped ?? from page.data.* references (JsonObject incompatible)");
-        }
-        return result;
+        // page.data.* and post.data.* access a JsonObject.
+        // Do NOT add ?? — Qute passes "property??" as the literal key name to
+        // JsonObject.getValue(), which fails because the key is "property".
+        // Partials get ?? from a sed step in roq-it-jekyll; leave those alone.
+        return content;
     }
 
     private String convertUrlConcatenation(String content) {

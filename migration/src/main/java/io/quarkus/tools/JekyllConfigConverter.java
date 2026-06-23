@@ -50,6 +50,7 @@ public class JekyllConfigConverter {
         // Set a date format with a sensible default for Jekyll.
         properties.setProperty("site.date-format", "yyyy-MM-dd['T'HH:mm:ss][X]");
         properties.setProperty("quarkus.qute.strict-rendering", "false");
+        properties.setProperty("quarkus.qute.property-not-found-strategy", "output-original");
         // Exclude type checking for:
         // - Object.* (JsonArray iteration yields Object at build time)
         // - Page.paginator (only on NormalPage subclass, not visible at compile time)

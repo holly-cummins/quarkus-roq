@@ -93,6 +93,9 @@ find ${project_dir}/_guides ${project_dir}/_versions -type f \
     \( -name "*.adoc" -o -name "*.asciidoc" \) \
     -exec grep -l '{' {} \; -delete 2>/dev/null || true
 
+# Extensions layouts reference a cdi:extensions bean from deleted YAML data
+rm -f ${project_dir}/_layouts/extensions.html ${project_dir}/_layouts/extensions_old.html
+
 # Delete Jekyll includes too complex for auto-conversion (allejo/jekyll-toc: pure-Liquid
 # TOC generator using capture-concatenation, continue, slice, times, minus, etc.)
 rm -f ${project_dir}/_includes/templates/toc.html

@@ -459,6 +459,67 @@ class JekyllConfigConverterTest {
     }
 
     @Test
+    void testCollectionLayoutFromDefaults(@TempDir Path tempDir) throws IOException {
+        String configYaml = """
+                title: Test Site
+                collections:
+                  guides:
+                    output: true
+                  redirects:
+                    output: true
+                  versions:
+                    output: true
+                defaults:
+                  - scope:
+                      type: guides
+                    values:
+                      layout: guides
+                  - scope:
+                      type: versions
+                    values:
+                      layout: guides
+                  - scope:
+                      type: redirects
+                    values:
+                      layout: redirect
+                """;
+        Files.writeString(tempDir.resolve("_config.yml"), configYaml);
+
+        converter.convertProject(tempDir);
+
+        String propsContent = Files.readString(tempDir.resolve("config/application.properties"));
+        assertTrue(propsContent.contains("site.collections.guides.layout=guides"),
+                "Should pick up guides layout from defaults: " + propsContent);
+        assertTrue(propsContent.contains("site.collections.redirects.layout=redirect"),
+                "Should pick up redirect layout from defaults: " + propsContent);
+        assertTrue(propsContent.contains("site.collections.versions.layout=guides"),
+                "Should pick up versions layout from defaults: " + propsContent);
+    }
+
+    @Test
+    void testCollectionLayoutFromConfigOverridesDefaults(@TempDir Path tempDir) throws IOException {
+        String configYaml = """
+                title: Test Site
+                collections:
+                  guides:
+                    output: true
+                    layout: custom
+                defaults:
+                  - scope:
+                      type: guides
+                    values:
+                      layout: guides
+                """;
+        Files.writeString(tempDir.resolve("_config.yml"), configYaml);
+
+        converter.convertProject(tempDir);
+
+        String propsContent = Files.readString(tempDir.resolve("config/application.properties"));
+        assertTrue(propsContent.contains("site.collections.guides.layout=custom"),
+                "Collection-level layout should take precedence over defaults: " + propsContent);
+    }
+
+    @Test
     void testComplexNestedConfig() throws IOException {
         String configYaml = """
                 title: Complex Site

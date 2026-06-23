@@ -283,6 +283,11 @@ public class JekyllConfigConverter {
             if (collectionConfig.has("layout")) {
                 properties.setProperty("site.collections." + name + ".layout",
                         collectionConfig.get("layout").asText());
+            } else {
+                String defaultLayout = getDefaultLayout(config, name);
+                if (defaultLayout != null) {
+                    properties.setProperty("site.collections." + name + ".layout", defaultLayout);
+                }
             }
         });
     }
@@ -345,6 +350,29 @@ public class JekyllConfigConverter {
     private String stripPath(String path) {
         int slash = path.lastIndexOf('/');
         return slash >= 0 ? path.substring(slash + 1) : path;
+    }
+
+    private String getDefaultLayout(JsonNode config, String collectionName) {
+        if (!config.has("defaults")) {
+            return null;
+        }
+        JsonNode defaults = config.get("defaults");
+        if (!defaults.isArray()) {
+            return null;
+        }
+        for (JsonNode entry : defaults) {
+            if (!entry.has("scope") || !entry.has("values")) {
+                continue;
+            }
+            JsonNode scope = entry.get("scope");
+            if (scope.has("type") && collectionName.equals(scope.get("type").asText())) {
+                JsonNode values = entry.get("values");
+                if (values.has("layout")) {
+                    return values.get("layout").asText();
+                }
+            }
+        }
+        return null;
     }
 
     private void copyIfPresent(JsonNode source, Map<String, Object> target, String key) {

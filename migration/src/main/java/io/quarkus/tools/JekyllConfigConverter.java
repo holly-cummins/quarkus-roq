@@ -107,14 +107,12 @@ public class JekyllConfigConverter {
         copyIfPresent(config, siteConfig, "twitter_username");
         copyIfPresent(config, siteConfig, "github_username");
         
-        // Handle nested search config
+        // Handle nested search config — copy all search properties so templates
+        // referencing cdi:siteConfig.search.* resolve instead of throwing
         if (config.has("search")) {
             JsonNode search = config.get("search");
             Map<String, Object> searchConfig = new LinkedHashMap<>();
-            copyIfPresent(search, searchConfig, "script-mode");
-            copyIfPresent(search, searchConfig, "host");
-            copyIfPresent(search, searchConfig, "script-path");
-            copyIfPresent(search, searchConfig, "cached-script-file");
+            search.fields().forEachRemaining(e -> copyIfPresent(search, searchConfig, e.getKey()));
             if (!searchConfig.isEmpty()) {
                 siteConfig.put("search", searchConfig);
             }

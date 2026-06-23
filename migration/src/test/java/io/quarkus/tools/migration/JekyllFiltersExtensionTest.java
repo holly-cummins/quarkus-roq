@@ -26,6 +26,22 @@ class JekyllFiltersExtensionTest {
     }
 
     @Test
+    void testEscapeHtml() {
+        assertEquals("&amp;&lt;&gt;&quot;&#39;",
+                JekyllFiltersExtension.escapeHtml("&<>\"'"));
+    }
+
+    @Test
+    void testEscapeHtmlPlainText() {
+        assertEquals("hello world", JekyllFiltersExtension.escapeHtml("hello world"));
+    }
+
+    @Test
+    void testEscapeHtmlNull() {
+        assertEquals("", JekyllFiltersExtension.escapeHtml(null));
+    }
+
+    @Test
     void testCapitalizeNormalString() {
         assertEquals("Hello", JekyllFiltersExtension.capitalize("hello"));
     }

@@ -620,9 +620,9 @@ class LiquidToQuteConverterTest {
     @Test
     void testSiteTimeRfc822() {
         String input = "{{ site.time | date_to_rfc822 }}";
-        String expected = "{=now.format('EEE, dd MMM yyyy HH:mm:ss Z')}";
+        String expected = "{=now.rfc822}";
         assertConverts(input, expected,
-                "site.time with date_to_rfc822 should use now.format() since rfc822 needs ZonedDateTime");
+                "site.time with date_to_rfc822 should use now.rfc822 (LocalDateTime extension)");
     }
 
     @Test

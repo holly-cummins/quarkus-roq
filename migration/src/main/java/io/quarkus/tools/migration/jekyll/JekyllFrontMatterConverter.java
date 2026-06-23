@@ -74,9 +74,10 @@ public class JekyllFrontMatterConverter {
             // Strip leading and trailing slashes
             String normalized = permalinkValue.replaceAll("^/|/$", "");
 
-            String filenameNoExt = stripExtension(file.getFileName().toString());
+            String relativePathNoExt = stripExtension(
+                    contentDir.relativize(file).toString());
 
-            if (normalized.equals(filenameNoExt)) {
+            if (normalized.equals(relativePathNoExt)) {
                 content = PERMALINK_LINE.matcher(content).replaceFirst("");
             } else {
                 content = PERMALINK_LINE.matcher(content).replaceFirst("aliases: " + Matcher.quoteReplacement(matcher.group(1)) + "\n");

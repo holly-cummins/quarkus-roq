@@ -29,15 +29,15 @@ class LiquidToQuteConverterTest {
     @Test
     void testTernaryWithMethodCall() {
         String input = "{=post.data.author ?: \"\".split(\",\")}";
-        String expected = "{=(post.data.author ?: \"\").split(\",\")}";
-        assertConverts(input, expected, "Ternary before method call should be wrapped in parentheses");
+        String expected = "{=post.data.author.or(\"\").split(\",\")}";
+        assertConverts(input, expected, "Ternary before method call should use .or() for chaining");
     }
 
     @Test
     void testTernaryWithTrim() {
         String input = "{=page.data.author ?: \"\".trim()}";
-        String expected = "{=(page.data.author ?: \"\").trim()}";
-        assertConverts(input, expected, "Ternary with trim should be wrapped");
+        String expected = "{=page.data.author.or(\"\").trim()}";
+        assertConverts(input, expected, "Ternary with trim should use .or() for chaining");
     }
 
     @Test
@@ -296,8 +296,8 @@ class LiquidToQuteConverterTest {
     @Test
     void testMultipleTernariesInSameExpression() {
         String input = "{=a ?: \"\".trim()} and {=b ?: \"\".split(\",\")}";
-        String expected = "{=(a ?: \"\").trim()} and {=(b ?: \"\").split(\",\")}";
-        assertConverts(input, expected, "Multiple ternaries should all be wrapped");
+        String expected = "{=a.or(\"\").trim()} and {=b.or(\"\").split(\",\")}";
+        assertConverts(input, expected, "Multiple ternaries should all use .or() for chaining");
     }
 
     @Test
@@ -596,9 +596,9 @@ class LiquidToQuteConverterTest {
     @Test
     void testTernaryWithPropertyStyleMethod() {
         String input = "{=post_author.name ?: \"\".escapeHtml}";
-        String expected = "{=(post_author.name ?: \"\").escapeHtml}";
+        String expected = "{=post_author.name.or(\"\").escapeHtml}";
         assertConverts(input, expected,
-                "Ternary before property-style method (no parens) should be wrapped");
+                "Ternary before property-style method should use .or() for chaining");
     }
 
     // --- Layout tag tests ---

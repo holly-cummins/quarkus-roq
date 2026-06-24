@@ -166,16 +166,25 @@ if [ "${BATCH_MODE}" = "true" ]; then
         -Dexec.mainClass=com.microsoft.playwright.CLI \
         -Dexec.args="install --with-deps chromium")
 
-    # Kill anything already on port 8090
-    lsof -ti:8090 | xargs kill 2>/dev/null || true
+    # Kill anything already on port 8090 — be emphatic to avoid stale servers
+    # from prior runs returning cached error pages
+    lsof -ti:8090 | xargs kill -9 2>/dev/null || true
+    sleep 2
+    lsof -ti:8090 | xargs kill -9 2>/dev/null || true
     sleep 1
 
     # Start dev server in background on port 8090
     (cd ${project_dir} && mvn quarkus:dev -Dquarkus.http.port=8090 \
         > ${tmp_dir}/roq-server.log 2>&1) &
     SERVER_PID=$!
-    timeout 120 bash -c 'until curl -sf http://localhost:8090 > /dev/null 2>&1; do sleep 1; done'
-    echo "Dev server started (PID $SERVER_PID)"
+    # Wait for the server to respond (200 or 500 — both mean it's up)
+    timeout 300 bash -c 'until curl -s -o /dev/null -w "%{http_code}" http://localhost:8090 2>/dev/null | grep -qE "200|500"; do sleep 2; done'
+    HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8090 2>/dev/null)
+    echo "Dev server started (PID $SERVER_PID, HTTP $HTTP_CODE)"
+    if [ "$HTTP_CODE" = "500" ]; then
+        echo "ERROR: Server returned 500 — Qute template error detected"
+        curl -s http://localhost:8090 | grep -oP 'Parser error[^<]*|Found \d+ Qute problems' | head -5
+    fi
 
     # Run tests against the dev server
     # Use a separate Maven invocation with -pl to avoid stomping the dev server's target/

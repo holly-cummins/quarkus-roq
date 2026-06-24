@@ -50,7 +50,6 @@ public class JekyllConfigConverter {
         // Set a date format with a sensible default for Jekyll.
         properties.setProperty("site.date-format", "yyyy-MM-dd['T'HH:mm:ss][X]");
         properties.setProperty("quarkus.qute.strict-rendering", "false");
-        properties.setProperty("quarkus.qute.property-not-found-strategy", "output-original");
         // Exclude type checking for:
         // - Object.* (JsonArray iteration yields Object at build time)
         // - Page.paginator (only on NormalPage subclass, not visible at compile time)
@@ -109,11 +108,12 @@ public class JekyllConfigConverter {
         copyIfPresent(config, siteConfig, "github_username");
         
         // Handle nested search config — copy all search properties so templates
-        // referencing cdi:siteConfig.search.* resolve instead of throwing
+        // referencing cdi:siteConfig.search.* resolve instead of throwing.
+        // Keys are camelCased because Qute dot notation treats hyphens as subtraction.
         if (config.has("search")) {
             JsonNode search = config.get("search");
             Map<String, Object> searchConfig = new LinkedHashMap<>();
-            search.fields().forEachRemaining(e -> copyIfPresent(search, searchConfig, e.getKey()));
+            search.fields().forEachRemaining(e -> copyIfPresent(search, searchConfig, e.getKey(), hyphenToCamelCase(e.getKey())));
             if (!searchConfig.isEmpty()) {
                 siteConfig.put("search", searchConfig);
             }
@@ -377,21 +377,44 @@ public class JekyllConfigConverter {
     }
 
     private void copyIfPresent(JsonNode source, Map<String, Object> target, String key) {
-        if (source.has(key)) {
-            JsonNode value = source.get(key);
+        copyIfPresent(source, target, key, key);
+    }
+
+    private void copyIfPresent(JsonNode source, Map<String, Object> target, String sourceKey, String targetKey) {
+        if (source.has(sourceKey)) {
+            JsonNode value = source.get(sourceKey);
             if (value.isTextual()) {
-                target.put(key, value.asText());
+                target.put(targetKey, value.asText());
             } else if (value.isNumber()) {
-                target.put(key, value.numberValue());
+                target.put(targetKey, value.numberValue());
             } else if (value.isBoolean()) {
-                target.put(key, value.asBoolean());
+                target.put(targetKey, value.asBoolean());
             } else if (value.isObject() || value.isArray()) {
                 try {
-                    target.put(key, objectMapper.convertValue(value, Object.class));
+                    target.put(targetKey, objectMapper.convertValue(value, Object.class));
                 } catch (IllegalArgumentException e) {
-                    System.err.println("Warning: could not convert config value for key '" + key + "': " + e.getMessage());
+                    System.err.println("Warning: could not convert config value for key '" + sourceKey + "': " + e.getMessage());
                 }
             }
         }
+    }
+
+    static String hyphenToCamelCase(String key) {
+        if (!key.contains("-")) {
+            return key;
+        }
+        StringBuilder sb = new StringBuilder();
+        boolean capitalizeNext = false;
+        for (char c : key.toCharArray()) {
+            if (c == '-') {
+                capitalizeNext = true;
+            } else if (capitalizeNext) {
+                sb.append(Character.toUpperCase(c));
+                capitalizeNext = false;
+            } else {
+                sb.append(c);
+            }
+        }
+        return sb.toString();
     }
 }

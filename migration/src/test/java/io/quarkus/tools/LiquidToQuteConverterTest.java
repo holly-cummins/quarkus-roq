@@ -71,9 +71,10 @@ class LiquidToQuteConverterTest {
     @Test
     void testDefaultBeforeSplitStripsDefault() {
         String input = "{{post.author | default: \"\" | split: \",\"}}";
-        // default is stripped because namespace split handles null
-        String expected = "{=str:split(post.data.author, \",\")}";
-        assertConverts(input, expected, "default before split should be stripped; split uses namespace form");
+        // default is stripped; .or('') added because .data.* on JsonObject returns
+        // Results$NotFound (not null) when key is missing, causing ClassCastException
+        String expected = "{=str:split(post.data.author.or(''), \",\")}";
+        assertConverts(input, expected, "default before split should be stripped; .data.* gets .or('')");
     }
 
     @Test
@@ -287,9 +288,9 @@ class LiquidToQuteConverterTest {
     void testRealWorldAuthorExample() {
         // This is the actual pattern from _layouts/author.html
         // post.author is custom frontmatter -> post.data.author
-        // default is stripped; split uses namespace form for null safety
+        // default is stripped; .or('') guards against Results$NotFound on JsonObject
         String input = "{{post.author | default: \"\" | split: \",\"}}";
-        String expected = "{=str:split(post.data.author, \",\")}";
+        String expected = "{=str:split(post.data.author.or(''), \",\")}";
         assertConverts(input, expected, "Real-world author pattern should convert correctly");
     }
 
@@ -392,7 +393,7 @@ class LiquidToQuteConverterTest {
                 "{% for author_key in authors_clean %}\n" +
                 "{{author_key}}\n" +
                 "{% endfor %}";
-        String expected = "{#for author_key in str:splitTrimmed(post.data.author, \",\").orEmpty}\n" +
+        String expected = "{#for author_key in str:splitTrimmed(post.data.author.or(''), \",\").orEmpty}\n" +
                 "{=author_key}\n" +
                 "{/for}";
         assertConverts(input, expected,
@@ -416,7 +417,7 @@ class LiquidToQuteConverterTest {
                 "{% endfor %}";
         String expected = "<p class=\"byline\">\n" +
                 "By\n" +
-                "{#for author_key in str:splitTrimmed(post.data.author, \",\").orEmpty}\n" +
+                "{#for author_key in str:splitTrimmed(post.data.author.or(''), \",\").orEmpty}\n" +
                 "{=author_key}\n" +
                 "{/for}";
         assertConverts(input, expected,
@@ -440,7 +441,7 @@ class LiquidToQuteConverterTest {
                        "      {% assign authors_clean = \"\" | split: \"\" %}";
 
         String expected = "      {!  Build multi-author list for this post  !}\n" +
-                         "      {#let authors_raw=str:split(post.data.author, \",\")}\n" +
+                         "      {#let authors_raw=str:split(post.data.author.or(''), \",\")}\n" +
                          "      {#let authors_clean=str:split(\"\", \"\")}{/let}{/let}";
 
         assertConverts(input, expected, "Author file lines 36-38 should convert without {?:} errors");
@@ -788,18 +789,23 @@ class LiquidToQuteConverterTest {
     }
 
     @Test
-    void testAssignInIfElseBranchesElvisCase() {
-        // condition == ifExpr but else is a non-falsy default: can't use ?:  in {#let},
-        // so the if/else stays and each branch gets its own scoped {#let}
+    void testAssignInIfElseBranchesGeneralCase() {
+        // Qute {#let} does NOT support ternary (? :) — the parser treats : as a section separator.
+        // Instead, trailing content is duplicated into both branches so the scoped variable is visible.
         String input = "{% if page.title %}{% assign x = page.title %}{% else %}{% assign x = 'default' %}{% endif %}" +
                 "{= x }";
         String result = converter.convert(input);
         assertTrue(result.contains("{#if page.title}"),
-                "If/else should be preserved when default is non-falsy: " + result);
+                "If/else should be preserved: " + result);
         assertTrue(result.contains("{#let x=page.title}"),
                 "If branch should have scoped let: " + result);
         assertTrue(result.contains("{#let x='default'}"),
                 "Else branch should have scoped let: " + result);
+        // Usage of x should appear in both branches
+        int firstUsage = result.indexOf("{= x }");
+        int secondUsage = result.indexOf("{= x }", firstUsage + 1);
+        assertTrue(secondUsage > firstUsage,
+                "Trailing content using variable should be duplicated into both branches: " + result);
     }
 
     @Test
@@ -899,6 +905,32 @@ class LiquidToQuteConverterTest {
     }
 
     @Test
+    void testSiteHyphenatedPropertyConvertsToCamelCase() {
+        String input = "{=site.search.cached-script-file}";
+        String expected = "{=cdi:siteConfig.search.cachedScriptFile}";
+        assertConverts(input, expected,
+                "Hyphenated site config keys should be camelCased for Qute dot notation");
+    }
+
+    @Test
+    void testSiteNestedHyphenatedChain() {
+        String input = "{% assign x = site.search.script-mode %}";
+        String result = converter.convert(input);
+        assertTrue(result.contains("cdi:siteConfig.search.scriptMode"),
+                "Nested hyphenated keys should be camelCased: " + result);
+    }
+
+    @Test
+    void testSiteHyphenatedPropertyWithRelativeUrl() {
+        String input = "{% assign search_script_src = site.search.cached-script-file | relative_url %}";
+        String result = converter.convert(input);
+        assertTrue(result.contains("cdi:siteConfig.search.cachedScriptFile"),
+                "Hyphenated YAML key with relative_url filter should be camelCased: " + result);
+        assertFalse(result.contains("cachedScriptCdi"),
+                "CamelCase should not bleed into cdi: prefix: " + result);
+    }
+
+    @Test
     void testCustomPageFieldConvertToData() {
         String input = "{{page.data.author}}";
         String expected = "{=page.data.author}";
@@ -941,9 +973,9 @@ class LiquidToQuteConverterTest {
     @Test
     void testSiteSearchScriptMode() {
         String input = "{% if site.search.script-mode == 'direct' %}...{% endif %}";
-        String expected = "{#if cdi:siteConfig.search.script-mode == 'direct'}...{/if}";
+        String expected = "{#if cdi:siteConfig.search.scriptMode == 'direct'}...{/if}";
         assertConverts(input, expected,
-                "site.search.script-mode should convert to CDI reference");
+                "site.search.script-mode should convert to camelCase CDI reference");
     }
 
     @Test
@@ -1006,9 +1038,9 @@ class LiquidToQuteConverterTest {
     }
 
     @Test
-    void testAssignInIfElseBlockGeneralCaseInlinesTrailingContent() {
+    void testAssignInIfElseBlockGeneralCaseDuplicatesTrailing() {
         String input = """
-                {% if page.layout == 'guides' %}
+                {% if page.data.layout == 'guides' %}
                   {%assign canonical_url = page.url | replace: 'foo', '' %}
                 {% else %}
                   {%assign canonical_url = page.url %}
@@ -1017,12 +1049,16 @@ class LiquidToQuteConverterTest {
                 """;
         String result = converter.convert(input);
 
-        // General case: trailing content using the variable is duplicated into each branch
-        assertTrue(result.contains("{#if"), "If/else should be preserved");
-        // The <link> line should appear twice (once per branch)
-        int firstLink = result.indexOf("canonical");
-        int secondLink = result.indexOf("canonical", firstLink + 1);
-        assertTrue(secondLink > firstLink, "Trailing content should be duplicated into both branches");
+        // Qute {#let} does NOT support ternary — trailing content is duplicated into both branches
+        assertTrue(result.contains("{#if page.data.layout == 'guides'"),
+                "If/else should be preserved: " + result);
+        assertTrue(result.contains("canonical_url=page.url.replace('foo', '')"),
+                "If branch should have scoped let with filter: " + result);
+        // Trailing <link> line should appear in both branches
+        int firstLink = result.indexOf("<link rel=\"canonical\"");
+        int secondLink = result.indexOf("<link rel=\"canonical\"", firstLink + 1);
+        assertTrue(secondLink > firstLink,
+                "Trailing content using variable should be duplicated into both branches: " + result);
     }
 
     @Test
@@ -1156,8 +1192,8 @@ class LiquidToQuteConverterTest {
         @Test
         void testTernaryWrapping() {
             assertConverts("{{post.author | default: \"\" | split: \",\"}}",
-                    "{str:split(post.data.author, \",\")}",
-                    "Standard syntax should use namespace split");
+                    "{str:split(post.data.author.or(''), \",\")}",
+                    "Standard syntax should use namespace split with .or('') for .data.*");
         }
 
         @Test

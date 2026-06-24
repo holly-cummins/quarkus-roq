@@ -310,7 +310,7 @@ public class LiquidToQuteConverter {
                     if (baseStart > 0) {
                         baseStart--; // include the opening quote
                     }
-                } else if (Character.isLetterOrDigit(c) || c == '.' || c == '_') {
+                } else if (Character.isLetterOrDigit(c) || c == '.' || c == '_' || c == '-' || c == ':') {
                     baseStart--;
                 } else {
                     break;
@@ -1056,15 +1056,6 @@ public class LiquidToQuteConverter {
                     String ifExpr = ifVars.get(var);
                     String elseExpr = elseVars.get(var);
 
-                    // Qute doesn't support ternary (? :), so use alternative constructs.
-                    // 'contains' is only valid as an operator in {#if} sections —
-                    // convert to method call for use in {#let} expressions.
-                    String exprCondition = condition.replaceAll(
-                            "(\\S+)\\s+contains\\s+('[^']*'|\"[^\"]*\")",
-                            "$1.contains($2)");
-
-                    // Qute's {#let} parser intercepts ?: at the parameter level,
-                    // so we CANNOT use ?: inside {#let} expressions.
                     String combinedExpr;
                     String condTrimmed = condition.trim();
                     String ifTrimmed = ifExpr.trim();
@@ -1081,39 +1072,41 @@ public class LiquidToQuteConverter {
                         // Use the direct method call; Qute non-strict mode handles null.
                         combinedExpr = ifTrimmed;
                     } else {
-                        // General case: find trailing content that uses this variable
-                        // and duplicate it into each branch so {#let} scope covers it
-                        int afterIfElse = block.end();
-                        String trailing = content.substring(afterIfElse);
-                        int useEnd = findTrailingUsageEnd(trailing, var);
-                        if (useEnd > 0) {
-                            String trailingContent = trailing.substring(0, useEnd);
-                            String ifAssign = "{% assign " + var + " = " + ifExpr + " %}";
-                            String elseAssign = "{% assign " + var + " = " + elseExpr + " %}";
-                            String before = content.substring(0, block.start());
-                            String after = trailing.substring(useEnd);
-                            content = before
-                                    + "{#if " + condition + "}"
-                                    + ifAssign + trailingContent
-                                    + "{#else}"
-                                    + elseAssign + trailingContent
-                                    + "{/if}" + after;
-                            conversionsApplied.add("Inlined trailing content into if/else branches for variable scope");
-                            changed = true;
-                            break;
-                        }
-                        continue;
+                        // General case: Qute does NOT support ternary (? :) in {#let} parameters.
+                        // Keep the if/else structure and pull ALL remaining content into both
+                        // branches so the scoped {#let} variable is visible where it's used.
+                        combinedExpr = null;
                     }
 
-                    ternaryAssigns.append("{% assign ").append(var).append(" = ")
-                            .append(combinedExpr).append(" %}\n");
+                    if (combinedExpr != null) {
+                        ternaryAssigns.append("{% assign ").append(var).append(" = ")
+                                .append(combinedExpr).append(" %}\n");
 
-                    modifiedIfBranch = modifiedIfBranch.replaceFirst(
-                            "\\{%\\s*assign\\s+" + var + "\\s*=\\s*" + Pattern.quote(ifExpr) + "\\s*%\\}",
-                            "");
-                    modifiedElseBranch = modifiedElseBranch.replaceFirst(
-                            "\\{%\\s*assign\\s+" + var + "\\s*=\\s*" + Pattern.quote(elseExpr) + "\\s*%\\}",
-                            "");
+                        modifiedIfBranch = modifiedIfBranch.replaceFirst(
+                                "\\{%\\s*assign\\s+" + var + "\\s*=\\s*" + Pattern.quote(ifExpr) + "\\s*%\\}",
+                                "");
+                        modifiedElseBranch = modifiedElseBranch.replaceFirst(
+                                "\\{%\\s*assign\\s+" + var + "\\s*=\\s*" + Pattern.quote(elseExpr) + "\\s*%\\}",
+                                "");
+                    } else {
+                        String trailing = content.substring(block.end());
+                        int scopeEnd = findEnclosingScopeEnd(trailing);
+                        String trailingInScope = trailing.substring(0, scopeEnd);
+                        String afterScope = trailing.substring(scopeEnd);
+
+                        if (!trailingInScope.trim().isEmpty()) {
+                            String replacement = "{#if " + condition + "}"
+                                    + ifBranch + trailingInScope
+                                    + "{#else}"
+                                    + elseBranch + trailingInScope
+                                    + "{/if}"
+                                    + afterScope;
+
+                            content = content.substring(0, block.start()) + replacement;
+                            changed = true;
+                            break; // Re-parse since positions shifted
+                        }
+                    }
                 }
 
                 if (ternaryAssigns.length() == 0) {
@@ -1144,30 +1137,33 @@ public class LiquidToQuteConverter {
         }
 
         if (changed) {
-            conversionsApplied.add("Converted if/else assigns to ternary expressions");
+            conversionsApplied.add("Converted if/else assigns");
         }
 
         return content;
     }
 
-    private int findTrailingUsageEnd(String trailing, String varName) {
-        // Find the end of the first line that uses the variable.
-        // Only inline a small amount of trailing content to avoid duplicating
-        // large template blocks.
-        Pattern usePattern = Pattern.compile("\\b" + Pattern.quote(varName) + "\\b");
-        Matcher useMatcher = usePattern.matcher(trailing);
-        if (!useMatcher.find()) {
-            return 0;
+    private int findEnclosingScopeEnd(String text) {
+        // Find the end of the enclosing scope — the position of the first unmatched
+        // closing tag ({/if}, {/for}, {/let}, etc.) or end of text.
+        // This ensures we only duplicate content within the same structural block.
+        Pattern tag = Pattern.compile("\\{#(?:if|for|let|set)\\b[^}]*\\}|\\{/(?:if|for|let|set)\\}|\\{#else\\}");
+        Matcher m = tag.matcher(text);
+        int depth = 0;
+        while (m.find()) {
+            String t = m.group();
+            if (t.startsWith("{#if") || t.startsWith("{#for") || t.startsWith("{#let") || t.startsWith("{#set")) {
+                depth++;
+            } else if (t.startsWith("{/")) {
+                if (depth == 0) {
+                    return m.start();
+                }
+                depth--;
+            } else if (t.equals("{#else}") && depth == 0) {
+                return m.start();
+            }
         }
-        // Only inline if the first usage is within the first few lines
-        int firstUse = useMatcher.start();
-        long newlinesBefore = trailing.substring(0, firstUse).chars().filter(c -> c == '\n').count();
-        if (newlinesBefore > 3) {
-            return 0;
-        }
-        // Extend to the end of the line containing the last usage on consecutive lines
-        int lineEnd = trailing.indexOf('\n', useMatcher.end());
-        return lineEnd >= 0 ? lineEnd + 1 : trailing.length();
+        return text.length();
     }
 
     private String convertAssignments(String content) {
@@ -1538,9 +1534,19 @@ public class LiquidToQuteConverter {
                 "index|files|file|fileExists|page|normalPage|document|imagesDirUrl|pageContent|" +
                 "posts|tags|time";
 
+        // Match site.prop and optionally .sub-prop chains (YAML keys may contain hyphens)
         Pattern pattern = Pattern.compile(
-                "\\bsite\\.((?!(?:" + knownSiteProps + ")\\b)[a-zA-Z_][a-zA-Z0-9_]*)\\b");
-        String result = pattern.matcher(content).replaceAll("cdi:siteConfig.$1");
+                "\\bsite\\.((?!(?:" + knownSiteProps + ")\\b)[a-zA-Z_][a-zA-Z0-9_]*(?:\\.[a-zA-Z][a-zA-Z0-9_]*(?:-[a-zA-Z][a-zA-Z0-9_]*)*)*)");
+        StringBuffer sb = new StringBuffer();
+        Matcher m = pattern.matcher(content);
+        while (m.find()) {
+            String propChain = m.group(1);
+            // CamelCase any hyphenated segments so Qute dot notation works
+            String camelCased = camelCasePropertyChain(propChain);
+            m.appendReplacement(sb, "cdi:siteConfig." + camelCased);
+        }
+        m.appendTail(sb);
+        String result = sb.toString();
 
         if (!result.equals(content)) {
             conversionsApplied.add("Converted site data properties to CDI references");
@@ -1549,7 +1555,24 @@ public class LiquidToQuteConverter {
         return result;
     }
 
+    private static String camelCasePropertyChain(String chain) {
+        String[] segments = chain.split("\\.");
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < segments.length; i++) {
+            if (i > 0) sb.append('.');
+            sb.append(JekyllConfigConverter.hyphenToCamelCase(segments[i]));
+        }
+        return sb.toString();
+    }
+
     private String convertCustomPageFields(String content) {
+        // Map Jekyll built-in properties to their Roq equivalents
+        String result = content.replaceAll("\\b(page|post)\\.path\\b", "$1.sourcePath");
+        if (!result.equals(content)) {
+            conversionsApplied.add("Mapped page.path to page.sourcePath");
+            content = result;
+        }
+
         // Roq's Page model has specific built-in properties. Custom frontmatter must use page.data.*
         // This applies to 'page' and page-like loop variables like 'post'
         String knownPageProps = "url|title|description|image|imageExists|date|data|content|contentAbstract|" +
@@ -1561,7 +1584,7 @@ public class LiquidToQuteConverter {
         // and convert to *.data.customField
         Pattern pattern = Pattern.compile(
                 "(?<!-)\\b(page|post)\\.((?!(?:" + knownPageProps + ")\\b|data\\.|url\\.)[a-zA-Z_][a-zA-Z0-9_]*)\\b");
-        String result = pattern.matcher(content).replaceAll("$1.data.$2");
+        result = pattern.matcher(content).replaceAll("$1.data.$2");
 
         if (!result.equals(content)) {
             conversionsApplied.add("Converted custom page frontmatter fields to page.data.*");
@@ -1574,8 +1597,28 @@ public class LiquidToQuteConverter {
         // page.data.* and post.data.* access a JsonObject.
         // Do NOT add ?? — Qute passes "property??" as the literal key name to
         // JsonObject.getValue(), which fails because the key is "property".
-        // Partials get ?? from a sed step in roq-it-jekyll; leave those alone.
-        return content;
+        //
+        // BUT: when a .data.* property is used as an argument to str:split/str:splitTrimmed,
+        // a missing key returns Results$NotFound which can't be cast to String → ClassCastException.
+        // Add .or('') to those arguments so the split receives an empty string instead.
+        String result = content.replaceAll(
+                "(str:split(?:Trimmed)?\\()((page|post)\\.data\\.[a-zA-Z_][a-zA-Z0-9_]*)(,)",
+                "$1$2.or('')$4");
+        if (!result.equals(content)) {
+            conversionsApplied.add("Added .or('') to .data.* properties in split arguments");
+            content = result;
+        }
+
+        // Guard {=*.data.* | tocify_asciidoc} — the filter crashes when the property
+        // is missing (e.g. non-AsciiDoc pages using a layout that expects AsciiDoc)
+        result = content.replaceAll(
+                "\\{=((?:page|post)\\.data\\.[a-zA-Z_][a-zA-Z0-9_]*) \\| tocify_asciidoc\\}",
+                "{#if $1}{=$1 | tocify_asciidoc}{/if}");
+        if (!result.equals(content)) {
+            conversionsApplied.add("Guarded tocify_asciidoc filter on .data.* properties");
+        }
+
+        return result;
     }
 
     private String convertUrlConcatenation(String content) {

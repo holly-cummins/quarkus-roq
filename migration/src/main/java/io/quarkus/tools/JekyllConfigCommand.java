@@ -20,8 +20,7 @@ public class JekyllConfigCommand implements Callable<Integer> {
     @Parameters(index = "0", description = "Jekyll project directory")
     private Path projectDir;
 
-    @Option(names = {
-            "--strict-properties" }, description = "Use THROW strategy for missing properties (requires all optional properties to be guarded with {#if} or .or(''))")
+    @Option(names = {"--strict-properties"}, description = "Use THROW strategy for missing properties (requires all optional properties to be guarded with {#if} or .or(''))")
     private boolean strictProperties;
 
     private JekyllConfigConverter converter = new JekyllConfigConverter();

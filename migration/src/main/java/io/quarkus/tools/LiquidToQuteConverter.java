@@ -1609,6 +1609,16 @@ public class LiquidToQuteConverter {
             content = result;
         }
 
+        // Same for .get() arguments — JsonObjectValueResolver.get(param) casts param
+        // to String, so Results$NotFound → ClassCastException.
+        result = content.replaceAll(
+                "(\\.get\\()((page|post)\\.data\\.[a-zA-Z_][a-zA-Z0-9_]*)(\\))",
+                "$1$2.or('')$4");
+        if (!result.equals(content)) {
+            conversionsApplied.add("Added .or('') to .data.* properties in .get() arguments");
+            content = result;
+        }
+
         // Guard {=*.data.* | tocify_asciidoc} — the filter crashes when the property
         // is missing (e.g. non-AsciiDoc pages using a layout that expects AsciiDoc)
         result = content.replaceAll(

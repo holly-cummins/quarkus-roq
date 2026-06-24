@@ -93,6 +93,7 @@ rm ${project_dir}/_posts/2025-12-15-quarkus-feature-flags.asciidoc
 
 # Delete AsciiDoc posts containing ifdef/ifndef directives — the Roq header parser
 # (AsciidocHeaderParser, Yupiik-based) crashes on these even with the JRuby plugin.
+# Needs PR #1003, can remove this once it's done
 find ${project_dir}/_posts -type f \
     \( -name "*.adoc" -o -name "*.asciidoc" \) \
     -exec grep -l 'ifdef::\|ifndef::' {} \; -delete 2>/dev/null || true

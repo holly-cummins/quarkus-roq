@@ -522,6 +522,14 @@ class LiquidToQuteConverterTest {
                 "Bracket notation followed by property access should convert correctly");
     }
 
+    @Test
+    void testGetWithPageDataArgument() {
+        String input = "{% assign author = site.data.authors[post.author] %}";
+        String expected = "{#let author=cdi:authors.get(post.data.author.or(''))}{/let}";
+        assertConverts(input, expected,
+                ".data.* property in .get() argument should get .or('') to avoid ClassCastException on NotFound");
+    }
+
     // --- Loop variable tests ---
 
     @Test

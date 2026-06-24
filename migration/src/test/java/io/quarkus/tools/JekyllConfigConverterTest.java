@@ -10,6 +10,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -40,6 +42,15 @@ class JekyllConfigConverterTest {
                 .contains("io.quarkiverse.roq.frontmatter.runtime.model.Page.paginator"));
         assertTrue(props.containsKey("quarkus.web-bundler.bundling.external"));
         assertTrue(props.getProperty("quarkus.web-bundler.bundling.external").contains("/assets/*"));
+        assertEquals("OUTPUT_ORIGINAL", props.getProperty("quarkus.qute.property-not-found-strategy"));
+    }
+
+    @Test
+    void testStrictPropertiesOmitsOutputOriginal() {
+        converter.setStrictProperties(true);
+        Properties props = converter.createApplicationProperties();
+        assertFalse(props.containsKey("quarkus.qute.property-not-found-strategy"),
+                "strict mode should not set property-not-found-strategy (defaults to THROW)");
     }
 
     @Test
@@ -144,6 +155,7 @@ class JekyllConfigConverterTest {
         assertTrue(propsContent.contains("quarkus.qute.alt-expr-syntax=true"));
         assertTrue(propsContent.contains("site.date-format=yyyy-MM-dd['T'HH:mm:ss][X]"));
         assertTrue(propsContent.contains("quarkus.qute.strict-rendering=false"));
+        assertTrue(propsContent.contains("quarkus.qute.property-not-found-strategy=OUTPUT_ORIGINAL"));
         assertTrue(propsContent.contains("quarkus.qute.type-check-excludes="));
 
         // Verify siteConfig.yml was created

@@ -185,8 +185,8 @@ public class LiquidToQuteConverter {
 
     private String convertFilters(String content) {
         Pattern blockPattern = useExtensionSyntax
-                ? Pattern.compile("\\{=[^}]*\\}|\\{%[^%]*%\\}")
-                : Pattern.compile("\\{(?![%#/!|])[^}]*\\}|\\{%[^%]*%\\}");
+                ? Pattern.compile("\\{=[^}]*\\}|\\{%(?:[^%]|%(?!\\}))*%\\}")
+                : Pattern.compile("\\{(?![%#/!|])[^}]*\\}|\\{%(?:[^%]|%(?!\\}))*%\\}");
         Matcher matcher = blockPattern.matcher(content);
         StringBuilder sb = new StringBuilder();
 
@@ -445,7 +445,7 @@ public class LiquidToQuteConverter {
                 javaFormat = javaFormat + " /* TODO: unsupported strftime specifiers */";
             }
 
-            dateMatcher.appendReplacement(sb, ".format('" + javaFormat + "')");
+            dateMatcher.appendReplacement(sb, ".format('" + javaFormat + "').or('')");
         }
         dateMatcher.appendTail(sb);
 
@@ -454,6 +454,10 @@ public class LiquidToQuteConverter {
             conversionsApplied.add("Converted date filters");
             content = result;
         }
+
+        // Jekyll treats 'now' as a magic date value meaning "current time".
+        // In Qute/Roq, this is the `now` global variable (unquoted).
+        content = content.replace("'now'.format(", "now.format(");
 
         return content;
     }
@@ -610,6 +614,7 @@ public class LiquidToQuteConverter {
             String suffix = ifMatcher.group(3);
 
             condition = replaceOperatorsOutsideStrings(condition);
+            condition = replaceNilWithNull(condition);
 
             ifMatcher.appendReplacement(sb, Matcher.quoteReplacement(prefix + condition + suffix));
         }
@@ -678,6 +683,18 @@ public class LiquidToQuteConverter {
         }
         if (cond.contains("==")) {
             return cond.replace("==", " != ");
+        }
+        if (cond.contains(" >= ")) {
+            return cond.replace(" >= ", " < ");
+        }
+        if (cond.contains(" <= ")) {
+            return cond.replace(" <= ", " > ");
+        }
+        if (cond.contains(" > ")) {
+            return cond.replace(" > ", " <= ");
+        }
+        if (cond.contains(" < ")) {
+            return cond.replace(" < ", " >= ");
         }
         // Simple variable — prefix with !
         return "!" + cond;
@@ -759,6 +776,10 @@ public class LiquidToQuteConverter {
         }
 
         return result.toString();
+    }
+
+    private String replaceNilWithNull(String condition) {
+        return condition.replaceAll("\\bnil\\b", "null");
     }
 
     private static boolean matchesWord(String s, int pos, String word) {

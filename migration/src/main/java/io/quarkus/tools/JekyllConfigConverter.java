@@ -76,6 +76,10 @@ public class JekyllConfigConverter {
         // these at build time since it doesn't know public/ is the site root. Mark them as external.
         properties.setProperty("quarkus.web-bundler.bundling.external", "/assets/*");
 
+        // README files are developer docs, not site pages. Exclude them to avoid
+        // path conflicts when multiple directories contain README files with the same title.
+        properties.setProperty("site.ignored-files", "**/README.*");
+
         if (hasPlugin(config, "jekyll-auto-authors")) {
             addAutoAuthorProperties(config, properties);
         }

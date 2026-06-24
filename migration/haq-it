@@ -135,6 +135,24 @@ link: /blog/:slug/
     }' ${project_dir}/templates/layouts/post.html
 fi
 
+# Workaround for roq#1005: the default doc link template /:collection/:slug/ flattens
+# nested directory structures, causing path conflicts when multiple version directories
+# contain guides with the same title. Inject link: /:path:ext so each guide keeps its
+# full path as the URL (e.g. /versions/2-13/guides/amqp-dev-services/).
+find "${project_dir}/content/versions" -path "*/guides/*.adoc" -o -path "*/guides/*.md" 2>/dev/null | while read -r file; do
+    if head -n 1 "$file" | grep -q "^---$"; then
+        # File has front matter — inject link after layout line
+        sed -i '' '/^---$/,/^---$/{
+            /^layout:/a\
+link: /:path:ext
+        }' "$file"
+    else
+        # No front matter — prepend it
+        printf '%s\n' "---" "link: /:path:ext" "---" | cat - "$file" > "$file.tmp"
+        mv "$file.tmp" "$file"
+    fi
+done
+
 # Add e2e profile to pom.xml (excludes e2e-tagged tests by default, profile enables them)
 sed -i '' '/<artifactId>maven-surefire-plugin<\/artifactId>/{
 N

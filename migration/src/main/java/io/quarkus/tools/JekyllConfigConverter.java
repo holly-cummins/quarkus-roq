@@ -56,11 +56,10 @@ public class JekyllConfigConverter {
         properties.setProperty("site.date-format", "yyyy-MM-dd['T'HH:mm:ss][X]");
         properties.setProperty("quarkus.qute.strict-rendering", "false");
         if (!strictProperties) {
-            // OUTPUT_ORIGINAL leaves unresolved expressions as-is in the output.
-            // For best conversion use --strict-properties: guard every optional property
-            // with {#if} or .or(''), and fix JsonObjectValueResolver.get() in Quarkus
-            // to handle NotFound without ClassCastException.
-            properties.setProperty("quarkus.qute.property-not-found-strategy", "OUTPUT_ORIGINAL");
+            // Liquid silently swallows missing properties (outputs nothing).
+            // NOOP replicates that behaviour so converted templates work without
+            // wrapping every optional field in {#if}.
+            properties.setProperty("quarkus.qute.property-not-found-strategy", "NOOP");
         }
         // Exclude type checking for:
         // - Object.* (JsonArray iteration yields Object at build time)

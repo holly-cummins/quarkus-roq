@@ -42,7 +42,7 @@ class JekyllConfigConverterTest {
                 .contains("io.quarkiverse.roq.frontmatter.runtime.model.Page.paginator"));
         assertTrue(props.containsKey("quarkus.web-bundler.bundling.external"));
         assertTrue(props.getProperty("quarkus.web-bundler.bundling.external").contains("/assets/*"));
-        assertEquals("OUTPUT_ORIGINAL", props.getProperty("quarkus.qute.property-not-found-strategy"));
+        assertEquals("NOOP", props.getProperty("quarkus.qute.property-not-found-strategy"));
     }
 
     @Test
@@ -155,7 +155,7 @@ class JekyllConfigConverterTest {
         assertTrue(propsContent.contains("quarkus.qute.alt-expr-syntax=true"));
         assertTrue(propsContent.contains("site.date-format=yyyy-MM-dd['T'HH:mm:ss][X]"));
         assertTrue(propsContent.contains("quarkus.qute.strict-rendering=false"));
-        assertTrue(propsContent.contains("quarkus.qute.property-not-found-strategy=OUTPUT_ORIGINAL"));
+        assertTrue(propsContent.contains("quarkus.qute.property-not-found-strategy=NOOP"));
         assertTrue(propsContent.contains("quarkus.qute.type-check-excludes="));
 
         // Verify siteConfig.yml was created

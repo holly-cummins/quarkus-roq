@@ -1112,6 +1112,7 @@ public class LiquidToQuteConverter {
             int pos = ifMatcher.end();
             int depth = 0;
             boolean hasElse = false;
+            int blockEnd = -1;
 
             Pattern innerTag = Pattern.compile("\\{#if\\b[^}]*\\}|\\{#else\\}|\\{/if\\}");
             Matcher inner = innerTag.matcher(content);
@@ -1125,14 +1126,19 @@ public class LiquidToQuteConverter {
                     hasElse = true;
                 } else if (t.equals("{/if}")) {
                     if (depth == 0) {
+                        blockEnd = inner.end();
                         if (!hasElse) {
                             String body = content.substring(pos, inner.start());
-                            blocks.add(new IfBlock(blockStart, inner.end(), condition, body));
+                            blocks.add(new IfBlock(blockStart, blockEnd, condition, body));
                         }
                         break;
                     }
                     depth--;
                 }
+            }
+            // Skip past this block to avoid collecting nested {#if} tags
+            if (blockEnd > 0) {
+                ifMatcher.region(blockEnd, content.length());
             }
         }
         return blocks;

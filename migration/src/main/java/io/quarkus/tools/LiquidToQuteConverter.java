@@ -1322,9 +1322,9 @@ public class LiquidToQuteConverter {
 
             int scopeEnd = findScopeBoundary(content, assignEnd);
             // Qute's {#let} parser intercepts ?: — it cannot appear inside a
-            // {#let} expression. Strip any ?: default introduced by convertDefaultFilter
-            // (the default is silently dropped; non-strict mode handles missing values).
-            String letExpr = expr.replaceFirst("\\s*\\?:\\s*.*$", "");
+            // {#let} expression. Convert ?: chains to .or() method calls, which
+            // preserve the fallback semantics and are valid in {#let}.
+            String letExpr = convertTernaryToOrChain(expr);
             content = content.substring(0, assignStart)
                     + "{#let " + var + "=" + letExpr + "}"
                     + content.substring(assignEnd, scopeEnd)
@@ -1340,6 +1340,18 @@ public class LiquidToQuteConverter {
             conversionsApplied.add("Converted assignments");
         }
         return content;
+    }
+
+    private static String convertTernaryToOrChain(String expr) {
+        String[] parts = expr.split("\\s*\\?:\\s*");
+        if (parts.length <= 1) {
+            return expr;
+        }
+        StringBuilder sb = new StringBuilder(parts[0].trim());
+        for (int i = 1; i < parts.length; i++) {
+            sb.append(".or(").append(parts[i].trim()).append(")");
+        }
+        return sb.toString();
     }
 
     private String collapsePushInLoopPattern(String content) {

@@ -196,12 +196,21 @@ class LiquidToQuteConverterTest {
     }
 
     @Test
-    void testAssignmentWithDefaultStripsElvisInLet() {
-        // Qute's {#let} parser can't handle ?: so the default is stripped
+    void testAssignmentWithDefaultConvertsToOr() {
         String input = "{% assign posts_limit = site.feed.posts_limit | default: 400 %}";
-        String expected = "{#let posts_limit=cdi:siteConfig.feed.posts_limit}{/let}";
+        String expected = "{#let posts_limit=cdi:siteConfig.feed.posts_limit.or(400)}{/let}";
         assertConverts(input, expected,
-                "Assign with default should strip ?: (Qute {#let} can't handle it)");
+                "Assign with default should convert ?: to .or() (Qute {#let} can't handle ?:)");
+    }
+
+    @Test
+    void testAssignWithChainedDefaults() {
+        String input = "{% assign post_author = post.author | default: post.authors[0] | default: site.author %}" +
+                "{% if post_author %}x{% endif %}";
+        String expected = "{#let post_author=post.data.author.or(post.data.authors.get(0)).or(cdi:siteConfig.author)}" +
+                "{#if post_author}x{/if}{/let}";
+        assertConverts(input, expected,
+                "Chained defaults in assign should convert to .or() chain");
     }
 
     @Test
@@ -528,6 +537,16 @@ class LiquidToQuteConverterTest {
         String expected = "{#let author=cdi:authors.get(post.data.author.or(''))}{/let}";
         assertConverts(input, expected,
                 ".data.* property in .get() argument should get .or('') to avoid ClassCastException on NotFound");
+    }
+
+    @Test
+    void testAssignBracketWithDefaultPreservesOr() {
+        String input = "{% assign post_author = site.data.authors[post_author] | default: post_author %}" +
+                "{% if post_author %}x{% endif %}";
+        String expected = "{#let post_author=cdi:authors.get(post_author).or(post_author)}" +
+                "{#if post_author}x{/if}{/let}";
+        assertConverts(input, expected,
+                "Bracket access with default should preserve fallback as .or()");
     }
 
     // --- Loop variable tests ---

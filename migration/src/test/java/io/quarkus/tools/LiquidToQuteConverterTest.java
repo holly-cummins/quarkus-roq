@@ -853,6 +853,19 @@ class LiquidToQuteConverterTest {
     }
 
     @Test
+    void testNestedIfBlocksDoNotCrashMerge() {
+        // Nested {#if} inside another {#if} must not be collected as a
+        // sibling for merging — that would cause overlapping positions
+        // and a StringIndexOutOfBoundsException.
+        String input = "{% if a %}{% if b %}inner{% endif %}outer{% endif %}" +
+                "{% unless a %}alt{% endunless %}";
+        String result = converter.convert(input);
+        assertNotNull(result, "Should not crash on nested if blocks");
+        assertTrue(result.contains("inner"), "Nested content preserved: " + result);
+        assertTrue(result.contains("alt"), "Unless branch preserved: " + result);
+    }
+
+    @Test
     void testReplaceRegexWithPrependChain() {
         String input = "{% assign x = page.url | replace_regex: '^/version/([^/]+)/.*', '\\1' | prepend: ' - ' %}";
         String expected = "{#let x=' - ' + page.url.replaceAll('^/version/([^/]+)/.*', '$1')}{/let}";

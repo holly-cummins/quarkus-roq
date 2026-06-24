@@ -50,6 +50,10 @@ public class LiquidToQuteConverter {
         content = convertIncludes(content);
         content = convertIncludeParamAccess(content);
 
+        // Merge consecutive {#if COND}...{/if}{#if !COND}...{/if} into if/else
+        // (from Liquid's {% if %}...{% unless %} pattern, must run before convertIfElseAssigns)
+        content = mergeComplementaryIfBlocks(content);
+
         // Convert if/else blocks with assigns to ternary expressions (must run before convertAssignments)
         content = convertIfElseAssignsToTernary(content);
 
@@ -998,6 +1002,8 @@ public class LiquidToQuteConverter {
 
     private record IfElseBlock(int start, int end, String condition, String ifBranch, String elseBranch) {}
 
+    private record IfBlock(int start, int end, String condition, String body) {}
+
     private List<IfElseBlock> findIfElseBlocks(String content) {
         List<IfElseBlock> blocks = new ArrayList<>();
         Pattern ifOpenPattern = Pattern.compile("\\{#if\\s+([^}]+?)\\}");
@@ -1026,6 +1032,102 @@ public class LiquidToQuteConverter {
                             String ifBranch = content.substring(pos, elsePos);
                             String elseBranch = content.substring(elsePos + "{#else}".length(), inner.start());
                             blocks.add(new IfElseBlock(blockStart, inner.end(), condition, ifBranch, elseBranch));
+                        }
+                        break;
+                    }
+                    depth--;
+                }
+            }
+        }
+        return blocks;
+    }
+
+    private String mergeComplementaryIfBlocks(String content) {
+        // Liquid's {% assign %} is template-scoped: a variable assigned inside an
+        // {% if %} block is visible after {% endif %}. Qute's {#let} is block-scoped:
+        // the variable dies at {/let}, which convertAssignments places at the enclosing
+        // {/if}. So {% if X %}{% assign V = A %}{% endif %}{% unless X %}{% assign V = B %}
+        // {% endunless %}{{ V }} works in Liquid but breaks in Qute — V is unset by the
+        // time we reach the output expression.
+        //
+        // Fix: detect consecutive {#if COND}...{/if}{#if !COND}...{/if} pairs and merge
+        // them into {#if COND}...{#else}...{/if} so convertIfElseAssignsToTernary can
+        // hoist the assign out of the conditional entirely.
+        String original = content;
+        List<IfBlock> blocks = collectIfWithoutElseBlocks(content);
+
+        // Find consecutive pairs where the second condition negates the first.
+        // After each merge, positions shift, so break and re-scan from scratch.
+        boolean merged = true;
+        while (merged) {
+            merged = false;
+            for (int i = 0; i < blocks.size() - 1; i++) {
+                IfBlock first = blocks.get(i);
+                IfBlock second = blocks.get(i + 1);
+
+                String between = content.substring(first.end(), second.start());
+                if (!between.trim().isEmpty()) {
+                    continue;
+                }
+
+                if (areComplementary(first.condition(), second.condition())) {
+                    content = content.substring(0, first.end() - "{/if}".length())
+                            + "{#else}"
+                            + second.body()
+                            + "{/if}"
+                            + content.substring(second.end());
+                    merged = true;
+                    break; // re-scan with fresh positions
+                }
+            }
+            if (merged) {
+                // Re-collect blocks from the modified content
+                blocks = collectIfWithoutElseBlocks(content);
+            }
+        }
+
+        if (!content.equals(original)) {
+            conversionsApplied.add("Merged complementary if/unless blocks");
+        }
+        return content;
+    }
+
+    private boolean areComplementary(String condA, String condB) {
+        condA = condA.trim();
+        condB = condB.trim();
+        // {#if X} + {#if !X}
+        if (condB.equals("!" + condA)) return true;
+        if (condA.equals("!" + condB)) return true;
+        return false;
+    }
+
+    private List<IfBlock> collectIfWithoutElseBlocks(String content) {
+        List<IfBlock> blocks = new ArrayList<>();
+        Pattern ifOpenPattern = Pattern.compile("\\{#if\\s+([^}]+?)\\}");
+        Matcher ifMatcher = ifOpenPattern.matcher(content);
+
+        while (ifMatcher.find()) {
+            int blockStart = ifMatcher.start();
+            String condition = ifMatcher.group(1);
+            int pos = ifMatcher.end();
+            int depth = 0;
+            boolean hasElse = false;
+
+            Pattern innerTag = Pattern.compile("\\{#if\\b[^}]*\\}|\\{#else\\}|\\{/if\\}");
+            Matcher inner = innerTag.matcher(content);
+            inner.region(pos, content.length());
+
+            while (inner.find()) {
+                String t = inner.group();
+                if (t.startsWith("{#if")) {
+                    depth++;
+                } else if (t.equals("{#else}") && depth == 0) {
+                    hasElse = true;
+                } else if (t.equals("{/if}")) {
+                    if (depth == 0) {
+                        if (!hasElse) {
+                            String body = content.substring(pos, inner.start());
+                            blocks.add(new IfBlock(blockStart, inner.end(), condition, body));
                         }
                         break;
                     }

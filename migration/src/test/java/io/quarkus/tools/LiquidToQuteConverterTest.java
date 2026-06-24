@@ -817,6 +817,42 @@ class LiquidToQuteConverterTest {
     }
 
     @Test
+    void testMultipleComplementaryIfBlocksDoNotCrash() {
+        // base.html has multiple if/unless pairs — merging one must not corrupt positions
+        // for subsequent pairs (regression: StringIndexOutOfBoundsException).
+        String input = "{% if x %}{% assign a = x %}{% endif %}" +
+                "{% unless x %}{% assign a = 'default' %}{% endunless %}" +
+                "{% if y %}{% assign b = y %}{% endif %}" +
+                "{% unless y %}{% assign b = 'other' %}{% endunless %}" +
+                "{{ a }} {{ b }}";
+        String result = converter.convert(input);
+        assertTrue(result.contains("{#let a="),
+                "First variable should be assigned: " + result);
+        assertTrue(result.contains("{#let b="),
+                "Second variable should be assigned: " + result);
+    }
+
+    @Test
+    void testAssignInIfPlusUnlessMergedToIfElse() {
+        // Liquid: if X → assign V = A; unless X → assign V = B
+        // This is equivalent to if/else and should be handled the same way.
+        // The variable must be visible after both blocks.
+        String input = "{% if include.page_title %}{% assign page_title = include.page_title %}{% endif %}" +
+                "{% unless include.page_title %}{% assign page_title = page.title %}{% endunless %}" +
+                "<h1>{{ page_title }}</h1>";
+        String result = converter.convert(input);
+        // page_title must be defined and visible at the <h1> tag
+        assertTrue(result.contains("<h1>") && result.contains("</h1>"),
+                "h1 tag should be present: " + result);
+        // The h1 must contain the variable, not be empty
+        assertFalse(result.contains("<h1>{=page_title??}</h1>") && !result.contains("{#let"),
+                "page_title must be scoped to cover the h1 tag: " + result);
+        // Should not have dangling assigns inside if blocks that scope-close too early
+        assertFalse(result.matches("(?s).*\\{#if[^}]*\\}\\{#let page_title=[^}]*\\}\\{/let\\}\\{/if\\}.*"),
+                "assign should not be scoped inside if block (variable won't survive): " + result);
+    }
+
+    @Test
     void testReplaceRegexWithPrependChain() {
         String input = "{% assign x = page.url | replace_regex: '^/version/([^/]+)/.*', '\\1' | prepend: ' - ' %}";
         String expected = "{#let x=' - ' + page.url.replaceAll('^/version/([^/]+)/.*', '$1')}{/let}";

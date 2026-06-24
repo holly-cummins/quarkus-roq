@@ -10,6 +10,7 @@ import java.util.concurrent.Callable;
 
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
+import picocli.CommandLine.Option;
 import picocli.CommandLine.Parameters;
 
 @Command(name = "jekyll-config", mixinStandardHelpOptions = true, version = "1.0",
@@ -18,6 +19,9 @@ public class JekyllConfigCommand implements Callable<Integer> {
 
     @Parameters(index = "0", description = "Jekyll project directory")
     private Path projectDir;
+
+    @Option(names = {"--strict-properties"}, description = "Use THROW strategy for missing properties (requires all optional properties to be guarded with {#if} or .or(''))")
+    private boolean strictProperties;
 
     private JekyllConfigConverter converter = new JekyllConfigConverter();
 
@@ -39,6 +43,7 @@ public class JekyllConfigCommand implements Callable<Integer> {
         }
 
         try {
+            converter.setStrictProperties(strictProperties);
             converter.convertProject(projectDir);
 
             System.out.println("✓ Jekyll config conversion complete:");

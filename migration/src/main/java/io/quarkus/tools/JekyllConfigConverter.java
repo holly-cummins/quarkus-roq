@@ -20,10 +20,15 @@ public class JekyllConfigConverter {
 
     private final YAMLMapper yamlMapper;
     private final ObjectMapper objectMapper;
+    private boolean strictProperties;
 
     public JekyllConfigConverter() {
         this.yamlMapper = new YAMLMapper();
         this.objectMapper = new ObjectMapper();
+    }
+
+    public void setStrictProperties(boolean strictProperties) {
+        this.strictProperties = strictProperties;
     }
 
     /**
@@ -50,6 +55,13 @@ public class JekyllConfigConverter {
         // Set a date format with a sensible default for Jekyll.
         properties.setProperty("site.date-format", "yyyy-MM-dd['T'HH:mm:ss][X]");
         properties.setProperty("quarkus.qute.strict-rendering", "false");
+        if (!strictProperties) {
+            // OUTPUT_ORIGINAL leaves unresolved expressions as-is in the output.
+            // For best conversion use --strict-properties: guard every optional property
+            // with {#if} or .or(''), and fix JsonObjectValueResolver.get() in Quarkus
+            // to handle NotFound without ClassCastException.
+            properties.setProperty("quarkus.qute.property-not-found-strategy", "OUTPUT_ORIGINAL");
+        }
         // Exclude type checking for:
         // - Object.* (JsonArray iteration yields Object at build time)
         // - Page.paginator (only on NormalPage subclass, not visible at compile time)

@@ -163,7 +163,7 @@ class LiquidToQuteConverterTest {
     @Test
     void testDateFilter() {
         String input = "{{page.date | date: \"%Y-%m-%d\"}}";
-        String expected = "{=page.date.format('yyyy-MM-dd')}";
+        String expected = "{=page.date.format('yyyy-MM-dd').or('')}";
         assertConverts(input, expected, "Date filter should convert format");
     }
 
@@ -710,14 +710,14 @@ class LiquidToQuteConverterTest {
     @Test
     void testDateFilterWith12Hour() {
         String input = "{{page.date | date: \"%I:%M %p\"}}";
-        String expected = "{=page.date.format('hh:mm a')}";
+        String expected = "{=page.date.format('hh:mm a').or('')}";
         assertConverts(input, expected, "12-hour date format should convert");
     }
 
     @Test
     void testDateFilterUnknownSpecifier() {
         String input = "{{page.date | date: \"%Y-%Q\"}}";
-        String expected = "{=page.date.format('yyyy-%Q /* TODO: unsupported strftime specifiers */')}";
+        String expected = "{=page.date.format('yyyy-%Q /* TODO: unsupported strftime specifiers */').or('')}";
         assertConverts(input, expected, "Unknown date specifier should emit TODO");
     }
 
@@ -1156,6 +1156,48 @@ class LiquidToQuteConverterTest {
         String input = "{% for a in authors_raw %}{{ a }}{% endfor %}";
         String expected = "{#for a in authors_raw.orEmpty}{=a}{/for}";
         assertConverts(input, expected, "Simple variable iterable in for loop should get .orEmpty");
+    }
+
+    @Test
+    void testNowDateFilterConvertsToQuteGlobal() {
+        String input = "{% assign today = 'now' | date: '%Y-%m-%d' %}";
+        String expected = "{#let today=now.format('yyyy-MM-dd').or('')}{/let}";
+        assertConverts(input, expected, "'now' | date should use Qute now global, not string literal");
+    }
+
+    @Test
+    void testDateFilterOnNullableFieldGetsOrEmpty() {
+        String input = "{% assign eol_str = release.eol_date | date: '%Y-%m-%d' %}";
+        String expected = "{#let eol_str=release.eol_date.format('yyyy-MM-dd').or('')}{/let}";
+        assertConverts(input, expected, "Date format on nullable field should add .or('') for null safety");
+    }
+
+    @Test
+    void testNilConvertsToNull() {
+        String input = "{% if release.eol_date == nil %}active{% endif %}";
+        String expected = "{#if release.eol_date == null}active{/if}";
+        assertConverts(input, expected, "nil should convert to null in Qute comparisons");
+    }
+
+    @Test
+    void testNilNotEqualsConvertsToNull() {
+        String input = "{% if release.eol_date != nil %}has date{% endif %}";
+        String expected = "{#if release.eol_date ne null}has date{/if}";
+        assertConverts(input, expected, "!= nil should convert to ne null");
+    }
+
+    @Test
+    void testUnlessNilConvertsToNull() {
+        String input = "{% unless recommended_lts %}no lts{% endunless %}";
+        String expected = "{#if !recommended_lts}no lts{/if}";
+        assertConverts(input, expected, "unless with simple variable should negate");
+    }
+
+    @Test
+    void testUnlessGreaterThanFlipsOperator() {
+        String input = "{% unless eol_str > today %}expired{% endunless %}";
+        String expected = "{#if eol_str <= today}expired{/if}";
+        assertConverts(input, expected, "unless with > should flip to <=");
     }
 
     @Nested

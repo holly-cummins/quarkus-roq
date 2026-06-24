@@ -80,13 +80,13 @@ class JekyllConfigConverterTest {
 
         assertNotNull(siteConfigYaml);
         assertTrue(siteConfigYaml.contains("search:"));
-        assertTrue(siteConfigYaml.contains("script-mode: \"defer\""));
+        assertTrue(siteConfigYaml.contains("scriptMode: \"defer\""));
         assertTrue(siteConfigYaml.contains("host: \"https://search.example.com\""));
-        assertTrue(siteConfigYaml.contains("script-path: \"/search.js\""));
-        assertTrue(siteConfigYaml.contains("cached-script-file: \"search-cached.js\""));
-        assertTrue(siteConfigYaml.contains("initial-timeout: 1500"));
-        assertTrue(siteConfigYaml.contains("more-timeout: 2500"));
-        assertTrue(siteConfigYaml.contains("min-chars: 2"));
+        assertTrue(siteConfigYaml.contains("scriptPath: \"/search.js\""));
+        assertTrue(siteConfigYaml.contains("cachedScriptFile: \"search-cached.js\""));
+        assertTrue(siteConfigYaml.contains("initialTimeout: 1500"));
+        assertTrue(siteConfigYaml.contains("moreTimeout: 2500"));
+        assertTrue(siteConfigYaml.contains("minChars: 2"));
     }
 
     @Test
@@ -545,6 +545,6 @@ class JekyllConfigConverterTest {
         assertTrue(siteConfigYaml.contains("twitter_username: \"johndoe\""));
         assertTrue(siteConfigYaml.contains("github_username: \"johndoe\""));
         assertTrue(siteConfigYaml.contains("search:"));
-        assertTrue(siteConfigYaml.contains("script-mode: \"defer\""));
+        assertTrue(siteConfigYaml.contains("scriptMode: \"defer\""));
     }
 }

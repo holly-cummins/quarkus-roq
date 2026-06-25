@@ -408,6 +408,161 @@ class JekyllFrontMatterConverterTest {
         assertFalse(result.contains("link:"), "redundant permalink should not become link");
     }
 
+    // --- Collection link template tests ---
+
+    @Test
+    void testAddCollectionLinkTemplatesWorksWithJekyllLayoutsDir(@TempDir Path tempDir) throws IOException {
+        Path layoutsDir = tempDir.resolve("_layouts");
+        Files.createDirectories(layoutsDir);
+        Files.writeString(layoutsDir.resolve("post.html"), """
+                ---
+                layout: main
+                ---
+                {page.title}
+                """);
+
+        String configYaml = """
+                defaults:
+                  - scope:
+                      type: posts
+                    values:
+                      layout: post
+                      permalink: /blog/:title/
+                """;
+        JsonNode config = yamlMapper.readTree(configYaml);
+
+        converter.addCollectionLinkTemplates(tempDir, config);
+
+        String result = Files.readString(layoutsDir.resolve("post.html"));
+        assertTrue(result.contains("link: /blog/:name/"),
+                "Should work with _layouts/ dir (pre-move). Got: " + result);
+    }
+
+    @Test
+    void testAddCollectionLinkTemplatesTranslatesPermalink(@TempDir Path tempDir) throws IOException {
+        Path layoutsDir = tempDir.resolve("templates/layouts");
+        Files.createDirectories(layoutsDir);
+        Files.writeString(layoutsDir.resolve("post.html"), """
+                ---
+                layout: main
+                ---
+                {page.title}
+                """);
+
+        String configYaml = """
+                defaults:
+                  - scope:
+                      type: posts
+                    values:
+                      layout: post
+                      permalink: /blog/:title/
+                """;
+        JsonNode config = yamlMapper.readTree(configYaml);
+
+        converter.addCollectionLinkTemplates(tempDir, config);
+
+        String result = Files.readString(layoutsDir.resolve("post.html"));
+        assertTrue(result.contains("link: /blog/:name/"),
+                "Should translate Jekyll :title to Roq :name. Got: " + result);
+        assertTrue(result.contains("layout: main"), "Should preserve existing frontmatter");
+    }
+
+    @Test
+    void testAddCollectionLinkTemplatesForCustomCollection(@TempDir Path tempDir) throws IOException {
+        Path layoutsDir = tempDir.resolve("templates/layouts");
+        Files.createDirectories(layoutsDir);
+        Files.writeString(layoutsDir.resolve("guide.html"), """
+                ---
+                layout: main
+                ---
+                {page.title}
+                """);
+
+        String configYaml = """
+                collections:
+                  guides:
+                    output: true
+                    layout: guide
+                """;
+        JsonNode config = yamlMapper.readTree(configYaml);
+
+        converter.addCollectionLinkTemplates(tempDir, config);
+
+        String result = Files.readString(layoutsDir.resolve("guide.html"));
+        assertTrue(result.contains("link: /:collection/:name/"),
+                "Should use default link template when no permalink specified. Got: " + result);
+    }
+
+    @Test
+    void testAddCollectionLinkTemplatesSkipsWhenLinkAlreadyPresent(@TempDir Path tempDir) throws IOException {
+        Path layoutsDir = tempDir.resolve("templates/layouts");
+        Files.createDirectories(layoutsDir);
+        Files.writeString(layoutsDir.resolve("post.html"), """
+                ---
+                layout: main
+                link: /custom/:slug/
+                ---
+                {page.title}
+                """);
+
+        String configYaml = """
+                defaults:
+                  - scope:
+                      type: posts
+                    values:
+                      layout: post
+                      permalink: /blog/:title/
+                """;
+        JsonNode config = yamlMapper.readTree(configYaml);
+
+        converter.addCollectionLinkTemplates(tempDir, config);
+
+        String result = Files.readString(layoutsDir.resolve("post.html"));
+        assertTrue(result.contains("link: /custom/:slug/"), "Should not overwrite existing link");
+        assertFalse(result.contains("link: /blog/:name/"));
+    }
+
+    @Test
+    void testAddCollectionLinkTemplatesSkipsMissingLayout(@TempDir Path tempDir) throws IOException {
+        Path layoutsDir = tempDir.resolve("templates/layouts");
+        Files.createDirectories(layoutsDir);
+
+        String configYaml = """
+                defaults:
+                  - scope:
+                      type: posts
+                    values:
+                      layout: post
+                      permalink: /blog/:title/
+                """;
+        JsonNode config = yamlMapper.readTree(configYaml);
+
+        // Should not throw even when layout file doesn't exist
+        converter.addCollectionLinkTemplates(tempDir, config);
+    }
+
+    @Test
+    void testAddCollectionLinkTemplatesDefaultPostsLayout(@TempDir Path tempDir) throws IOException {
+        Path layoutsDir = tempDir.resolve("templates/layouts");
+        Files.createDirectories(layoutsDir);
+        Files.writeString(layoutsDir.resolve("post.html"), """
+                ---
+                layout: main
+                ---
+                {page.title}
+                """);
+
+        // No explicit layout or permalink config — posts default to "post" layout
+        String configYaml = "title: My Blog\n";
+        JsonNode config = yamlMapper.readTree(configYaml);
+
+        converter.addCollectionLinkTemplates(tempDir, config);
+
+        String result = Files.readString(layoutsDir.resolve("post.html"));
+        assertTrue(result.contains("link: /:collection/:name/"),
+                "Should add default link to post layout even without explicit config. Got: " + result);
+    }
+
     // --- Integration test ---
 
     @Test

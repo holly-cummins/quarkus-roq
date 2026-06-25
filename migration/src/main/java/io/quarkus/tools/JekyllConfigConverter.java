@@ -7,6 +7,7 @@ import java.nio.file.Path;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Properties;
+import java.util.Set;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -108,48 +109,44 @@ public class JekyllConfigConverter {
     /**
      * Create a siteConfig.yml from a pre-parsed config.
      */
+    private static final Set<String> KEYS_HANDLED_ELSEWHERE = Set.of(
+            "url",          // → application.properties site.url
+            "collections",  // → application.properties site.collections.*
+            "plugins",      // → application.properties (auto-author, etc.)
+            "defaults",     // → application.properties (collection layouts)
+            "description",  // → index page frontmatter
+            "autopages",    // → application.properties (auto-author config)
+            "title"         // → index page frontmatter / Roq site.title
+    );
+
     public String createSiteConfigYaml(JsonNode config, String cnameContent) throws IOException {
-        // Build a new config with selected properties
         Map<String, Object> siteConfig = new LinkedHashMap<>();
-        
+
         // Add CNAME
         siteConfig.put("cname", cnameContent != null ? cnameContent.trim() : "");
-        
-        // Copy common properties (description is NOT here — it goes in index page frontmatter
-        // so Roq's site.description picks it up)
-        copyIfPresent(config, siteConfig, "baseurl");
-        copyIfPresent(config, siteConfig, "language");
-        copyIfPresent(config, siteConfig, "twitter_username");
-        copyIfPresent(config, siteConfig, "github_username");
-        
-        // Handle nested search config — copy all search properties so templates
-        // referencing cdi:siteConfig.search.* resolve instead of throwing.
-        // Keys are camelCased because Qute dot notation treats hyphens as subtraction.
-        if (config.has("search")) {
-            JsonNode search = config.get("search");
-            Map<String, Object> searchConfig = new LinkedHashMap<>();
-            search.fields().forEachRemaining(e -> copyIfPresent(search, searchConfig, e.getKey(), hyphenToCamelCase(e.getKey())));
-            if (!searchConfig.isEmpty()) {
-                siteConfig.put("search", searchConfig);
-            }
-        }
-        
-        // Copy feed config (e.g. posts_limit) — used by converted feed.xml template
-        if (config.has("feed")) {
-            JsonNode feed = config.get("feed");
-            Map<String, Object> feedConfig = new LinkedHashMap<>();
-            copyIfPresent(feed, feedConfig, "posts_limit");
-            if (!feedConfig.isEmpty()) {
-                siteConfig.put("feed", feedConfig);
-            }
-        }
 
-        // Copy author (site-level default author for feed/posts)
-        copyIfPresent(config, siteConfig, "author");
+        // Copy all config keys except those handled by application.properties or index page
+        config.fieldNames().forEachRemaining(key -> {
+            if (KEYS_HANDLED_ELSEWHERE.contains(key)) {
+                return;
+            }
+            if ("search".equals(key)) {
+                // Special case: camelCase hyphenated search keys for Qute compatibility
+                JsonNode search = config.get("search");
+                Map<String, Object> searchConfig = new LinkedHashMap<>();
+                search.fields().forEachRemaining(e ->
+                        copyIfPresent(search, searchConfig, e.getKey(), hyphenToCamelCase(e.getKey())));
+                if (!searchConfig.isEmpty()) {
+                    siteConfig.put("search", searchConfig);
+                }
+            } else {
+                copyIfPresent(config, siteConfig, key);
+            }
+        });
 
         // Add empty tags array (for Jekyll compatibility)
         siteConfig.put("tags", new Object[0]);
-        
+
         // Convert to YAML
         return yamlMapper.writeValueAsString(siteConfig);
     }

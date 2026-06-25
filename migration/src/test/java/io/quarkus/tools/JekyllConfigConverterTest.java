@@ -543,6 +543,86 @@ class JekyllConfigConverterTest {
     }
 
     @Test
+    void testSiteConfigYamlWithPublication() throws IOException {
+        String configYaml = """
+                title: My Site
+                publication:
+                  group_by: type
+                  sort_by: date
+                  type_names:
+                    article: Article & Blogs
+                    podcast: Podcasts
+                    video: Videos
+                    training: Training
+                    book: Books
+                """;
+
+        String siteConfigYaml = converter.createSiteConfigYaml(configYaml, null);
+
+        assertTrue(siteConfigYaml.contains("publication:"));
+        assertTrue(siteConfigYaml.contains("group_by: \"type\""));
+        assertTrue(siteConfigYaml.contains("type_names:"));
+        assertTrue(siteConfigYaml.contains("article: \"Article & Blogs\""));
+        assertTrue(siteConfigYaml.contains("video: \"Videos\""));
+    }
+
+    @Test
+    void testSiteConfigYamlCopiesUnknownTopLevelKeys() throws IOException {
+        String configYaml = """
+                title: My Site
+                baseurl: /blog
+                custom_setting: some_value
+                nested_custom:
+                  key1: val1
+                  key2: val2
+                """;
+
+        String siteConfigYaml = converter.createSiteConfigYaml(configYaml, null);
+
+        assertTrue(siteConfigYaml.contains("custom_setting: \"some_value\""),
+                "Unknown simple config should be copied: " + siteConfigYaml);
+        assertTrue(siteConfigYaml.contains("nested_custom:"),
+                "Unknown nested config should be copied: " + siteConfigYaml);
+        assertTrue(siteConfigYaml.contains("key1: \"val1\""),
+                "Nested values should be preserved: " + siteConfigYaml);
+    }
+
+    @Test
+    void testSiteConfigYamlDoesNotCopyHandledKeys() throws IOException {
+        String configYaml = """
+                title: My Site
+                url: https://example.com
+                collections:
+                  posts:
+                    output: true
+                plugins:
+                  - jekyll-feed
+                defaults:
+                  - scope:
+                      type: guides
+                    values:
+                      layout: guide
+                description: A site
+                custom: should_be_copied
+                """;
+
+        String siteConfigYaml = converter.createSiteConfigYaml(configYaml, null);
+
+        assertFalse(siteConfigYaml.contains("url:"),
+                "url is handled by application.properties, not siteConfig: " + siteConfigYaml);
+        assertFalse(siteConfigYaml.contains("collections:"),
+                "collections is handled by application.properties: " + siteConfigYaml);
+        assertFalse(siteConfigYaml.contains("plugins:"),
+                "plugins is handled by application.properties: " + siteConfigYaml);
+        assertFalse(siteConfigYaml.contains("defaults:"),
+                "defaults is handled by application.properties: " + siteConfigYaml);
+        assertFalse(siteConfigYaml.contains("description:"),
+                "description goes to index page frontmatter: " + siteConfigYaml);
+        assertTrue(siteConfigYaml.contains("custom: \"should_be_copied\""),
+                "Unknown keys should be copied: " + siteConfigYaml);
+    }
+
+    @Test
     void testComplexNestedConfig() throws IOException {
         String configYaml = """
                 title: Complex Site

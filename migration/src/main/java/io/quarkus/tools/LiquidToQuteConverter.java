@@ -353,13 +353,13 @@ public class LiquidToQuteConverter {
     private String convertTableDrivenFilters(String content) {
         // Filters with a single argument: | filter: arg -> .method(arg)
         String[][] filterWithArgMap = {
+                {"group_by", "groupBy"},
                 {"sort", "sort"},
                 {"startswith", "startsWith"},
                 {"endswith", "endsWith"},
                 {"contains", "contains"},
                 {"equals", "equals"},
                 {"map", "map"},
-                {"group_by", "groupBy"},
                 {"slice", "slice"},
                 {"add", "add"},
                 {"minus", "minus"},

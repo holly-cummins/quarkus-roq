@@ -1760,6 +1760,17 @@ public class LiquidToQuteConverter {
             content = result;
         }
 
+        // Also protect plain variable arguments in .get() calls — a variable from a
+        // prior {#let} may hold Results$NotFound if the source expression was missing.
+        // Skip string/number literals and .data.* args (already handled above).
+        result = content.replaceAll(
+                "(\\.get\\()([a-zA-Z_][a-zA-Z0-9_]*)(\\))",
+                "$1$2.or('')$3");
+        if (!result.equals(content)) {
+            conversionsApplied.add("Added .or('') to variable arguments in .get() calls");
+            content = result;
+        }
+
         // Guard {=*.data.* | tocify_asciidoc} — the filter crashes when the property
         // is missing (e.g. non-AsciiDoc pages using a layout that expects AsciiDoc)
         result = content.replaceAll(

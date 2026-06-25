@@ -1716,16 +1716,17 @@ public class LiquidToQuteConverter {
 
     private String convertAutopagesVariables(String content) {
         String original = content;
-        // Jekyll paginate-v2 autopages injects page.pagination.author_data (the author's
-        // data hash) and page.pagination.author (the author key). After convertCustomPageFields
-        // these become page.data.pagination.author_data and page.data.pagination.author.
+        // Jekyll paginate-v2 autopages injects page.pagination.{entity}_data (the entity's
+        // data hash) and page.pagination.{entity} (the entity key) for each autopage type
+        // (author, tag, category, collection). After convertCustomPageFields these become
+        // page.data.pagination.{entity}_data and page.data.pagination.{entity}.
         // In Roq, from-data pages put the data fields directly on page.data, and the
         // YAML map key is available as page.data._key (when id-key=_key).
-        // Replace longer match first to avoid partial substitution.
-        content = content.replace("page.data.pagination.author_data", "page.data");
-        content = content.replace("page.data.pagination.author", "page.data._key");
+        // Replace _data variant first (longer match) to avoid partial substitution.
+        content = content.replaceAll("page\\.data\\.pagination\\.(\\w+)_data", "page.data");
+        content = content.replaceAll("page\\.data\\.pagination\\.(\\w+)", "page.data._key");
         if (!content.equals(original)) {
-            conversionsApplied.add("Converted Jekyll autopages author variables to Roq from-data");
+            conversionsApplied.add("Converted Jekyll autopages variables to Roq from-data");
         }
         return content;
     }

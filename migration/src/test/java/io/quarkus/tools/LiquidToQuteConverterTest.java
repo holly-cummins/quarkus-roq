@@ -163,6 +163,14 @@ class LiquidToQuteConverterTest {
     }
 
     @Test
+    void testAutopagesCategoryVariables() {
+        String input = "{% assign cat = page.pagination.category %}{% assign cat_info = page.pagination.category_data %}{{cat_info.title}}";
+        String expected = "{#let cat=page.data._key}{#let cat_info=page.data}{=cat_info.title}{/let}{/let}";
+        assertConverts(input, expected,
+                "Jekyll autopages should work generically for any entity type");
+    }
+
+    @Test
     void testForLoop() {
         String input = "{% for item in items %}{{item}}{% endfor %}";
         String expected = "{#for item in items.orEmpty}{=item}{/for}";

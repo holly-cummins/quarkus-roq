@@ -80,6 +80,10 @@ public class JekyllConfigConverter {
             addAutoAuthorProperties(config, properties);
         }
 
+        if (config != null && config.has("url")) {
+            properties.setProperty("site.url", config.get("url").asText());
+        }
+
         addCollectionProperties(config, properties);
         // TODO: re-enable once site.escaped-pages works for collection content
         // addEscapedPages(config, properties);

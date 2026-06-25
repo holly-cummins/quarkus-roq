@@ -9,6 +9,8 @@ import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.regex.Pattern;
 import java.util.Arrays;
 import java.util.List;
@@ -149,6 +151,32 @@ public class JekyllFiltersExtension {
         return null;
     }
 
+    static JsonArray groupBy(JsonArray items, String property) {
+        if (items == null) {
+            return new JsonArray();
+        }
+        Map<String, JsonArray> groups = new LinkedHashMap<>();
+        for (int i = 0; i < items.size(); i++) {
+            Object item = items.getValue(i);
+            String key = "";
+            if (item instanceof JsonObject obj) {
+                Object val = obj.getValue(property);
+                if (val != null) {
+                    key = val.toString();
+                }
+            }
+            groups.computeIfAbsent(key, k -> new JsonArray()).add(item);
+        }
+        JsonArray result = new JsonArray();
+        for (var entry : groups.entrySet()) {
+            result.add(new JsonObject()
+                    .put("name", entry.getKey())
+                    .put("items", entry.getValue())
+                    .put("size", entry.getValue().size()));
+        }
+        return result;
+    }
+
     /**
      * Jekyll's "where" filter: select items from an array where a property matches a value.
      * Usage in Qute: {myArray.where("key", "value")}
@@ -248,6 +276,30 @@ public class JekyllFiltersExtension {
      * Jekyll's "sort" filter: sort a list by a named property.
      * Usage in Qute: {myList.sort('title')}
      */
+    static JsonArray sort(JsonArray array, String property) {
+        if (array == null || array.isEmpty()) {
+            return new JsonArray();
+        }
+        List<Object> sorted = new ArrayList<>(array.getList());
+        sorted.sort((a, b) -> {
+            String va = extractProperty(a, property);
+            String vb = extractProperty(b, property);
+            if (va == null) return vb == null ? 0 : 1;
+            if (vb == null) return -1;
+            return va.compareToIgnoreCase(vb);
+        });
+        return new JsonArray(sorted);
+    }
+
+    static JsonArray reverse(JsonArray array) {
+        if (array == null || array.isEmpty()) {
+            return new JsonArray();
+        }
+        List<Object> reversed = new ArrayList<>(array.getList());
+        java.util.Collections.reverse(reversed);
+        return new JsonArray(reversed);
+    }
+
     static List<?> sort(List<?> list, String property) {
         if (list == null || list.isEmpty()) {
             return List.of();

@@ -1457,4 +1457,14 @@ class LiquidToQuteConverterTest {
                     "Default constructor should use extension syntax");
         }
     }
+
+    @Test
+    void testGroupByThenSortChaining() {
+        String input = "{% assign groups = publications | group_by: site.publication.group_by | sort: \"name\" %}";
+        String result = converter.convert(input);
+        assertTrue(result.contains(".groupBy(") && result.contains(").sort("),
+                "group_by | sort should chain as .groupBy(arg).sort(arg), not nest sort inside groupBy arg: " + result);
+        assertFalse(result.contains("group_by.sort("),
+                "sort should not be nested inside the groupBy argument: " + result);
+    }
 }

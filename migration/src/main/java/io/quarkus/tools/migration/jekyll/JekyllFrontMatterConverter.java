@@ -23,6 +23,8 @@ public class JekyllFrontMatterConverter {
 
     private static final Pattern PERMALINK_LINE = Pattern.compile("^permalink:[ \\t]*(.*)\\n", Pattern.MULTILINE);
 
+    private static final Pattern LINK_LINE = Pattern.compile("^link:[ \\t]", Pattern.MULTILINE);
+
     private final YAMLMapper yamlMapper = new YAMLMapper();
 
     /**
@@ -69,6 +71,7 @@ public class JekyllFrontMatterConverter {
                         }
                     });
         }
+        addCollectionLinkTemplates(projectDir, config);
         convertPagination(contentDir, config);
     }
 
@@ -113,6 +116,128 @@ public class JekyllFrontMatterConverter {
 
             Files.writeString(file, content);
         }
+    }
+
+    /**
+     * Add {@code link:} to collection layout templates, translating Jekyll permalink
+     * placeholders to their Roq equivalents.
+     * <p>
+     * Jekyll's {@code :title} placeholder is filename-derived, while Roq's {@code :slug}
+     * is title-derived. This method reads the Jekyll permalink pattern for each collection
+     * and translates it (e.g. {@code /blog/:title/} → {@code /blog/:name/}).
+     * Collections without an explicit permalink get {@code /:collection/:name/}.
+     */
+    public void addCollectionLinkTemplates(Path projectDir, JsonNode config) throws IOException {
+        // Check both pre-move (_layouts/) and post-move (templates/layouts/) locations
+        Path[] layoutsDirs = {
+                projectDir.resolve("_layouts"),
+                projectDir.resolve("templates/layouts")
+        };
+
+        Map<String, CollectionInfo> collections = getCollectionInfo(config);
+        for (Path layoutsDir : layoutsDirs) {
+            if (!Files.isDirectory(layoutsDir)) {
+                continue;
+            }
+            for (CollectionInfo info : collections.values()) {
+                addLinkToLayout(layoutsDir, info.layout, info.linkTemplate());
+            }
+        }
+    }
+
+    record CollectionInfo(String layout, String permalink) {
+        String linkTemplate() {
+            if (permalink == null) {
+                return "/:collection/:name/";
+            }
+            return translatePermalinkPlaceholders(permalink);
+        }
+    }
+
+    static String translatePermalinkPlaceholders(String permalink) {
+        return permalink
+                .replace(":title", ":name")
+                .replace(":categories", ":collection");
+    }
+
+    private Map<String, CollectionInfo> getCollectionInfo(JsonNode config) {
+        Map<String, CollectionInfo> result = new HashMap<>();
+
+        // Default: posts collection uses "post" layout
+        result.put("posts", new CollectionInfo("post", null));
+
+        if (config == null) {
+            return result;
+        }
+
+        // Read explicit collection layouts
+        if (config.has("collections")) {
+            JsonNode collections = config.get("collections");
+            if (collections.isObject()) {
+                collections.fields().forEachRemaining(entry -> {
+                    String name = entry.getKey();
+                    JsonNode collectionConfig = entry.getValue();
+                    if (collectionConfig.isObject() && collectionConfig.has("layout")) {
+                        result.merge(name,
+                                new CollectionInfo(collectionConfig.get("layout").asText(), null),
+                                (old, neu) -> new CollectionInfo(neu.layout, old.permalink));
+                    }
+                });
+            }
+        }
+
+        // Read layouts and permalinks from defaults section
+        if (config.has("defaults")) {
+            JsonNode defaults = config.get("defaults");
+            if (defaults.isArray()) {
+                for (JsonNode entry : defaults) {
+                    if (!entry.has("scope") || !entry.has("values")) {
+                        continue;
+                    }
+                    JsonNode scope = entry.get("scope");
+                    if (!scope.has("type")) {
+                        continue;
+                    }
+                    String type = scope.get("type").asText();
+                    JsonNode values = entry.get("values");
+                    String layout = values.has("layout") ? values.get("layout").asText() : null;
+                    String permalink = values.has("permalink") ? values.get("permalink").asText() : null;
+
+                    result.merge(type,
+                            new CollectionInfo(
+                                    layout != null ? layout : "post",
+                                    permalink),
+                            (old, neu) -> new CollectionInfo(
+                                    neu.layout != null ? neu.layout : old.layout,
+                                    neu.permalink != null ? neu.permalink : old.permalink));
+                }
+            }
+        }
+
+        return result;
+    }
+
+    private void addLinkToLayout(Path layoutsDir, String layoutName, String linkTemplate) throws IOException {
+        Path layoutFile = layoutsDir.resolve(layoutName + ".html");
+        if (!Files.exists(layoutFile)) {
+            return;
+        }
+
+        String content = Files.readString(layoutFile);
+        if (LINK_LINE.matcher(content).find()) {
+            return;
+        }
+
+        // Insert link: after the opening --- line
+        int fmStart = content.indexOf("---");
+        if (fmStart < 0) {
+            return;
+        }
+        int afterFirstLine = content.indexOf('\n', fmStart) + 1;
+        content = content.substring(0, afterFirstLine)
+                + "link: " + linkTemplate + "\n"
+                + content.substring(afterFirstLine);
+        Files.writeString(layoutFile, content);
     }
 
     /**
@@ -205,7 +330,7 @@ public class JekyllFrontMatterConverter {
         }
     }
 
-    private String stripExtension(String filename) {
+    private static String stripExtension(String filename) {
         int dot = filename.lastIndexOf('.');
         return dot > 0 ? filename.substring(0, dot) : filename;
     }

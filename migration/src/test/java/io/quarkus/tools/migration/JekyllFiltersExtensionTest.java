@@ -162,6 +162,27 @@ class JekyllFiltersExtensionTest {
     }
 
     @Test
+    void testGroupByGroupsItemsByProperty() {
+        var items = new JsonArray()
+                .add(new JsonObject().put("type", "article").put("title", "A"))
+                .add(new JsonObject().put("type", "video").put("title", "B"))
+                .add(new JsonObject().put("type", "article").put("title", "C"))
+                .add(new JsonObject().put("type", "podcast").put("title", "D"));
+        var groups = JekyllFiltersExtension.groupBy(items, "type");
+        assertEquals(3, groups.size());
+        var articleGroup = (JsonObject) groups.stream()
+                .filter(g -> "article".equals(((JsonObject) g).getString("name")))
+                .findFirst().orElseThrow();
+        assertEquals(2, articleGroup.getJsonArray("items").size());
+    }
+
+    @Test
+    void testGroupByNullReturnsEmpty() {
+        var groups = JekyllFiltersExtension.groupBy(null, "type");
+        assertEquals(0, groups.size());
+    }
+
+    @Test
     void testSplitRawReturnsRawStrings() {
         var parts = JekyllFiltersExtension.splitRaw("<p>before</p>|<p>after</p>", "|");
         assertEquals(2, parts.size());

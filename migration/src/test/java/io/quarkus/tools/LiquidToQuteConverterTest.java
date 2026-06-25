@@ -69,6 +69,22 @@ class LiquidToQuteConverterTest {
     }
 
     @Test
+    void testSplitFilterWithMixedQuotesInDelimiter() {
+        String input = "{% assign parts = content | split: '<div id=\"placeholder\"></div>' %}";
+        String result = converter.convert(input);
+        assertTrue(result.contains("str:split(content, __delim"),
+                "Split delimiter containing double quotes inside single quotes must be hoisted to a {#let} variable: " + result);
+    }
+
+    @Test
+    void testSplitFilterWithParenInDelimiter() {
+        String input = "{{text | split: 'a)b'}}";
+        String result = converter.convert(input);
+        assertTrue(result.contains("str:split(text, __delim"),
+                "Split delimiter containing ) must be hoisted to a {#let} variable: " + result);
+    }
+
+    @Test
     void testDefaultBeforeSplitStripsDefault() {
         String input = "{{post.author | default: \"\" | split: \",\"}}";
         // default is stripped; .or('') added because .data.* on JsonObject returns

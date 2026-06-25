@@ -14,6 +14,7 @@ public class LiquidToQuteConverter {
     private final boolean useExtensionSyntax;
     private final String exprOpen;
     private final List<String> conversionsApplied = new ArrayList<>();
+    private final Map<String, String> splitDelimHoists = new HashMap<>();
     private boolean convertingPartials;
 
     LiquidToQuteConverter() {
@@ -31,6 +32,8 @@ public class LiquidToQuteConverter {
 
     String convert(String content) {
         String original = content;
+        splitDelimCounter = 0;
+        splitDelimHoists.clear();
 
         // Strip Liquid whitespace-trimming markers before any conversion
         content = content.replaceAll("\\{%-", "{%");
@@ -109,6 +112,9 @@ public class LiquidToQuteConverter {
         // Append .raw to output expressions containing .replace() calls.
         // Jekyll never escapes output, but Qute auto-escapes in HTML templates.
         content = appendRawToReplaceOutputs(content);
+
+        // Wrap any remaining hoisted split delimiter references in {#let}
+        content = wrapHoistedSplitDelimiters(content);
 
         // Restore raw blocks with Qute verbatim delimiters
         content = restoreRawBlocks(content, rawBlocks);
@@ -580,24 +586,69 @@ public class LiquidToQuteConverter {
         return content;
     }
 
+    private int splitDelimCounter = 0;
+
     private String convertSplitFilter(String content) {
         // Use namespace form str:split(base, delim) instead of base.split(delim).
         // Namespace extensions receive null as a regular parameter, so they handle
         // null base objects that instance extensions can't dispatch on.
-        Pattern splitPattern = Pattern.compile("([a-zA-Z0-9_\\.\"'\\[\\]()]+)\\s*\\|\\s*split:\\s*(['\"][^'\"]*['\"])");
+        // Delimiter regex: match 'content' or "content" where content can include the opposite quote
+        Pattern splitPattern = Pattern.compile(
+                "([a-zA-Z0-9_\\.\"'\\[\\]()]+)\\s*\\|\\s*split:\\s*('[^']*'|\"[^\"]*\")");
         Matcher m = splitPattern.matcher(content);
         StringBuilder sb = new StringBuilder();
         boolean found = false;
         while (m.find()) {
             String base = m.group(1);
             String delim = m.group(2);
-            m.appendReplacement(sb, Matcher.quoteReplacement("str:split(" + base + ", " + delim + ")"));
+            String delimInner = delim.substring(1, delim.length() - 1);
+            if (delimInner.contains(")") || delimInner.contains("\"")) {
+                // Qute's parser treats ) and " inside method arguments as special,
+                // even when inside a single-quoted string literal.
+                // Hoist the delimiter to a variable name — the actual {#let} is
+                // emitted by convertAssignments or the expression context.
+                String varName = "__delim" + (splitDelimCounter++ == 0 ? "" : String.valueOf(splitDelimCounter));
+                splitDelimHoists.put(varName, delim);
+                m.appendReplacement(sb, Matcher.quoteReplacement("str:split(" + base + ", " + varName + ")"));
+            } else {
+                m.appendReplacement(sb, Matcher.quoteReplacement("str:split(" + base + ", " + delim + ")"));
+            }
             found = true;
         }
         m.appendTail(sb);
         if (found) {
             conversionsApplied.add("Converted split filter");
             return sb.toString();
+        }
+        return content;
+    }
+
+    private String wrapHoistedSplitDelimiters(String content) {
+        // Find output expressions referencing hoisted delimiters that weren't
+        // already handled by convertAssignments (i.e. bare {{ x | split: ... }})
+        for (Map.Entry<String, String> entry : splitDelimHoists.entrySet()) {
+            String varName = entry.getKey();
+            String delim = entry.getValue();
+            // Match {= ... __delim ... } that is NOT already inside a {#let __delim=...}
+            String marker = varName;
+            int idx = content.indexOf(marker);
+            while (idx >= 0) {
+                // Check if this occurrence is already inside a {#let __delim=...} declaration
+                String before = content.substring(Math.max(0, idx - 200), idx);
+                if (!before.contains("{#let " + varName + "=")) {
+                    // Find the enclosing {= ... } expression
+                    int exprStart = content.lastIndexOf("{=", idx);
+                    int exprEnd = content.indexOf("}", idx);
+                    if (exprStart >= 0 && exprEnd >= 0) {
+                        content = content.substring(0, exprStart)
+                                + "{#let " + varName + "=" + delim + "}"
+                                + content.substring(exprStart, exprEnd + 1)
+                                + "{/let}"
+                                + content.substring(exprEnd + 1);
+                    }
+                }
+                idx = content.indexOf(marker, idx + marker.length() + 100);
+            }
         }
         return content;
     }
@@ -1338,10 +1389,24 @@ public class LiquidToQuteConverter {
             // {#let} expression. Convert ?: chains to .or() method calls, which
             // preserve the fallback semantics and are valid in {#let}.
             String letExpr = convertTernaryToOrChain(expr);
+
+            // If the expression references hoisted split delimiters, emit their
+            // {#let} declarations as an outer wrapper so the variable is in scope.
+            StringBuilder delimPrefix = new StringBuilder();
+            StringBuilder delimSuffix = new StringBuilder();
+            for (Map.Entry<String, String> entry : splitDelimHoists.entrySet()) {
+                if (letExpr.contains(entry.getKey())) {
+                    delimPrefix.append("{#let ").append(entry.getKey()).append("=").append(entry.getValue()).append("}");
+                    delimSuffix.append("{/let}");
+                }
+            }
+
             content = content.substring(0, assignStart)
+                    + delimPrefix
                     + "{#let " + var + "=" + letExpr + "}"
                     + content.substring(assignEnd, scopeEnd)
                     + "{/let}"
+                    + delimSuffix
                     + content.substring(scopeEnd);
         }
 

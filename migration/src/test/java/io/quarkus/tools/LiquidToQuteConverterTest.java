@@ -107,6 +107,14 @@ class LiquidToQuteConverterTest {
     }
 
     @Test
+    void testPaginatorPostsSizeGuarded() {
+        String input = "{% if paginator.posts.size > 0 %}yes{% endif %}";
+        String expected = "{#if page.paginator && site.collections.get('posts').paginated(page.paginator).size > 0}yes{/if}";
+        assertConverts(input, expected,
+                "paginator.posts.size comparison should have null guard for page.paginator");
+    }
+
+    @Test
     void testPaginatorTotalPages() {
         String input = "{% if paginator.total_pages > 1 %}yes{% endif %}";
         String expected = "{#if page.paginator && page.paginator.total > 1}yes{/if}";

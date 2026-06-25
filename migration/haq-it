@@ -114,7 +114,7 @@ find ${project_dir}/_guides ${project_dir}/_versions -type f \
 # slug collisions across version directories.
 find "${project_dir}/_versions" \( -name "*.yaml" -o -name "*.yml" \) -delete 2>/dev/null || true
 
-find "${project_dir}/_versions" \( -path "*/guides/*.adoc" -o -path "*/guides/*.md" \) 2>/dev/null | while read -r file; do
+find "${project_dir}/_versions" \( -path "*/guides/*.adoc" -o -path "*/guides/*.md" \) ! -name "guides.md" 2>/dev/null | while read -r file; do
     if head -n 1 "$file" | grep -q "^---$"; then
         # File has front matter — inject link after layout line
         sed -i '' '/^---$/,/^---$/{

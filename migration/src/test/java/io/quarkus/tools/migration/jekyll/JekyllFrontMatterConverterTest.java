@@ -245,29 +245,6 @@ class JekyllFrontMatterConverterTest {
     }
 
     @Test
-    void testPermalinkWithExistingLinkFallsBackToAliases(@TempDir Path tempDir) throws IOException {
-        Path contentDir = tempDir.resolve("content");
-        Path guidesDir = contentDir.resolve("versions/3.27/guides");
-        Files.createDirectories(guidesDir);
-        Files.writeString(guidesDir.resolve("guides.md"), """
-                ---
-                layout: documentation
-                link: /:path:ext
-                permalink: /version/3.27/guides/
-                ---
-                """);
-
-        converter.convertPermalinks(contentDir);
-
-        String result = Files.readString(guidesDir.resolve("guides.md"));
-        assertTrue(result.contains("link: /:path:ext"),
-                "existing link: should be preserved");
-        assertTrue(result.contains("aliases: /version/3.27/guides/"),
-                "permalink should become aliases when link: already exists");
-        assertFalse(result.contains("permalink:"));
-    }
-
-    @Test
     void testPermalinkAbsent(@TempDir Path tempDir) throws IOException {
         Path contentDir = tempDir.resolve("content");
         Files.createDirectories(contentDir);

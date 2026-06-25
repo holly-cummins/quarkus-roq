@@ -92,6 +92,11 @@ public class LiquidToQuteConverter {
         // Convert URL concatenation to RoqUrl methods
         content = convertUrlConcatenation(content);
 
+        // Jekyll's site.url is a plain string (e.g. "https://quarkus.io").
+        // Roq's site.url is a RoqUrl whose toString() returns the relative path.
+        // Convert remaining standalone site.url to site.url.root.url for equivalence.
+        content = convertStandaloneSiteUrl(content);
+
         // Convert page.url equality comparisons to use .path (RoqUrl is not a String)
         content = convertPageUrlComparisons(content);
 
@@ -1867,6 +1872,16 @@ public class LiquidToQuteConverter {
         }
 
         return result;
+    }
+
+    private String convertStandaloneSiteUrl(String content) {
+        String original = content;
+        // Match site.url NOT followed by a dot (method call / property access)
+        content = content.replaceAll("\\bsite\\.url\\b(?!\\.)", "site.url.root.url");
+        if (!content.equals(original)) {
+            conversionsApplied.add("Converted standalone site.url to site.url.root.url (Jekyll site.url is a base URL string)");
+        }
+        return content;
     }
 
     private String convertPageUrlComparisons(String content) {

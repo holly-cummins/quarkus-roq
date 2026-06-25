@@ -1005,9 +1005,31 @@ class LiquidToQuteConverterTest {
     @Test
     void testSiteBuiltInPropertiesNotConverted() {
         String input = "{=site.url} {=site.title} {=site.collections} {=site.pages} {=site.data}";
-        String expected = "{=site.url} {=site.title} {=site.collections} {=site.pages} {=site.data}";
+        String expected = "{=site.url.root.url} {=site.title} {=site.collections} {=site.pages} {=site.data}";
         assertConverts(input, expected,
                 "Roq Site built-in properties should not be converted to cdi:siteConfig");
+    }
+
+    @Test
+    void testStandaloneSiteUrlConvertsToAbsolute() {
+        assertConverts("<loc>{{ site.url }}/</loc>",
+                "<loc>{=site.url.root.url}/</loc>",
+                "Standalone site.url should use .root.url for absolute URL (Jekyll site.url is a base URL string)");
+    }
+
+    @Test
+    void testSiteUrlWithConcatenatedLinkUrl() {
+        assertConverts("<loc>{{ site.url }}{{ link.url }}</loc>",
+                "<loc>{=site.url.root.url}{=link.url}</loc>",
+                "site.url followed by another expression should still convert to .root.url");
+    }
+
+    @Test
+    void testSiteUrlNotConvertedWhenFollowedByMethodCall() {
+        String input = "{=site.url.resolve(page.url)}";
+        String expected = "{=site.url.resolve(page.url)}";
+        assertConverts(input, expected,
+                "site.url followed by .resolve() should not be double-converted");
     }
 
     @Test

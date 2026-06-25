@@ -518,15 +518,15 @@ class LiquidToQuteConverterTest {
     @Test
     void testDynamicBracketNotation() {
         String input = "{% assign author = site.data.authors[author_key] %}";
-        String expected = "{#let author=cdi:authors.get(author_key)}{/let}";
+        String expected = "{#let author=cdi:authors.get(author_key.or(''))}{/let}";
         assertConverts(input, expected,
-                "Dynamic bracket notation should be converted to .get() method call");
+                "Dynamic bracket notation should be converted to .get() method call with .or('')");
     }
 
     @Test
     void testDynamicBracketNotationInVariable() {
         String input = "{{ site.data.authors[key].name }}";
-        String expected = "{=cdi:authors.get(key).name}";
+        String expected = "{=cdi:authors.get(key.or('')).name}";
         assertConverts(input, expected,
                 "Bracket notation followed by property access should convert correctly");
     }
@@ -543,7 +543,7 @@ class LiquidToQuteConverterTest {
     void testAssignBracketWithDefaultPreservesOr() {
         String input = "{% assign post_author = site.data.authors[post_author] | default: post_author %}" +
                 "{% if post_author %}x{% endif %}";
-        String expected = "{#let post_author=cdi:authors.get(post_author).or(post_author)}" +
+        String expected = "{#let post_author=cdi:authors.get(post_author.or('')).or(post_author)}" +
                 "{#if post_author}x{/if}{/let}";
         assertConverts(input, expected,
                 "Bracket access with default should preserve fallback as .or()");

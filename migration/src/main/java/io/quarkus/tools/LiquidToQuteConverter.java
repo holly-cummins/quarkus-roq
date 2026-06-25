@@ -1752,6 +1752,8 @@ public class LiquidToQuteConverter {
 
         // Same for .get() arguments — JsonObjectValueResolver.get(param) casts param
         // to String, so Results$NotFound → ClassCastException.
+        // TODO: Remove .or('') workaround when Quarkus 3.38+ is the minimum version —
+        //       JsonObjectValueResolver will handle NotFound gracefully in 3.38.
         result = content.replaceAll(
                 "(\\.get\\()((page|post)\\.data\\.[a-zA-Z_][a-zA-Z0-9_]*)(\\))",
                 "$1$2.or('')$4");
@@ -1763,9 +1765,8 @@ public class LiquidToQuteConverter {
         // Also protect plain variable arguments in .get() calls — a variable from a
         // prior {#let} may hold Results$NotFound if the source expression was missing.
         // Skip string/number literals and .data.* args (already handled above).
-        result = content.replaceAll(
-                "(\\.get\\()([a-zA-Z_][a-zA-Z0-9_]*)(\\))",
-                "$1$2.or('')$3");
+        // TODO: Remove .or('') workaround when Quarkus 3.38+ is the minimum version.
+        result = addOrEmptyToGetArgs(content);
         if (!result.equals(content)) {
             conversionsApplied.add("Added .or('') to variable arguments in .get() calls");
             content = result;
@@ -1781,6 +1782,33 @@ public class LiquidToQuteConverter {
         }
 
         return result;
+    }
+
+    private String addOrEmptyToGetArgs(String content) {
+        String[] lines = content.split("\n", -1);
+        Pattern pattern = Pattern.compile("\\.get\\(([a-zA-Z_][a-zA-Z0-9_]*)\\)");
+        boolean changed = false;
+        StringBuilder result = new StringBuilder();
+
+        for (int i = 0; i < lines.length; i++) {
+            String line = lines[i];
+            Matcher m = pattern.matcher(line);
+            if (m.find()) {
+                String cleanVersion = line.trim();
+                line = pattern.matcher(line).replaceAll(".get($1.or(''))");
+                String indent = line.substring(0, line.indexOf(line.trim()));
+                result.append(indent)
+                        .append("{! TODO: Quarkus 3.38 fixes NotFound in .get() — remove .or('') to get: ")
+                        .append(cleanVersion).append(" !}\n");
+                changed = true;
+            }
+            result.append(line);
+            if (i < lines.length - 1) {
+                result.append('\n');
+            }
+        }
+
+        return changed ? result.toString() : content;
     }
 
     private String convertUrlConcatenation(String content) {

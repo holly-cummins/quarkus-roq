@@ -51,9 +51,88 @@ public class JekyllFiltersExtension {
         return result;
     }
 
+    @TemplateExtension(namespace = "list")
+    static List<Object> whereExp(Iterable<?> items, String loopVar, Object conditionsObj) {
+        List<Object> result = new ArrayList<>();
+        if (items == null) {
+            return result;
+        }
+
+        List<String> conditions;
+        if (conditionsObj instanceof String s) {
+            conditions = List.of(s);
+        } else if (conditionsObj instanceof Iterable<?> iter) {
+            conditions = new ArrayList<>();
+            for (Object o : iter) {
+                conditions.add(o.toString());
+            }
+        } else {
+            conditions = List.of(conditionsObj.toString());
+        }
+
+        String prefix = loopVar + ".";
+
+        for (Object item : items) {
+            boolean matches = true;
+            for (String condition : conditions) {
+                if (!evaluateCondition(item, prefix, condition)) {
+                    matches = false;
+                    break;
+                }
+            }
+            if (matches) {
+                result.add(item);
+            }
+        }
+        return result;
+    }
+
+    private static boolean evaluateCondition(Object item, String prefix, String condition) {
+        String[] operators = {">=", "<=", "!=", "==", ">", "<", "contains"};
+
+        for (String op : operators) {
+            int idx = condition.indexOf(" " + op + " ");
+            if (idx >= 0) {
+                String left = condition.substring(0, idx).trim();
+                String right = condition.substring(idx + op.length() + 2).trim();
+
+                String property = left.startsWith(prefix) ? left.substring(prefix.length()) : left;
+
+                if ((right.startsWith("'") && right.endsWith("'"))
+                        || (right.startsWith("\"") && right.endsWith("\""))) {
+                    right = right.substring(1, right.length() - 1);
+                }
+
+                Object propValue = getProperty(item, property);
+                String propStr = propValue != null ? propValue.toString() : null;
+
+                return compareValues(propStr, op, right);
+            }
+        }
+        return false;
+    }
+
+    private static boolean compareValues(String left, String op, String right) {
+        if (left == null) return false;
+        int cmp = left.compareTo(right);
+        return switch (op) {
+            case "==" -> cmp == 0;
+            case "!=" -> cmp != 0;
+            case ">" -> cmp > 0;
+            case ">=" -> cmp >= 0;
+            case "<" -> cmp < 0;
+            case "<=" -> cmp <= 0;
+            case "contains" -> left.contains(right);
+            default -> false;
+        };
+    }
+
     private static Object getProperty(Object obj, String property) {
         if (obj instanceof JsonObject json) {
             return json.getValue(property);
+        }
+        if (obj instanceof java.util.Map<?, ?> map) {
+            return map.get(property);
         }
         // Try getter method (getX, isX, or plain x)
         Class<?> clazz = obj.getClass();

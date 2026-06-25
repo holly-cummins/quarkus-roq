@@ -47,6 +47,7 @@ public class LiquidToQuteConverter {
         content = convertComments(content);
         content = convertVariables(content);
         content = convertFindFirstPattern(content);
+        content = collapseWhereExpAccumulatorLoop(content);
         content = convertFilters(content);
         content = convertLoops(content);
         content = convertConditionals(content);
@@ -221,6 +222,7 @@ public class LiquidToQuteConverter {
     private String convertFiltersInBlock(String block) {
         // Convert method-call filters first so concatenation filters see clean expressions
         block = convertTwoArgFilters(block);
+        block = convertWhereExpFilter(block);
         block = convertTableDrivenFilters(block);
         block = convertDateFilter(block);
         block = stripDefaultBeforeSplit(block);
@@ -364,7 +366,6 @@ public class LiquidToQuteConverter {
                 {"times", "times"},
                 {"truncate", "truncate"},
                 {"remove_first", "removeFirst"},
-                {"where_exp", "whereExp"},
         };
 
         for (String[] mapping : filterWithArgMap) {
@@ -424,6 +425,29 @@ public class LiquidToQuteConverter {
             }
         }
 
+        return content;
+    }
+
+    private String convertWhereExpFilter(String content) {
+        // Convert: base | where_exp: "loopVar", expr -> list:whereExp(base, "loopVar", expr)
+        Pattern whereExpPattern = Pattern.compile(
+                "([a-zA-Z0-9_\\.\\[\\]()]+)\\s*\\|\\s*where_exp:\\s*(\"[^\"]*\"|'[^']*')\\s*,\\s*([^|}%]+)");
+        Matcher m = whereExpPattern.matcher(content);
+        StringBuilder sb = new StringBuilder();
+        boolean found = false;
+        while (m.find()) {
+            String base = m.group(1).trim();
+            String loopVar = m.group(2).trim();
+            String expr = m.group(3).trim();
+            m.appendReplacement(sb, Matcher.quoteReplacement(
+                    "list:whereExp(" + base + ", " + loopVar + ", " + expr + ")"));
+            found = true;
+        }
+        m.appendTail(sb);
+        if (found) {
+            conversionsApplied.add("Converted where_exp to list:whereExp namespace form");
+            return sb.toString();
+        }
         return content;
     }
 
@@ -912,6 +936,34 @@ public class LiquidToQuteConverter {
 
         if (!content.equals(original)) {
             conversionsApplied.add("Converted find-first loop to list:whereNot");
+        }
+        return content;
+    }
+
+    private String collapseWhereExpAccumulatorLoop(String content) {
+        // Detect iterative where_exp filtering inside a for-loop:
+        //   {% for query in QUERIES %}
+        //     {% assign VAR = VAR | where_exp: "LOOPVAR", query %}
+        //   {% endfor %}
+        // Collapse to: {% assign VAR = list:whereExp(VAR, "LOOPVAR", QUERIES) %}
+        Pattern pattern = Pattern.compile(
+                "\\{%\\s*for\\s+(\\w+)\\s+in\\s+(.+?)\\s*%\\}" +              // 1: loop var, 2: queries list
+                "\\s*\\{%\\s*assign\\s+(\\w+)\\s*=\\s*\\3\\s*\\|\\s*" +        // 3: accumulator var (same on both sides)
+                "where_exp:\\s*(\"[^\"]*\"|'[^']*')\\s*,\\s*\\1\\s*%\\}" +     // 4: loopVar name, then loop var ref as expr
+                "\\s*\\{%\\s*endfor\\s*%\\}",
+                Pattern.DOTALL);
+
+        Matcher m = pattern.matcher(content);
+        if (m.find()) {
+            String queriesList = m.group(2).trim();
+            String accumulatorVar = m.group(3);
+            String loopVarName = m.group(4);
+
+            String replacement = "{% assign " + accumulatorVar + " = list:whereExp("
+                    + accumulatorVar + ", " + loopVarName + ", " + queriesList + ") %}";
+
+            content = content.substring(0, m.start()) + replacement + content.substring(m.end());
+            conversionsApplied.add("Collapsed where_exp accumulator loop");
         }
         return content;
     }

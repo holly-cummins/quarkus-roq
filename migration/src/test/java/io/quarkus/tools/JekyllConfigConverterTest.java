@@ -46,6 +46,17 @@ class JekyllConfigConverterTest {
     }
 
     @Test
+    void testSiteUrlFromJekyllConfig() throws IOException {
+        String configYaml = """
+                url: https://example.com
+                """;
+        Properties props = converter.createApplicationProperties(
+                new com.fasterxml.jackson.dataformat.yaml.YAMLMapper().readTree(configYaml));
+        assertEquals("https://example.com", props.getProperty("site.url"),
+                "Jekyll url should map to site.url in application.properties");
+    }
+
+    @Test
     void testStrictPropertiesOmitsOutputOriginal() {
         converter.setStrictProperties(true);
         Properties props = converter.createApplicationProperties();

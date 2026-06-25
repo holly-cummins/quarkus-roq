@@ -6,7 +6,10 @@ import org.junit.jupiter.api.Test;
 
 import java.util.List;
 
+import io.quarkus.qute.RawString;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -70,12 +73,19 @@ class JekyllFiltersExtensionTest {
 
     @Test
     void testSplitByDot() {
-        assertEquals(List.of("3", "17"), JekyllFiltersExtension.split("3.17", "."));
+        var parts = JekyllFiltersExtension.split("3.17", ".");
+        assertEquals(2, parts.size());
+        assertEquals("3", parts.get(0).toString());
+        assertEquals("17", parts.get(1).toString());
     }
 
     @Test
     void testSplitByComma() {
-        assertEquals(List.of("a", "b", "c"), JekyllFiltersExtension.split("a,b,c", ","));
+        var parts = JekyllFiltersExtension.split("a,b,c", ",");
+        assertEquals(3, parts.size());
+        assertEquals("a", parts.get(0).toString());
+        assertEquals("b", parts.get(1).toString());
+        assertEquals("c", parts.get(2).toString());
     }
 
     @Test
@@ -86,5 +96,24 @@ class JekyllFiltersExtensionTest {
     @Test
     void testSplitEmpty() {
         assertEquals(List.of(), JekyllFiltersExtension.split("", ","));
+    }
+
+    @Test
+    void testSplitReturnsRawStrings() {
+        var parts = JekyllFiltersExtension.split("<p>before</p>|<p>after</p>", "|");
+        assertEquals(2, parts.size());
+        assertInstanceOf(RawString.class, parts.get(0));
+        assertInstanceOf(RawString.class, parts.get(1));
+        assertEquals("<p>before</p>", parts.get(0).toString());
+        assertEquals("<p>after</p>", parts.get(1).toString());
+    }
+
+    @Test
+    void testSplitTrimmedReturnsRawStrings() {
+        var parts = JekyllFiltersExtension.splitTrimmed(" <p>a</p> , <p>b</p> ", ",");
+        assertEquals(2, parts.size());
+        assertInstanceOf(RawString.class, parts.get(0));
+        assertEquals("<p>a</p>", parts.get(0).toString());
+        assertEquals("<p>b</p>", parts.get(1).toString());
     }
 }

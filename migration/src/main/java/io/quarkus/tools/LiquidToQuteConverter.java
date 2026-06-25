@@ -1668,6 +1668,8 @@ public class LiquidToQuteConverter {
             // with site.pageContent(page) — matches content when used as a variable in Qute
             // expressions (after ( or , or =) but not as plain text
             content = content.replaceAll("(?<=[=(,])content(?=[,)\\s}])", "site.pageContent(page)");
+            // Page content is pre-rendered HTML — use splitRaw to prevent Qute auto-escaping
+            content = content.replace("str:split(site.pageContent(page)", "str:splitRaw(site.pageContent(page)");
         }
 
         if (!content.equals(original)) {

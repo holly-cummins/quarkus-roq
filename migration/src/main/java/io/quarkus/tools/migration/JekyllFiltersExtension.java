@@ -222,7 +222,15 @@ public class JekyllFiltersExtension {
      * Usage in Qute: {str:split(myString, ",")}
      */
     @TemplateExtension(namespace = "str")
-    static List<RawString> split(String str, String delimiter) {
+    static List<String> split(String str, String delimiter) {
+        if (str == null || str.isEmpty()) {
+            return List.of();
+        }
+        return Arrays.asList(str.split(Pattern.quote(delimiter)));
+    }
+
+    @TemplateExtension(namespace = "str")
+    static List<RawString> splitRaw(String str, String delimiter) {
         if (str == null || str.isEmpty()) {
             return List.of();
         }
@@ -238,15 +246,15 @@ public class JekyllFiltersExtension {
      * Usage in Qute: {str:splitTrimmed(myString, ",")}
      */
     @TemplateExtension(namespace = "str")
-    static List<RawString> splitTrimmed(String str, String delimiter) {
+    static List<String> splitTrimmed(String str, String delimiter) {
         if (str == null || str.isEmpty()) {
             return List.of();
         }
-        List<RawString> result = new ArrayList<>();
+        List<String> result = new ArrayList<>();
         for (String s : str.split(Pattern.quote(delimiter))) {
             String trimmed = s.trim();
             if (!trimmed.isEmpty()) {
-                result.add(new RawString(trimmed));
+                result.add(trimmed);
             }
         }
         return result;

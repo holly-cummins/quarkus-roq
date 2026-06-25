@@ -108,7 +108,14 @@ public class JekyllFrontMatterConverter {
             if (normalized.equals(effectivePath)) {
                 content = PERMALINK_LINE.matcher(content).replaceFirst("");
             } else {
-                content = PERMALINK_LINE.matcher(content).replaceFirst("aliases: " + Matcher.quoteReplacement(matcher.group(1)) + "\n");
+                // Use link: to set the page URL directly (like Jekyll permalink).
+                // But if the file already has a link: field (e.g. injected for version guides),
+                // fall back to aliases: to avoid conflicting link directives.
+                boolean hasExistingLink = Pattern.compile("^link:", Pattern.MULTILINE).matcher(content).find();
+                String replacement = hasExistingLink
+                        ? "aliases: " + Matcher.quoteReplacement(matcher.group(1)) + "\n"
+                        : "link: " + Matcher.quoteReplacement(matcher.group(1)) + "\n";
+                content = PERMALINK_LINE.matcher(content).replaceFirst(replacement);
             }
 
             Files.writeString(file, content);

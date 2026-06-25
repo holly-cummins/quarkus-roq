@@ -183,7 +183,7 @@ class JekyllFrontMatterConverterTest {
 
         String result = Files.readString(contentDir.resolve("about.md"));
         assertFalse(result.contains("permalink:"));
-        assertFalse(result.contains("aliases:"));
+        assertFalse(result.contains("link:"));
         assertTrue(result.contains("layout: page"));
         assertTrue(result.contains("title: \"About\""));
     }
@@ -203,8 +203,8 @@ class JekyllFrontMatterConverterTest {
         converter.convertPermalinks(contentDir);
 
         String result = Files.readString(guidesDir.resolve("guides.md"));
-        assertTrue(result.contains("aliases: /guides/"),
-                "permalink /guides/ should become alias because relative path is guides/guides, not guides");
+        assertTrue(result.contains("link: /guides/"),
+                "permalink /guides/ should become link because relative path is guides/guides, not guides");
         assertFalse(result.contains("permalink:"));
     }
 
@@ -240,7 +240,30 @@ class JekyllFrontMatterConverterTest {
         converter.convertPermalinks(contentDir);
 
         String result = Files.readString(contentDir.resolve("events.md"));
-        assertTrue(result.contains("aliases: /community/events/"));
+        assertTrue(result.contains("link: /community/events/"));
+        assertFalse(result.contains("permalink:"));
+    }
+
+    @Test
+    void testPermalinkWithExistingLinkFallsBackToAliases(@TempDir Path tempDir) throws IOException {
+        Path contentDir = tempDir.resolve("content");
+        Path guidesDir = contentDir.resolve("versions/3.27/guides");
+        Files.createDirectories(guidesDir);
+        Files.writeString(guidesDir.resolve("guides.md"), """
+                ---
+                layout: documentation
+                link: /:path:ext
+                permalink: /version/3.27/guides/
+                ---
+                """);
+
+        converter.convertPermalinks(contentDir);
+
+        String result = Files.readString(guidesDir.resolve("guides.md"));
+        assertTrue(result.contains("link: /:path:ext"),
+                "existing link: should be preserved");
+        assertTrue(result.contains("aliases: /version/3.27/guides/"),
+                "permalink should become aliases when link: already exists");
         assertFalse(result.contains("permalink:"));
     }
 
@@ -275,7 +298,7 @@ class JekyllFrontMatterConverterTest {
 
         String result = Files.readString(contentDir.resolve("about.md"));
         assertFalse(result.contains("permalink:"));
-        assertFalse(result.contains("aliases:"));
+        assertFalse(result.contains("link:"));
     }
 
     // --- Redirect deduplication tests ---
@@ -382,8 +405,8 @@ class JekyllFrontMatterConverterTest {
         converter.convertProject(tempDir);
 
         String result = Files.readString(guidesDir.resolve("guides.md"));
-        assertTrue(result.contains("aliases: /guides/"),
-                "permalink /guides/ in _guides/guides.md should become alias because " +
+        assertTrue(result.contains("link: /guides/"),
+                "permalink /guides/ in _guides/guides.md should become link because " +
                 "post-move path guides/guides != guides");
         assertFalse(result.contains("permalink:"));
     }
@@ -405,7 +428,7 @@ class JekyllFrontMatterConverterTest {
 
         String result = Files.readString(guidesDir.resolve("foo.md"));
         assertFalse(result.contains("permalink:"), "redundant permalink should be stripped");
-        assertFalse(result.contains("aliases:"), "redundant permalink should not become alias");
+        assertFalse(result.contains("link:"), "redundant permalink should not become link");
     }
 
     // --- Integration test ---

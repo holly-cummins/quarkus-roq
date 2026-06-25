@@ -4,6 +4,8 @@ import java.time.LocalDateTime;
 
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -64,5 +66,25 @@ class JekyllFiltersExtensionTest {
     @Test
     void testCapitalizeNull() {
         assertNull(JekyllFiltersExtension.capitalize(null));
+    }
+
+    @Test
+    void testSplitByDot() {
+        assertEquals(List.of("3", "17"), JekyllFiltersExtension.split("3.17", "."));
+    }
+
+    @Test
+    void testSplitByComma() {
+        assertEquals(List.of("a", "b", "c"), JekyllFiltersExtension.split("a,b,c", ","));
+    }
+
+    @Test
+    void testSplitNull() {
+        assertEquals(List.of(), JekyllFiltersExtension.split(null, ","));
+    }
+
+    @Test
+    void testSplitEmpty() {
+        assertEquals(List.of(), JekyllFiltersExtension.split("", ","));
     }
 }

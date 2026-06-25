@@ -7,7 +7,9 @@ import io.vertx.core.json.JsonObject;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
+import java.lang.reflect.Method;
 import java.util.ArrayList;
+import java.util.regex.Pattern;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
@@ -23,6 +25,48 @@ public class JekyllFiltersExtension {
             return null;
         }
         return obj.getValue(key);
+    }
+
+    /**
+     * Filter items where the given boolean property is falsy.
+     * Converts the Liquid pattern: for item in list / unless item.prop / unless guard / assign / endunless / endunless / endfor
+     * Usage in Qute: {list:whereNot(myList, 'upcoming')}
+     */
+    @TemplateExtension(namespace = "list")
+    static List<Object> whereNot(Iterable<?> items, String property) {
+        List<Object> result = new ArrayList<>();
+        if (items == null) {
+            return result;
+        }
+        for (Object item : items) {
+            try {
+                Object value = getProperty(item, property);
+                if (value == null || Boolean.FALSE.equals(value) || "false".equals(value.toString())) {
+                    result.add(item);
+                }
+            } catch (Exception e) {
+                result.add(item);
+            }
+        }
+        return result;
+    }
+
+    private static Object getProperty(Object obj, String property) {
+        if (obj instanceof JsonObject json) {
+            return json.getValue(property);
+        }
+        // Try getter method (getX, isX, or plain x)
+        Class<?> clazz = obj.getClass();
+        for (String prefix : new String[]{"get", "is", ""}) {
+            String methodName = prefix.isEmpty() ? property
+                    : prefix + Character.toUpperCase(property.charAt(0)) + property.substring(1);
+            try {
+                Method m = clazz.getMethod(methodName);
+                return m.invoke(obj);
+            } catch (Exception ignored) {
+            }
+        }
+        return null;
     }
 
     /**
@@ -182,7 +226,7 @@ public class JekyllFiltersExtension {
         if (str == null || str.isEmpty()) {
             return List.of();
         }
-        return Arrays.asList(str.split(delimiter));
+        return Arrays.asList(str.split(Pattern.quote(delimiter)));
     }
 
     /**
@@ -197,7 +241,7 @@ public class JekyllFiltersExtension {
             return List.of();
         }
         List<String> result = new ArrayList<>();
-        for (String s : str.split(delimiter)) {
+        for (String s : str.split(Pattern.quote(delimiter))) {
             String trimmed = s.trim();
             if (!trimmed.isEmpty()) {
                 result.add(trimmed);

@@ -52,10 +52,9 @@ public class JekyllFiltersExtension {
     }
 
     @TemplateExtension(namespace = "list")
-    static List<Object> whereExp(Iterable<?> items, String loopVar, Object conditionsObj) {
-        List<Object> result = new ArrayList<>();
+    static Object whereExp(Iterable<?> items, String loopVar, Object conditionsObj) {
         if (items == null) {
-            return result;
+            return new ArrayList<>();
         }
 
         List<String> conditions;
@@ -71,6 +70,8 @@ public class JekyllFiltersExtension {
         }
 
         String prefix = loopVar + ".";
+        boolean isJsonArray = items instanceof JsonArray;
+        List<Object> result = isJsonArray ? new JsonArray().getList() : new ArrayList<>();
 
         for (Object item : items) {
             boolean matches = true;
@@ -84,7 +85,7 @@ public class JekyllFiltersExtension {
                 result.add(item);
             }
         }
-        return result;
+        return isJsonArray ? new JsonArray(result) : result;
     }
 
     private static boolean evaluateCondition(Object item, String prefix, String condition) {

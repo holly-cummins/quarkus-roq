@@ -72,8 +72,40 @@ class LiquidToQuteConverterTest {
     void testSplitFilterWithMixedQuotesInDelimiter() {
         String input = "{% assign parts = content | split: '<div id=\"placeholder\"></div>' %}";
         String result = converter.convert(input);
-        assertTrue(result.contains("str:split(content, __delim"),
-                "Split delimiter containing double quotes inside single quotes must be hoisted to a {#let} variable: " + result);
+        assertTrue(result.contains("str:split(site.pageContent(page), __delim"),
+                "In layouts, content variable should become site.pageContent(page): " + result);
+    }
+
+    @Test
+    void testContentVariableInLayoutBecomesSitePageContent() {
+        String input = "{% assign parts = content | split: ',' %}{{ parts[0] }}";
+        String result = converter.convert(input);
+        assertTrue(result.contains("str:split(site.pageContent(page),"),
+                "In layouts, content used as a variable should become site.pageContent(page): " + result);
+    }
+
+    @Test
+    void testFindFirstPatternConvertsToWhereNot() {
+        String input = String.join("\n",
+                "{%- assign latest_version = nil -%}",
+                "{%- for release in site.data.releases.releases -%}",
+                "  {%- unless release.upcoming -%}",
+                "    {%- unless latest_version -%}",
+                "      {%- assign latest_version = release.version -%}",
+                "      {%- assign latest_major = release.version | split: '.' | first -%}",
+                "    {%- endunless -%}",
+                "  {%- endunless -%}",
+                "{%- endfor -%}",
+                "Latest {{ latest_major }}.x");
+        String result = converter.convert(input);
+        assertTrue(result.contains("list:whereNot("),
+                "Find-first pattern should use list:whereNot: " + result);
+        assertTrue(result.contains("latest_major"),
+                "Should preserve latest_major variable: " + result);
+        assertFalse(result.contains("{#for"),
+                "Find-first loop should be eliminated: " + result);
+        assertTrue(result.contains("Latest") && result.contains(".x"),
+                "Surrounding content should be preserved: " + result);
     }
 
     @Test

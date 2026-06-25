@@ -81,6 +81,9 @@ git cherry-pick aa625cc2a6 || git cherry-pick --abort
 # Add fragment anchor validation test (test/fragment-anchor-validation)
 git cherry-pick 020721c917 || git cherry-pick --abort
 
+# Tighten security page test to require a version number before .x
+git cherry-pick 8f13d48a9e || git cherry-pick --abort
+
 )
 
 

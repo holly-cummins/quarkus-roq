@@ -81,6 +81,7 @@ rm ${project_dir}/Gemfile.lock
 # Roq content lives in content
 mkdir -p ${project_dir}/content
 mv ${project_dir}/*md ${project_dir}/content/
+mv ${project_dir}/*.adoc ${project_dir}/content/ 2>/dev/null || true
 
 
 mkdir -p ${project_dir}/templates

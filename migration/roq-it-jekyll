@@ -190,20 +190,6 @@ find ${project_dir}/web -name '*.scss' -exec \
 find ${project_dir}/templates/partials -name '*.html' -exec \
     sed -i '' 's/{=\([a-z_][a-z_0-9]*\)}/{=\1??}/g' {} +
 
-# Comment out blocks using whereExp (no Qute equivalent)
-python3 -c "
-import re, glob, os
-for f in glob.glob(os.path.join('${project_dir}', 'templates', '**', '*.html'), recursive=True) + \
-         glob.glob(os.path.join('${project_dir}', 'includes', '**', '*.html'), recursive=True):
-    with open(f) as fh: content = fh.read()
-    if 'whereExp' not in content: continue
-    # Find the nearest enclosing {#if ...} ... {/if} around whereExp and comment it out
-    content = re.sub(
-        r'(\{#if [^}]*\}(?:(?!\{#if ).)*?whereExp.*?\{/if\})',
-        r'{! TODO: whereExp needs Roq reimplementation\n\1\n!}',
-        content, flags=re.DOTALL)
-    with open(f, 'w') as fh: fh.write(content)
-"
 
 # Detect Jekyll features and add corresponding Roq plugins
 

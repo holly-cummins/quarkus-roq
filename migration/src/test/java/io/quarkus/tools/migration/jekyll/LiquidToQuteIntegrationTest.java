@@ -1,6 +1,10 @@
 package io.quarkus.tools.migration.jekyll;
 
-import static org.junit.jupiter.api.Assertions.fail;
+import io.quarkus.qute.Engine;
+import io.quarkus.qute.TemplateException;
+import io.quarkus.tools.LiquidToQuteConverter;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 
 import java.io.IOException;
 import java.net.URISyntaxException;
@@ -9,12 +13,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.stream.Stream;
 
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.MethodSource;
-
-import io.quarkus.qute.Engine;
-import io.quarkus.qute.TemplateException;
-import io.quarkus.tools.LiquidToQuteConverter;
+import static org.junit.jupiter.api.Assertions.fail;
 
 class LiquidToQuteIntegrationTest {
 

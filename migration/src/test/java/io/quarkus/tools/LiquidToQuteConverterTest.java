@@ -109,6 +109,29 @@ class LiquidToQuteConverterTest {
     }
 
     @Test
+    void testWhereExpConvertsToNamespaceForm() {
+        String input = "{% assign filtered = items | where_exp: \"item\", \"item.active == 'true'\" %}";
+        String result = converter.convert(input);
+        assertTrue(result.contains("list:whereExp("),
+                "where_exp should use list:whereExp namespace form: " + result);
+    }
+
+    @Test
+    void testWhereExpAccumulatorLoopCollapsed() {
+        String input = String.join("\n",
+                "{% for query in page.bibquery %}",
+                "  {% assign publications = publications | where_exp: \"pub\", query %}",
+                "{% endfor %}");
+        String result = converter.convert(input);
+        assertTrue(result.contains("list:whereExp("),
+                "Accumulator loop should collapse to list:whereExp: " + result);
+        assertFalse(result.contains("{#for"),
+                "Accumulator loop should be eliminated: " + result);
+        assertTrue(result.contains("page.data.bibquery") || result.contains("page.bibquery"),
+                "Should reference the query list directly: " + result);
+    }
+
+    @Test
     void testSplitFilterWithParenInDelimiter() {
         String input = "{{text | split: 'a)b'}}";
         String result = converter.convert(input);

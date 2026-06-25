@@ -1,6 +1,7 @@
 package io.quarkus.tools.migration;
 
 import java.time.LocalDateTime;
+import java.util.Map;
 
 import org.junit.jupiter.api.Test;
 
@@ -89,6 +90,63 @@ class JekyllFiltersExtensionTest {
     @Test
     void testSplitEmpty() {
         assertEquals(List.of(), JekyllFiltersExtension.split("", ","));
+    }
+
+    @Test
+    void testWhereExpSingleConditionGreaterThan() {
+        var items = List.of(
+                Map.of("urldate", "2021-09-14", "title", "A"),
+                Map.of("urldate", "2021-10-01", "title", "B"),
+                Map.of("urldate", "2021-08-01", "title", "C"));
+        var result = JekyllFiltersExtension.whereExp(items, "pub", "pub.urldate > '2021-09-01'");
+        assertEquals(2, result.size());
+    }
+
+    @Test
+    void testWhereExpSingleConditionLessThanOrEqual() {
+        var items = List.of(
+                Map.of("urldate", "2021-09-14", "title", "A"),
+                Map.of("urldate", "2021-10-01", "title", "B"));
+        var result = JekyllFiltersExtension.whereExp(items, "pub", "pub.urldate <= '2021-09-14'");
+        assertEquals(1, result.size());
+    }
+
+    @Test
+    void testWhereExpMultipleConditions() {
+        var items = List.of(
+                Map.of("urldate", "2021-08-01"),
+                Map.of("urldate", "2021-09-14"),
+                Map.of("urldate", "2021-10-01"),
+                Map.of("urldate", "2021-11-01"));
+        var result = JekyllFiltersExtension.whereExp(items, "pub",
+                List.of("pub.urldate > '2021-09-01'", "pub.urldate <= '2021-10-01'"));
+        assertEquals(2, result.size());
+    }
+
+    @Test
+    void testWhereExpNullItems() {
+        var result = JekyllFiltersExtension.whereExp(null, "pub", "pub.date > '2021-01-01'");
+        assertEquals(List.of(), result);
+    }
+
+    @Test
+    void testWhereExpEquals() {
+        var items = List.of(
+                Map.of("type", "article"),
+                Map.of("type", "video"),
+                Map.of("type", "article"));
+        var result = JekyllFiltersExtension.whereExp(items, "item", "item.type == 'article'");
+        assertEquals(2, result.size());
+    }
+
+    @Test
+    void testWhereExpGreaterThanOrEqual() {
+        var items = List.of(
+                Map.of("urldate", "2021-09-01"),
+                Map.of("urldate", "2021-09-14"),
+                Map.of("urldate", "2021-08-01"));
+        var result = JekyllFiltersExtension.whereExp(items, "pub", "pub.urldate >= '2021-09-01'");
+        assertEquals(2, result.size());
     }
 
     @Test

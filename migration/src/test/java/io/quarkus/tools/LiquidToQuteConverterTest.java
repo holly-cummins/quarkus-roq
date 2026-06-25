@@ -72,16 +72,16 @@ class LiquidToQuteConverterTest {
     void testSplitFilterWithMixedQuotesInDelimiter() {
         String input = "{% assign parts = content | split: '<div id=\"placeholder\"></div>' %}";
         String result = converter.convert(input);
-        assertTrue(result.contains("str:split(site.pageContent(page), __delim"),
-                "In layouts, content variable should become site.pageContent(page): " + result);
+        assertTrue(result.contains("str:splitRaw(site.pageContent(page), __delim"),
+                "Split of page content should use splitRaw to prevent HTML escaping: " + result);
     }
 
     @Test
     void testContentVariableInLayoutBecomesSitePageContent() {
         String input = "{% assign parts = content | split: ',' %}{{ parts[0] }}";
         String result = converter.convert(input);
-        assertTrue(result.contains("str:split(site.pageContent(page),"),
-                "In layouts, content used as a variable should become site.pageContent(page): " + result);
+        assertTrue(result.contains("str:splitRaw(site.pageContent(page),"),
+                "Split of page content should use splitRaw to prevent HTML escaping: " + result);
     }
 
     @Test

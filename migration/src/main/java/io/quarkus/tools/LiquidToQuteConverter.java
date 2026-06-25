@@ -823,6 +823,11 @@ public class LiquidToQuteConverter {
         Pattern pattern = Pattern.compile("(\\{#(?:if|else if) )(?!page\\.paginator &&)(page\\.paginator\\.[^}]+\\})");
         content = pattern.matcher(content).replaceAll("$1page.paginator && $2");
 
+        // Also guard conditionals using paginated(page.paginator) — e.g. .size > 0 comparisons
+        Pattern paginatedGuard = Pattern.compile(
+                "(\\{#(?:if|else if) )(?!page\\.paginator &&)(.*?paginated\\(page\\.paginator\\).*?\\})");
+        content = paginatedGuard.matcher(content).replaceAll("$1page.paginator && $2");
+
         if (!content.equals(original)) {
             conversionsApplied.add("Converted Jekyll paginator to Roq pagination");
         }

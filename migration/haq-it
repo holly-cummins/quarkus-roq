@@ -186,6 +186,15 @@ sed -i '' '/<profiles>/a\
 
 
 if [ "${BATCH_MODE}" = "true" ]; then
+    # SSG build: render all pages like CI does (quarkus:run with BATCH=true)
+    # This catches errors that dev mode misses since it renders every route.
+    echo "=== SSG build (quarkus:run) ==="
+    (cd ${project_dir} && QUARKUS_ROQ_GENERATOR_BATCH=true mvn -B package quarkus:run -DskipTests \
+        > ${tmp_dir}/roq-ssg.log 2>&1) || true
+    SSG_ERRORS=$(grep -c 'ERROR' ${tmp_dir}/roq-ssg.log 2>/dev/null || echo 0)
+    echo "SSG build complete — ${SSG_ERRORS} error lines (see ${tmp_dir}/roq-ssg.log)"
+    grep 'ERROR' ${tmp_dir}/roq-ssg.log | head -10
+
     # Install Playwright browsers
     (cd ${project_dir} && mvn exec:java -e -Dexec.classpathScope=test \
         -Dexec.mainClass=com.microsoft.playwright.CLI \

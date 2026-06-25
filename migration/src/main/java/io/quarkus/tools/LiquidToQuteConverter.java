@@ -17,11 +17,11 @@ public class LiquidToQuteConverter {
     private final Map<String, String> splitDelimHoists = new HashMap<>();
     private boolean convertingPartials;
 
-    LiquidToQuteConverter() {
+    public LiquidToQuteConverter() {
         this(true);
     }
 
-    LiquidToQuteConverter(boolean useExtensionSyntax) {
+    public LiquidToQuteConverter(boolean useExtensionSyntax) {
         this.useExtensionSyntax = useExtensionSyntax;
         this.exprOpen = useExtensionSyntax ? "{=" : "{";
     }
@@ -30,7 +30,7 @@ public class LiquidToQuteConverter {
         this.convertingPartials = convertingPartials;
     }
 
-    String convert(String content) {
+    public String convert(String content) {
         String original = content;
         splitDelimCounter = 0;
         splitDelimHoists.clear();
@@ -1600,9 +1600,30 @@ public class LiquidToQuteConverter {
                     "{#for " + iterVar + " in str:splitTrimmed(" + splitExpr + ").orEmpty}" +
                     iterBody + "{/for}";
 
-            // Remove the trailing {/let}{/let} that closed rawVar and cleanVar
+            // Remove the {/let}{/let} that closed rawVar and cleanVar.
+            // Track {#let}/{/let} depth to skip nested let blocks (e.g. inside
+            // an {#if} further down the template).
             String afterFor = content.substring(iterForEnd + "{/for}".length());
-            afterFor = afterFor.replaceFirst("\\{/let\\}\\{/let\\}", "");
+            int letDepth = 0;
+            int closerStart = -1;
+            int closersNeeded = 2;
+            Pattern letTag = Pattern.compile("\\{#let\\b|\\{/let\\}");
+            Matcher letMatcher = letTag.matcher(afterFor);
+            while (letMatcher.find()) {
+                if (letMatcher.group().startsWith("{#let")) {
+                    letDepth++;
+                } else {
+                    letDepth--;
+                    if (letDepth < 0) {
+                        if (closerStart < 0) closerStart = letMatcher.start();
+                        closersNeeded--;
+                        if (closersNeeded == 0) {
+                            afterFor = afterFor.substring(0, closerStart) + afterFor.substring(letMatcher.end());
+                            break;
+                        }
+                    }
+                }
+            }
 
             content = content.substring(0, initStart) + replacement + afterFor;
         }

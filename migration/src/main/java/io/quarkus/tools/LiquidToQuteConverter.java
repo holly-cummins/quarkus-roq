@@ -83,6 +83,9 @@ public class LiquidToQuteConverter {
         // Convert custom page frontmatter fields to page.data.*
         content = convertCustomPageFields(content);
 
+        // Convert Jekyll autopages variables to Roq from-data equivalents
+        content = convertAutopagesVariables(content);
+
         // Make page.data.* references lenient — custom frontmatter may not exist on every page
         content = makePageDataLenient(content);
 
@@ -1709,6 +1712,22 @@ public class LiquidToQuteConverter {
             sb.append(JekyllConfigConverter.hyphenToCamelCase(segments[i]));
         }
         return sb.toString();
+    }
+
+    private String convertAutopagesVariables(String content) {
+        String original = content;
+        // Jekyll paginate-v2 autopages injects page.pagination.author_data (the author's
+        // data hash) and page.pagination.author (the author key). After convertCustomPageFields
+        // these become page.data.pagination.author_data and page.data.pagination.author.
+        // In Roq, from-data pages put the data fields directly on page.data, and the
+        // YAML map key is available as page.data._key (when id-key=_key).
+        // Replace longer match first to avoid partial substitution.
+        content = content.replace("page.data.pagination.author_data", "page.data");
+        content = content.replace("page.data.pagination.author", "page.data._key");
+        if (!content.equals(original)) {
+            conversionsApplied.add("Converted Jekyll autopages author variables to Roq from-data");
+        }
+        return content;
     }
 
     private String convertCustomPageFields(String content) {

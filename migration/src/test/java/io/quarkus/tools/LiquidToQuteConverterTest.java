@@ -155,6 +155,14 @@ class LiquidToQuteConverterTest {
     }
 
     @Test
+    void testAutopagesAuthorVariables() {
+        String input = "{% assign author_data = page.pagination.author_data %}{% assign author_id = page.pagination.author %}{{author_data.name}} ({{author_id}})";
+        String expected = "{#let author_data=page.data}{#let author_id=page.data._key}{=author_data.name} ({=author_id}){/let}{/let}";
+        assertConverts(input, expected,
+                "Jekyll autopages author variables should convert to Roq from-data equivalents");
+    }
+
+    @Test
     void testForLoop() {
         String input = "{% for item in items %}{{item}}{% endfor %}";
         String expected = "{#for item in items.orEmpty}{=item}{/for}";

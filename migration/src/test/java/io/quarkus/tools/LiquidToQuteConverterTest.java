@@ -571,7 +571,7 @@ class LiquidToQuteConverterTest {
     @Test
     void testReplaceRegexFilter() {
         String input = "{{page.url | replace_regex: '^/version/([^/]+)/.*', '\\1'}}";
-        String expected = "{=page.url.replaceAll('^/version/([^/]+)/.*', '$1')}";
+        String expected = "{=page.url.path.replaceAll('^/version/([^/]+)/.*', '$1')}";
         assertConverts(input, expected,
                 "replace_regex filter should convert to .replaceAll() with Java backreference syntax");
     }
@@ -988,7 +988,7 @@ class LiquidToQuteConverterTest {
     @Test
     void testReplaceRegexWithPrependChain() {
         String input = "{% assign x = page.url | replace_regex: '^/version/([^/]+)/.*', '\\1' | prepend: ' - ' %}";
-        String expected = "{#let x=' - ' + page.url.replaceAll('^/version/([^/]+)/.*', '$1')}{/let}";
+        String expected = "{#let x=' - ' + page.url.path.replaceAll('^/version/([^/]+)/.*', '$1')}{/let}";
         assertConverts(input, expected,
                 "replace_regex chained with prepend should produce valid method call");
     }
@@ -1260,7 +1260,7 @@ class LiquidToQuteConverterTest {
         // Qute {#let} does NOT support ternary — trailing content is duplicated into both branches
         assertTrue(result.contains("{#if page.data.layout == 'guides'"),
                 "If/else should be preserved: " + result);
-        assertTrue(result.contains("canonical_url=page.url.replace('foo', '')"),
+        assertTrue(result.contains("canonical_url=page.url.path.replace('foo', '')"),
                 "If branch should have scoped let with filter: " + result);
         // Trailing <link> line should appear in both branches
         int firstLink = result.indexOf("<link rel=\"canonical\"");

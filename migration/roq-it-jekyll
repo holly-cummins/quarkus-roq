@@ -205,6 +205,16 @@ if find ${project_dir}/src/test -name "*.java" -exec grep -l "playwright\|Playwr
         -Dextensions="io.quarkiverse.playwright:quarkus-playwright")
 fi
 
+# Inject properties that quarkus-roq POMs reference via ${...} but that only resolve
+# through the parent POM chain (which roq-create-generated standalone POMs don't have).
+# Harmless for releases — the parent chain already provides them.
+if [ "${ROQ_VERSION}" = "999-SNAPSHOT" ]; then
+    sed -i '' '/<skipITs>/a\
+\        <quarkus-web-bundler.version>2.3.2</quarkus-web-bundler.version>\
+\        <asciidoctorj-diagram.version>3.2.1</asciidoctorj-diagram.version>
+' ${project_dir}/pom.xml
+fi
+
 # TODO need to add name and simple-name - global config?
 
 if [ "${BATCH_MODE}" != "true" ]; then

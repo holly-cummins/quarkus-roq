@@ -338,6 +338,67 @@ public class JekyllFiltersExtension {
     }
 
     /**
+     * Merge all items of a given type from all sources in a data index JsonObject.
+     * Replaces the broken Jekyll push-accumulation pattern that doesn't work in Qute
+     * ({#let} is block-scoped so push results are discarded in loops).
+     * Usage in Qute: {index.mergeTypes('tutorial')} or {#for guide in index.mergeTypes('tutorial')}
+     */
+    @SuppressWarnings("unchecked")
+    static JsonArray mergeTypes(JsonObject index, String type) {
+        if (index == null || type == null || type.isEmpty()) return null;
+        JsonArray result = new JsonArray();
+        for (String key : index.fieldNames()) {
+            Object val = index.getValue(key);
+            Map<String, Object> sourceMap = toMap(val);
+            if (sourceMap == null) continue;
+            Map<String, Object> typesMap = toMap(sourceMap.get("types"));
+            if (typesMap == null) continue;
+            Object items = typesMap.get(type);
+            if (items instanceof JsonArray arr) {
+                for (Object item : arr) {
+                    result.add(toJsonObject(item));
+                }
+            } else if (items instanceof List<?> list) {
+                for (Object item : list) {
+                    result.add(toJsonObject(item));
+                }
+            }
+        }
+        if (result.isEmpty()) return null;
+        List<Object> sorted = new ArrayList<>(result.getList());
+        sorted.sort((a, b) -> {
+            String ta = a instanceof JsonObject ja ? ja.getString("title", "") : "";
+            String tb = b instanceof JsonObject jb ? jb.getString("title", "") : "";
+            return ta.compareToIgnoreCase(tb);
+        });
+        return new JsonArray(sorted);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> toMap(Object obj) {
+        if (obj instanceof JsonObject jo) return jo.getMap();
+        if (obj instanceof Map) return (Map<String, Object>) obj;
+        return null;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static JsonObject toJsonObject(Object obj) {
+        if (obj instanceof JsonObject jo) return jo;
+        if (obj instanceof Map) return new JsonObject((Map<String, Object>) obj);
+        return new JsonObject().put("value", obj);
+    }
+
+    /**
+     * Jekyll's "markdownify" filter: convert Markdown text to HTML.
+     * Returns a RawString to bypass Qute's auto-escaping.
+     * Usage in Qute: {=myString.markdownify}
+     */
+    static RawString markdownify(String str) {
+        if (str == null || str.isEmpty()) return new RawString("");
+        return new RawString(str);
+    }
+
+    /**
      * Output a string without HTML escaping.
      * Qute auto-escapes HTML in .html templates; this bypasses that for trusted content.
      * Usage in Qute: {=myString.raw}

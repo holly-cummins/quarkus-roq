@@ -603,11 +603,11 @@ class LiquidToQuteConverterTest {
     @Test
     void testPrependFilter() {
         // Liquid: {{ path | prepend: site.baseurl }}
-        // Qute: cdi:siteConfig.baseurl + path (prepend = concatenate before, siteConfig from data/siteConfig.yml)
+        // site.baseurl is removed (Roq has no baseurl concept), empty concat cleaned up
         String input = "{{paginator.next_page_path | prepend: site.baseurl}}";
-        String expected = "{=cdi:siteConfig.baseurl + page.paginator.next}";
+        String expected = "{=page.paginator.next}";
         assertConverts(input, expected,
-                "Prepend filter should convert to string concatenation with CDI reference for site.baseurl");
+                "Prepend with site.baseurl should simplify to just the expression");
     }
 
     @Test
@@ -1044,9 +1044,9 @@ class LiquidToQuteConverterTest {
     @Test
     void testSiteBaseurlConvertsToCdi() {
         String input = "<a href=\"{{site.baseurl}}/path\">Link</a>";
-        String expected = "<a href=\"{=cdi:siteConfig.baseurl}/path\">Link</a>";
+        String expected = "<a href=\"{=''}/path\">Link</a>";
         assertConverts(input, expected,
-                "site.baseurl should convert to CDI reference");
+                "site.baseurl should convert to empty string (Roq has no baseurl)");
     }
 
     @Test
@@ -1060,9 +1060,9 @@ class LiquidToQuteConverterTest {
     @Test
     void testSiteBaseurlInConditional() {
         String input = "{% if site.baseurl %}<base href=\"{{site.baseurl}}\">{% endif %}";
-        String expected = "{#if cdi:siteConfig.baseurl}<base href=\"{=cdi:siteConfig.baseurl}\">{/if}";
+        String expected = "{#if ''}<base href=\"{=''}\">{/if}";
         assertConverts(input, expected,
-                "site.baseurl in conditionals should convert to CDI reference");
+                "site.baseurl in conditionals should convert to empty string");
     }
 
     @Test
@@ -1223,6 +1223,15 @@ class LiquidToQuteConverterTest {
     }
 
     @Test
+    void testSiteDataWithBracketAccessConvertsToeCdi() {
+        assertConverts("{% if site.data.versioned[docversion_index].index %}yes{% endif %}",
+                "{! TODO: Quarkus 3.38 fixes NotFound in .get() — remove .or('') to get: " +
+                        "{#if cdi:versioned.get(docversion_index).index}yes{/if} !}\n" +
+                        "{#if cdi:versioned.get(docversion_index.or('')).index}yes{/if}",
+                "site.data.X[var] should convert to cdi:X.get(var)");
+    }
+
+    @Test
     void testContainsInIfCondition() {
         assertConverts("{% if page.url contains '/guides/' %}yes{% endif %}",
                 "{#if page.url.contains('/guides/')}yes{/if}",
@@ -1263,22 +1272,22 @@ class LiquidToQuteConverterTest {
     @Test
     void testRelativeUrlFilter() {
         String input = "{{ '/assets/javascript/highlight.pack.js' | relative_url }}";
-        String expected = "{=cdi:siteConfig.baseurl + '/assets/javascript/highlight.pack.js'}";
-        assertConverts(input, expected, "relative_url filter should prepend baseurl");
+        String expected = "{='/assets/javascript/highlight.pack.js'}";
+        assertConverts(input, expected, "relative_url filter is a no-op in Roq");
     }
 
     @Test
     void testRelativeUrlFilterWithVariable() {
         String input = "{{ page.url | relative_url }}";
-        String expected = "{=cdi:siteConfig.baseurl + page.url}";
-        assertConverts(input, expected, "relative_url filter on variable should prepend baseurl");
+        String expected = "{=page.url}";
+        assertConverts(input, expected, "relative_url filter on variable is a no-op in Roq");
     }
 
     @Test
     void testAbsoluteUrlFilter() {
         String input = "{{ '/feed.xml' | absolute_url }}";
-        String expected = "{=cdi:siteConfig.baseurl + '/feed.xml'}";
-        assertConverts(input, expected, "absolute_url filter should prepend baseurl");
+        String expected = "{='/feed.xml'}";
+        assertConverts(input, expected, "absolute_url filter is a no-op in Roq");
     }
 
     @Test
@@ -1466,5 +1475,24 @@ class LiquidToQuteConverterTest {
                 "group_by | sort should chain as .groupBy(arg).sort(arg), not nest sort inside groupBy arg: " + result);
         assertFalse(result.contains("group_by.sort("),
                 "sort should not be nested inside the groupBy argument: " + result);
+    }
+
+    @Test
+    void testPushInNestedLoopCollapsedToMergeTypes() {
+        String input = "{% assign v_type = include.type %}\n" +
+                "{% assign values = \"\" | split: \",\" %}\n" +
+                "{% for source in index -%}\n" +
+                "    {% for item in source[1].types[v_type] -%}\n" +
+                "        {% assign values = values | push: item %}\n" +
+                "    {% endfor -%}\n" +
+                "{% endfor -%}\n" +
+                "{% assign values = values | sort: 'title' %}";
+        String result = converter.convert(input);
+        assertTrue(result.contains("mergeTypes("),
+                "Nested push-in-loop with sort should collapse to mergeTypes(): " + result);
+        assertFalse(result.contains(".push("),
+                "push() should be eliminated by mergeTypes collapse: " + result);
+        assertFalse(result.contains(".sort("),
+                "sort() should be eliminated by mergeTypes collapse (sorting is built-in): " + result);
     }
 }

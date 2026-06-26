@@ -149,16 +149,6 @@ mvn -f ${tools_dir}/pom.xml -q exec:java -Dexec.mainClass="io.quarkus.tools.Liqu
 rm -rf ${project_dir}/_includes
 rm -rf ${project_dir}/_layouts
 
-# Data directories (subdirs of data/) can't be accessed as single CDI beans.
-# Revert cdi: prefix for these and leave a TODO comment in the templates.
-if [ -d "${project_dir}/data" ]; then
-    for dir in ${project_dir}/data/*/; do
-        dirname=$(basename "$dir")
-        find ${project_dir}/templates ${project_dir}/templates/partials -name '*.html' -exec \
-            sed -i '' "s/cdi:${dirname}/site.data.${dirname}/g" {} + 2>/dev/null
-    done
-fi
-
 # Copy Jekyll filter extensions (where, first, last, size, capitalize for JsonArray/String)
 mkdir -p ${project_dir}/src/main/java/io/quarkus/tools/migration
 cp ${tools_dir}/src/main/java/io/quarkus/tools/migration/JekyllFiltersExtension.java \

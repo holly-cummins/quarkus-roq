@@ -191,4 +191,72 @@ class JekyllFiltersExtensionTest {
         assertEquals("<p>before</p>", parts.get(0).toString());
         assertEquals("<p>after</p>", parts.get(1).toString());
     }
+
+    @Test
+    void testMergeTypesPreservesAllFields() {
+        JsonObject guide1 = new JsonObject()
+                .put("title", "Getting Started")
+                .put("url", "/guides/getting-started")
+                .put("summary", "Your first Quarkus app")
+                .put("categories", "getting-started")
+                .put("type", "tutorial");
+        JsonObject guide2 = new JsonObject()
+                .put("title", "Building Native")
+                .put("url", "/guides/building-native")
+                .put("summary", "Build native executables")
+                .put("categories", "native")
+                .put("type", "tutorial");
+
+        JsonObject source = new JsonObject()
+                .put("types", new JsonObject()
+                        .put("tutorial", new JsonArray().add(guide2).add(guide1)));
+        JsonObject index = new JsonObject().put("quarkus", source);
+
+        JsonArray result = JekyllFiltersExtension.mergeTypes(index, "tutorial");
+        assertEquals(2, result.size());
+
+        // Should be sorted by title
+        JsonObject first = result.getJsonObject(0);
+        assertEquals("Building Native", first.getString("title"));
+        assertEquals("/guides/building-native", first.getString("url"));
+        assertEquals("Build native executables", first.getString("summary"));
+        assertEquals("native", first.getString("categories"));
+
+        JsonObject second = result.getJsonObject(1);
+        assertEquals("Getting Started", second.getString("title"));
+        assertEquals("/guides/getting-started", second.getString("url"));
+        assertEquals("Your first Quarkus app", second.getString("summary"));
+    }
+
+    @Test
+    void testMergeTypesHandlesRawMapData() {
+        // YAML-loaded data stores nested objects as raw Maps, not JsonObject
+        Map<String, Object> guide1 = Map.of(
+                "title", "Alpha Guide",
+                "url", "/guides/alpha",
+                "summary", "First guide");
+        Map<String, Object> guide2 = Map.of(
+                "title", "Beta Guide",
+                "url", "/guides/beta",
+                "summary", "Second guide");
+
+        // Simulate YAML-loaded structure: types and items as raw Maps/Lists
+        Map<String, Object> typesMap = Map.of("tutorial", List.of(guide2, guide1));
+        Map<String, Object> sourceMap = Map.of("types", typesMap);
+        JsonObject index = new JsonObject(new java.util.LinkedHashMap<>(Map.of("quarkus", sourceMap)));
+
+        JsonArray result = JekyllFiltersExtension.mergeTypes(index, "tutorial");
+        assertEquals(2, result.size());
+
+        // Items should be wrapped as proper JsonObject instances
+        JsonObject first = result.getJsonObject(0);
+        assertInstanceOf(JsonObject.class, first);
+        assertEquals("Alpha Guide", first.getString("title"));
+        assertEquals("/guides/alpha", first.getString("url"));
+        assertEquals("First guide", first.getString("summary"));
+
+        JsonObject second = result.getJsonObject(1);
+        assertEquals("Beta Guide", second.getString("title"));
+        assertEquals("/guides/beta", second.getString("url"));
+    }
 }

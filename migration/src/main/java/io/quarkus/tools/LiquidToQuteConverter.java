@@ -74,6 +74,10 @@ public class LiquidToQuteConverter {
 
         content = convertBracketNotation(content);
 
+        // Collapse "init empty list + push in nested hash loop + sort" into mergeTypes()
+        // Must run after convertBracketNotation (which creates .get() calls from bracket notation)
+        content = collapsePushInNestedLoopToMergeTypes(content);
+
         // Final cleanup steps - ORDER MATTERS!
         // Remove spaces first so ternary wrapping can match properly
         content = removeSpacesBeforeMethods(content);
@@ -81,6 +85,9 @@ public class LiquidToQuteConverter {
 
         // Convert site.data.X references to cdi:X (Roq data file access)
         content = convertSiteDataReferences(content);
+
+        // Roq has no baseurl concept — URLs are already site-relative
+        content = content.replaceAll("\\bsite\\.baseurl\\b", "''");
 
         // Convert site properties that come from data/site.yml to CDI references
         content = convertSiteDataProperties(content);
@@ -117,6 +124,11 @@ public class LiquidToQuteConverter {
 
         // Wrap any remaining hoisted split delimiter references in {#let}
         content = wrapHoistedSplitDelimiters(content);
+
+        // Clean up empty-string concatenation from baseurl removal
+        // '' + expr → expr (Qute's + operator fails with empty string in {#let})
+        content = content.replaceAll("'' \\+ ", "");
+        content = content.replaceAll(" \\+ ''", "");
 
         // Restore raw blocks with Qute verbatim delimiters
         content = restoreRawBlocks(content, rawBlocks);
@@ -237,13 +249,9 @@ public class LiquidToQuteConverter {
     }
 
     private String convertUrlFilters(String content) {
-        // Jekyll's | relative_url prepends site.baseurl to a path.
-        // Rewrite as | prepend: so the concatenation filter handles the expression walk.
-        content = content.replaceAll("\\|\\s*relative_url", "| prepend: cdi:siteConfig.baseurl");
-        // TODO: absolute_url should prepend site.url + site.baseurl, but chaining two prepends
-        // interacts badly with convertUrlConcatenation's site.url.resolve() transform.
-        // For now, treat same as relative_url (sufficient when site.url is not needed).
-        content = content.replaceAll("\\|\\s*absolute_url", "| prepend: cdi:siteConfig.baseurl");
+        // Roq URLs are already site-relative; these Jekyll filters are no-ops
+        content = content.replaceAll("\\s*\\|\\s*relative_url", "");
+        content = content.replaceAll("\\s*\\|\\s*absolute_url", "");
         return content;
     }
 
@@ -410,7 +418,8 @@ public class LiquidToQuteConverter {
                 {"escape", "escapeHtml"},
                 {"date_to_rfc822", "rfc822"},
                 {"url_encode", "urlEncode"},
-                {"slugify", "slugify"}
+                {"slugify", "slugify"},
+                {"markdownify", "markdownify"}
         };
 
         for (String[] mapping : filterMap) {
@@ -1630,6 +1639,106 @@ public class LiquidToQuteConverter {
 
         if (!content.equals(original)) {
             conversionsApplied.add("Collapsed push-in-loop pattern to str:splitTrimmed");
+        }
+        return content;
+    }
+
+    /**
+     * Collapses the pattern where a partial iterates over hash entries (source.get(1)),
+     * collects nested typed items via push-in-loop, and sorts. This pattern is broken in
+     * Qute because {#let} is block-scoped (push results are discarded in loops).
+     *
+     * Detects:
+     *   {#let ACCUM=str:split("", ",")}
+     *   {#for OUTER in SOURCE.orEmpty}
+     *       {#for ITEM in OUTER.get(1).PATH.get(TYPE_VAR...).orEmpty}
+     *           {#let ACCUM=ACCUM.push(ITEM)}
+     *       {/let}{/for}
+     *   {/for}
+     *   {#let ACCUM=ACCUM.sort('KEY')}
+     *
+     * Replaces with:
+     *   {#let ACCUM=SOURCE.mergeTypes(TYPE_EXPR)}
+     */
+    private String collapsePushInNestedLoopToMergeTypes(String content) {
+        String original = content;
+
+        // Match: {#let ACCUM=str:split("", ",")} or {#let ACCUM=str:split("", "")}
+        Pattern initPattern = Pattern.compile(
+                "\\{#let (\\w+)=str:split\\(\"\"\\s*,\\s*\"[,\"]\"\\)\\}");
+        Matcher initMatcher = initPattern.matcher(content);
+        while (initMatcher.find()) {
+            String accumVar = initMatcher.group(1);
+            int initStart = initMatcher.start();
+            int afterInit = initMatcher.end();
+
+            // Look for outer loop: {#for OUTER in SOURCE.orEmpty}
+            String afterInitContent = content.substring(afterInit);
+            Pattern outerLoopPattern = Pattern.compile(
+                    "^\\s*\\{#for (\\w+) in (\\w[\\w.]*)\\.orEmpty\\}");
+            Matcher outerMatcher = outerLoopPattern.matcher(afterInitContent);
+            if (!outerMatcher.find()) continue;
+
+            String outerVar = outerMatcher.group(1);
+            String source = outerMatcher.group(2);
+            int outerBodyStart = afterInit + outerMatcher.end();
+
+            // Look for inner loop: {#for ITEM in OUTER.get(1).SOMETHING.orEmpty}
+            // Allow {! ... !} comments (e.g. TODO notes) between outer and inner loops
+            String outerBody = content.substring(outerBodyStart);
+            Pattern innerLoopPattern = Pattern.compile(
+                    "^\\s*(?:\\{!.*?!\\}\\s*)*\\{#for (\\w+) in " + Pattern.quote(outerVar) +
+                    "\\.get\\(1\\)\\.\\w+\\.get\\(([^)]+?)(?:\\.or\\(''\\))?\\)\\.orEmpty\\}",
+                    Pattern.DOTALL);
+            Matcher innerMatcher = innerLoopPattern.matcher(outerBody);
+            if (!innerMatcher.find()) continue;
+
+            String typeExpr = innerMatcher.group(2);
+
+            // Check that the inner loop body contains ACCUM.push
+            int innerBodyStart = outerBodyStart + innerMatcher.end();
+            int innerForEnd = findMatchingEndFor(content, innerBodyStart);
+            String innerBody = content.substring(innerBodyStart, innerForEnd);
+            if (!innerBody.contains(accumVar + ".push(")) continue;
+
+            // Find the outer loop end
+            int afterInnerFor = innerForEnd + "{/for}".length();
+            String afterInner = content.substring(afterInnerFor);
+            Pattern outerEndPattern = Pattern.compile("^\\s*\\{/for\\}");
+            Matcher outerEndMatcher = outerEndPattern.matcher(afterInner);
+            if (!outerEndMatcher.find()) continue;
+            int outerForEnd = afterInnerFor + outerEndMatcher.end();
+
+            // Look for sort: {#let ACCUM=ACCUM.sort('KEY')}
+            String afterOuterLoop = content.substring(outerForEnd);
+            Pattern sortPattern = Pattern.compile(
+                    "^\\s*\\{#let " + Pattern.quote(accumVar) + "=" +
+                    Pattern.quote(accumVar) + "\\.sort\\('[^']*'\\)\\}");
+            Matcher sortMatcher = sortPattern.matcher(afterOuterLoop);
+            int replaceEnd;
+            if (sortMatcher.find()) {
+                replaceEnd = outerForEnd + sortMatcher.end();
+            } else {
+                replaceEnd = outerForEnd;
+            }
+
+            // Remove the extra {/let} closings for the init and sort scopes
+            String afterReplace = content.substring(replaceEnd);
+            int letsToRemove = sortMatcher.find(0) ? 2 : 1;
+            for (int i = 0; i < letsToRemove; i++) {
+                afterReplace = afterReplace.replaceFirst("\\{/let\\}", "");
+            }
+
+            // Build replacement
+            String replacement = "{#let " + accumVar + "=" + source + ".mergeTypes(" + typeExpr + ")}";
+            content = content.substring(0, initStart) + replacement + afterReplace;
+
+            // Reset matcher since content changed
+            initMatcher = initPattern.matcher(content);
+        }
+
+        if (!content.equals(original)) {
+            conversionsApplied.add("Collapsed push-in-nested-loop to mergeTypes()");
         }
         return content;
     }

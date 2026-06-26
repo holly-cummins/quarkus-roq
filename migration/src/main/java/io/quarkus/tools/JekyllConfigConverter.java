@@ -86,8 +86,7 @@ public class JekyllConfigConverter {
         }
 
         addCollectionProperties(config, properties);
-        // TODO: re-enable once site.escaped-pages works for collection content
-        // addEscapedPages(config, properties);
+        addEscapedPages(config, properties);
 
         return properties;
     }
@@ -305,10 +304,8 @@ public class JekyllConfigConverter {
         });
     }
 
-    // TODO: This is too Quarkus-specific — not all Jekyll collections contain code samples
-    // with curly braces. A general-purpose converter shouldn't blindly escape all non-posts
-    // collections. Consider: (1) scanning content for actual { usage, (2) making this
-    // configurable per-site, or (3) moving this to haq-it as a Quarkus-site-specific step.
+    private static final Set<String> SKIP_ESCAPE_COLLECTIONS = Set.of("posts", "redirects");
+
     private void addEscapedPages(JsonNode config, Properties properties) {
         if (config == null || !config.has("collections")) {
             return;
@@ -319,7 +316,7 @@ public class JekyllConfigConverter {
         }
         StringBuilder escaped = new StringBuilder();
         collections.fieldNames().forEachRemaining(name -> {
-            if ("posts".equals(name)) {
+            if (SKIP_ESCAPE_COLLECTIONS.contains(name)) {
                 return;
             }
             if (!escaped.isEmpty()) {

@@ -94,19 +94,16 @@ rm ${project_dir}/_posts/2022-06-21-qute-templates-from-db.adoc
 rm ${project_dir}/_posts/2023-10-10-intellij-quarkus-recap.adoc
 rm ${project_dir}/_posts/2025-12-15-quarkus-feature-flags.asciidoc
 
+# Delete qute-reference guides — they document the {| |} escape syntax itself,
+# which prematurely closes the escaped-pages {| wrapper.
+find ${project_dir}/_guides ${project_dir}/_versions -name "qute-reference.adoc" -delete 2>/dev/null || true
+
 # Delete AsciiDoc posts containing ifdef/ifndef directives — the Roq header parser
 # (AsciidocHeaderParser, Yupiik-based) crashes on these even with the JRuby plugin.
 # Needs PR #1003, can remove this once it's done
 find ${project_dir}/_posts -type f \
     \( -name "*.adoc" -o -name "*.asciidoc" \) \
     -exec grep -l 'ifdef::\|ifndef::' {} \; -delete 2>/dev/null || true
-
-# TODO: This is a sledgehammer — deletes ~290 guides that contain { in code samples.
-# The proper fix is site.escaped-pages but it doesn't seem to work for collection content yet.
-# Once that's fixed, remove this and re-enable addEscapedPages() in JekyllConfigConverter.
-find ${project_dir}/_guides ${project_dir}/_versions -type f \
-    \( -name "*.adoc" -o -name "*.asciidoc" \) \
-    -exec grep -l '{' {} \; -delete 2>/dev/null || true
 
 # Workaround for roq#1005: the default doc link template /:collection/:slug/ flattens
 # nested directory structures, causing path conflicts when multiple version directories

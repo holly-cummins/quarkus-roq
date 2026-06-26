@@ -2209,8 +2209,19 @@ public class LiquidToQuteConverter {
 
         if (found) {
             conversionsApplied.add("Converted page.url comparisons to page.url.path (RoqUrl is not a String)");
-            return sb.toString();
+            content = sb.toString();
         }
+
+        // RoqUrl.replaceAll() and .replace() return RoqUrl, not String.
+        // When the result is used as a String (e.g. as a JsonObject key),
+        // this causes a ClassCastException. Use page.url.path instead.
+        String original = content;
+        content = content.replaceAll("\\bpage\\.url\\.replaceAll\\(", "page.url.path.replaceAll(");
+        content = content.replaceAll("\\bpage\\.url\\.replace\\(", "page.url.path.replace(");
+        if (!content.equals(original)) {
+            conversionsApplied.add("Converted page.url.replaceAll/replace to page.url.path.replaceAll/replace (RoqUrl methods return RoqUrl, not String)");
+        }
+
         return content;
     }
 

@@ -84,6 +84,14 @@ git cherry-pick 020721c917 || git cherry-pick --abort
 # Tighten security page test to require a version number before .x
 git cherry-pick 8f13d48a9e || git cherry-pick --abort
 
+# Add tests for guide admonition icons and qs-guide web component registration (test-guide-icons)
+git cherry-pick 128d3fd20e || git cherry-pick --abort
+git cherry-pick d9efd3dba3 || git cherry-pick --abort
+git cherry-pick 30ffadb637 || git cherry-pick --abort
+
+# Add test for duplicate guide titles (test-guide-duplicate-title)
+git cherry-pick c283acf76d || git cherry-pick --abort
+
 )
 
 

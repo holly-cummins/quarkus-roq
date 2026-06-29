@@ -13,6 +13,7 @@ import org.junit.jupiter.api.io.TempDir;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -620,6 +621,47 @@ class JekyllConfigConverterTest {
                 "description goes to index page frontmatter: " + siteConfigYaml);
         assertTrue(siteConfigYaml.contains("custom: \"should_be_copied\""),
                 "Unknown keys should be copied: " + siteConfigYaml);
+    }
+
+    @Test
+    void testAsciidoctorAttributesMappedToQuarkusProperties() throws IOException {
+        String configYaml = """
+                title: Test Site
+                asciidoctor:
+                  base_dir: :docdir
+                  safe: unsafe
+                  attributes:
+                    source-highlighter: highlightjs
+                    sectanchors: ''
+                    icons: font
+                    outfilesuffix: ''
+                """;
+        Properties props = converter.createApplicationProperties(
+                new com.fasterxml.jackson.dataformat.yaml.YAMLMapper().readTree(configYaml));
+        assertEquals("font", props.getProperty("quarkus.asciidoc.attributes.icons"),
+                "Jekyll asciidoctor.attributes.icons should map to quarkus.asciidoc.attributes.icons");
+        assertEquals("highlightjs", props.getProperty("quarkus.asciidoc.attributes.source-highlighter"),
+                "Jekyll asciidoctor.attributes.source-highlighter should map to quarkus.asciidoc.attributes.source-highlighter");
+        assertNull(props.getProperty("quarkus.asciidoc.attributes.sectanchors"),
+                "Empty-string attributes should be skipped (SmallRye Config rejects empty map values)");
+        assertNull(props.getProperty("quarkus.asciidoc.attributes.outfilesuffix"),
+                "Empty-string attributes should be skipped");
+    }
+
+    @Test
+    void testAsciidoctorAttributesNotCopiedToSiteConfig() throws IOException {
+        String configYaml = """
+                title: Test Site
+                asciidoctor:
+                  attributes:
+                    icons: font
+                custom: keep_me
+                """;
+        String siteConfigYaml = converter.createSiteConfigYaml(configYaml, null);
+        assertFalse(siteConfigYaml.contains("asciidoctor"),
+                "asciidoctor config should not appear in siteConfig (handled by application.properties): " + siteConfigYaml);
+        assertTrue(siteConfigYaml.contains("custom: \"keep_me\""),
+                "Other unknown keys should still be copied: " + siteConfigYaml);
     }
 
     @Test

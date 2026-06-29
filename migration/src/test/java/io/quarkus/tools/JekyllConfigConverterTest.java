@@ -624,6 +624,14 @@ class JekyllConfigConverterTest {
     }
 
     @Test
+    void testUnsetsShowtitleToPreventDuplicateTitles() {
+        Properties props = converter.createApplicationProperties();
+        assertEquals("true", props.getProperty("quarkus.asciidoc.attributes.\"!showtitle\""),
+                "Should unset showtitle to prevent duplicate title rendering (layout renders page.title, "
+                        + "so the AsciiDoc body must not also render it)");
+    }
+
+    @Test
     void testAsciidoctorAttributesMappedToQuarkusProperties() throws IOException {
         String configYaml = """
                 title: Test Site

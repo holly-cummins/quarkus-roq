@@ -85,6 +85,11 @@ public class JekyllConfigConverter {
             properties.setProperty("site.url", config.get("url").asText());
         }
 
+        // Roq sets showtitle + noheader by default, which renders the AsciiDoc title
+        // in the body. Jekyll layouts render page.title as <h1>, so unset showtitle
+        // to avoid a duplicate title.
+        properties.setProperty("quarkus.asciidoc.attributes.\"!showtitle\"", "true");
+
         addAsciidoctorAttributes(config, properties);
         addCollectionProperties(config, properties);
         addEscapedPages(config, properties);

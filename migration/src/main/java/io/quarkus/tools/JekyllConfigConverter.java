@@ -85,6 +85,7 @@ public class JekyllConfigConverter {
             properties.setProperty("site.url", config.get("url").asText());
         }
 
+        addAsciidoctorAttributes(config, properties);
         addCollectionProperties(config, properties);
         addEscapedPages(config, properties);
 
@@ -115,7 +116,8 @@ public class JekyllConfigConverter {
             "defaults",     // → application.properties (collection layouts)
             "description",  // → index page frontmatter
             "autopages",    // → application.properties (auto-author config)
-            "title"         // → index page frontmatter / Roq site.title
+            "title",        // → index page frontmatter / Roq site.title
+            "asciidoctor"   // → application.properties quarkus.asciidoc.attributes.*
     );
 
     public String createSiteConfigYaml(JsonNode config, String cnameContent) throws IOException {
@@ -269,6 +271,26 @@ public class JekyllConfigConverter {
             }
         }
         return false;
+    }
+
+    private void addAsciidoctorAttributes(JsonNode config, Properties properties) {
+        if (config == null || !config.has("asciidoctor")) {
+            return;
+        }
+        JsonNode asciidoctor = config.get("asciidoctor");
+        if (!asciidoctor.has("attributes")) {
+            return;
+        }
+        JsonNode attributes = asciidoctor.get("attributes");
+        if (!attributes.isObject()) {
+            return;
+        }
+        attributes.fields().forEachRemaining(entry -> {
+            String value = entry.getValue().asText();
+            if (!value.isEmpty()) {
+                properties.setProperty("quarkus.asciidoc.attributes." + entry.getKey(), value);
+            }
+        });
     }
 
     private void addCollectionProperties(JsonNode config, Properties properties) {

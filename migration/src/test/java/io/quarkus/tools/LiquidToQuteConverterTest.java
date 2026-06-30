@@ -415,14 +415,14 @@ class LiquidToQuteConverterTest {
     @Test
     void testAppendFilter() {
         String input = "{{\"hello\" | append: \" world\"}}";
-        String expected = "{=\"hello\" + \" world\"}";
-        assertConverts(input, expected, "Append filter should convert to concatenation");
+        String expected = "{=\"hello\".concat(\" world\")}";
+        assertConverts(input, expected, "Append filter should convert to .concat()");
     }
 
     @Test
     void testMultipleAppends() {
         String input = "{{\"a\" | append: \"b\" | append: \"c\"}}";
-        String expected = "{=\"a\" + \"b\" + \"c\"}";
+        String expected = "{=\"a\".concat(\"b\").concat(\"c\")}";
         assertConverts(input, expected, "Multiple appends should chain");
     }
 
@@ -988,7 +988,7 @@ class LiquidToQuteConverterTest {
     @Test
     void testReplaceRegexWithPrependChain() {
         String input = "{% assign x = page.url | replace_regex: '^/version/([^/]+)/.*', '\\1' | prepend: ' - ' %}";
-        String expected = "{#let x=' - ' + page.url.path.replaceAll('^/version/([^/]+)/.*', '$1')}{/let}";
+        String expected = "{#let x=' - '.concat(page.url.path.replaceAll('^/version/([^/]+)/.*', '$1'))}{/let}";
         assertConverts(input, expected,
                 "replace_regex chained with prepend should produce valid method call");
     }

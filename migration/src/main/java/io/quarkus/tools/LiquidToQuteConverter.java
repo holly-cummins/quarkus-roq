@@ -126,9 +126,9 @@ public class LiquidToQuteConverter {
         content = wrapHoistedSplitDelimiters(content);
 
         // Clean up empty-string concatenation from baseurl removal
-        // '' + expr → expr (Qute's + operator fails with empty string in {#let})
         content = content.replaceAll("'' \\+ ", "");
         content = content.replaceAll(" \\+ ''", "");
+        content = content.replaceAll("''\\.concat\\(([^)]+)\\)", "$1");
 
         // Restore raw blocks with Qute verbatim delimiters
         content = restoreRawBlocks(content, rawBlocks);
@@ -256,8 +256,9 @@ public class LiquidToQuteConverter {
     }
 
     private String convertConcatenationFilters(String content) {
-        // Append filter: "text" | append: variable | append: "more" -> "text" + variable + "more"
-        Pattern appendPattern = Pattern.compile("([^|{]+?)((?:\\s*\\|\\s*append:\\s*[^|]+)+)");
+        // Append filter: "text" | append: variable | append: "more" -> "text".concat(variable).concat("more")
+        // Uses .concat() instead of + because Qute's {#let} doesn't support the + operator.
+        Pattern appendPattern = Pattern.compile("([^|{]+?)((?:\\s*\\|\\s*append:\\s*[^|}%]+)+)");
         Matcher appendMatcher = appendPattern.matcher(content);
         StringBuilder appendSb = new StringBuilder();
 
@@ -265,12 +266,12 @@ public class LiquidToQuteConverter {
             String base = appendMatcher.group(1).trim();
             String appends = appendMatcher.group(2);
 
-            Pattern appendValuePattern = Pattern.compile("\\|\\s*append:\\s*([^|]+?)(?=\\s*\\||$)");
+            Pattern appendValuePattern = Pattern.compile("\\|\\s*append:\\s*([^|}%]+?)(?=\\s*\\||$)");
             Matcher appendValueMatcher = appendValuePattern.matcher(appends);
             StringBuilder concatenation = new StringBuilder(base);
 
             while (appendValueMatcher.find()) {
-                concatenation.append(" + ").append(appendValueMatcher.group(1).trim());
+                concatenation.append(".concat(").append(appendValueMatcher.group(1).trim()).append(")");
             }
 
             String remaining = appends.replaceAll("\\|\\s*append:\\s*[^|]+", "").trim();
@@ -287,7 +288,7 @@ public class LiquidToQuteConverter {
 
         String result = appendSb.toString();
         if (!result.equals(content)) {
-            conversionsApplied.add("Converted append filter to string concatenation");
+            conversionsApplied.add("Converted append filter to .concat()");
             content = result;
         }
 
@@ -351,8 +352,8 @@ public class LiquidToQuteConverter {
             }
 
             String base = content.substring(baseStart, baseEnd);
-            content = content.substring(0, baseStart) + value + " + " + base + content.substring(m.end());
-            conversionsApplied.add("Converted prepend filter to string concatenation");
+            content = content.substring(0, baseStart) + value + ".concat(" + base + ")" + content.substring(m.end());
+            conversionsApplied.add("Converted prepend filter to .concat()");
         }
 
         return content;
@@ -2152,26 +2153,20 @@ public class LiquidToQuteConverter {
     }
 
     private String convertUrlConcatenation(String content) {
-        // RoqUrl doesn't support + operator. Convert url + something to url.resolve(something)
+        // RoqUrl needs .resolve() for URL concatenation, not .concat().
         // Patterns:
-        // - site.url + page.url -> site.url.resolve(page.url)
-        // - page.url + "/path" -> page.url.resolve("/path")
-
-        // Match: (site.url or page.url) + (something)
-        // We need to handle the full expression inside {=...}
+        // - site.url.concat(page.url) -> site.url.resolve(page.url)
+        // - page.url.concat("/path") -> page.url.resolve("/path")
         Pattern pattern = Pattern.compile(
-                "(\\{=)([^}]*?)((?:site|page)\\.url)\\s*\\+\\s*([^}]+?)(\\})");
+                "((?:site|page)\\.url)\\.concat\\(([^)]+?)\\)");
         Matcher matcher = pattern.matcher(content);
         StringBuilder sb = new StringBuilder();
 
         while (matcher.find()) {
-            String prefix = matcher.group(1);  // {=
-            String before = matcher.group(2);   // anything before site.url
-            String urlExpr = matcher.group(3);  // site.url or page.url
-            String arg = matcher.group(4).trim(); // what's being concatenated
-            String suffix = matcher.group(5);   // }
+            String urlExpr = matcher.group(1);  // site.url or page.url
+            String arg = matcher.group(2).trim();
 
-            String replacement = prefix + before + urlExpr + ".resolve(" + arg + ")" + suffix;
+            String replacement = urlExpr + ".resolve(" + arg + ")";
             matcher.appendReplacement(sb, Matcher.quoteReplacement(replacement));
         }
         matcher.appendTail(sb);

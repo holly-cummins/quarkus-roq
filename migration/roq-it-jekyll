@@ -118,15 +118,6 @@ mv ${project_dir}/assets/css/* ${project_dir}/web 2>/dev/null || true
 mkdir ${project_dir}/public
 mv ${project_dir}/assets ${project_dir}/public
 
-# Move image directories from content/ collections to public/
-# Jekyll serves collection images as static assets, but Roq only serves public/
-find ${project_dir}/content -type d -name 'images' | while read -r img_dir; do
-    rel_path="${img_dir#${project_dir}/content/}"
-    mkdir -p "${project_dir}/public/${rel_path}"
-    mv "${img_dir}"/* "${project_dir}/public/${rel_path}/" 2>/dev/null || true
-    rmdir "${img_dir}" 2>/dev/null || true
-done
-
 # TODO do this more flexibly, with a search, since this is specific to quarkusio
 mv ${project_dir}/newsletter ${project_dir}/public
 
@@ -148,6 +139,17 @@ mvn -f ${tools_dir}/pom.xml -q exec:java -Dexec.mainClass="io.quarkus.tools.migr
 # Convert Jekyll config to Roq (creates config/application.properties and data/siteConfig.yml)
 mvn -f ${tools_dir}/pom.xml -q exec:java -Dexec.mainClass="io.quarkus.tools.JekyllConfigCommand" -Dexec.args="${project_dir}"
 rm -rf ${project_dir}/_config.yml
+
+# Add index pages for image directories inside collections so Roq serves them as attachments.
+# Without an index page, non-template files in content/ are orphaned and silently dropped.
+# Only handles images/ dirs directly inside a collection root (depth 2 from content/).
+# Deeper nested cases (e.g. versions/3.15/guides/images/) need collection link fixes first.
+find ${project_dir}/content -mindepth 2 -maxdepth 2 -type d -name 'images' | while read -r img_dir; do
+    if [ ! -f "${img_dir}/index.html" ]; then
+        collection_dir=$(echo "${img_dir}" | sed "s|${project_dir}/content/||" | cut -d/ -f1)
+        printf '%s\n' '---' "link: /${collection_dir}/images/" '---' '<html><body></body></html>' > "${img_dir}/index.html"
+    fi
+done
 
 # Convert Liquid to Qute; this has the side effect of renaming directories to adjust the structure
 mkdir -p ${project_dir}/templates/partials

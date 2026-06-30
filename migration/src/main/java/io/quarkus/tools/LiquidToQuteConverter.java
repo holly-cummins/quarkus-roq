@@ -3,6 +3,8 @@ package io.quarkus.tools;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -61,6 +63,12 @@ public class LiquidToQuteConverter {
 
         // Convert if/else blocks with assigns to ternary expressions (must run before convertAssignments)
         content = convertIfElseAssignsToTernary(content);
+
+        // Detect variables that escape their {#let} scope (assigned inside a block
+        // but read outside, or assigned more than once) and route them through a
+        // MutableMap instead of block-scoped {#let}.  Must run after the ternary
+        // pass (which resolves some multi-assigns) and before convertAssignments.
+        content = convertMutableAssigns(content);
 
         content = convertAssignments(content);
 
@@ -1473,6 +1481,142 @@ public class LiquidToQuteConverter {
             }
         }
         return text.length();
+    }
+
+    private String convertMutableAssigns(String content) {
+        String original = content;
+
+        Pattern assignPattern = Pattern.compile("\\{%\\s*assign\\s+(\\w+)\\s*=\\s*([^%]+?)\\s*%\\}");
+        Matcher m = assignPattern.matcher(content);
+
+        List<int[]> positions = new ArrayList<>();
+        List<String> varNames = new ArrayList<>();
+        List<String> expressions = new ArrayList<>();
+
+        while (m.find()) {
+            positions.add(new int[]{ m.start(), m.end() });
+            varNames.add(m.group(1));
+            expressions.add(m.group(2).trim());
+        }
+
+        if (positions.isEmpty()) {
+            return content;
+        }
+
+        // Group assigns by variable name
+        Map<String, List<Integer>> assignsByVar = new LinkedHashMap<>();
+        for (int i = 0; i < varNames.size(); i++) {
+            assignsByVar.computeIfAbsent(varNames.get(i), k -> new ArrayList<>()).add(i);
+        }
+
+        // A variable needs mutable treatment when it would escape its {#let} scope.
+        // Exclude patterns already handled by dedicated passes:
+        //  - self-referencing assigns (push/accumulation → collapsePushInLoopPattern)
+        //  - if/else complementary assigns (→ convertIfElseAssignsToTernary)
+        Set<String> mutableVars = new LinkedHashSet<>();
+
+        for (var entry : assignsByVar.entrySet()) {
+            String var = entry.getKey();
+            List<Integer> indices = entry.getValue();
+
+            // Skip self-referencing assigns (e.g. values = values | push: item).
+            // These are accumulation patterns handled by collapsePushInLoop / mergeTypes.
+            boolean selfRef = false;
+            for (int idx : indices) {
+                if (expressions.get(idx).matches(".*\\b" + Pattern.quote(var) + "\\b.*")) {
+                    selfRef = true;
+                    break;
+                }
+            }
+            if (selfRef) {
+                continue;
+            }
+
+            if (indices.size() > 1) {
+                // Only flag when assigns are at different nesting depths — that's
+                // the "default + conditional override" pattern (e.g. assign false at
+                // loop level, assign true inside nested if).  When all assigns are at
+                // the SAME depth they are alternatives in if/else branches, already
+                // handled correctly by convertIfElseAssignsToTernary.
+                Set<Integer> depths = new HashSet<>();
+                for (int idx : indices) {
+                    depths.add(nestingDepth(content, positions.get(idx)[0]));
+                }
+                if (depths.size() <= 1) {
+                    continue;
+                }
+                mutableVars.add(var);
+            } else {
+                // Single assign: check if the variable is used after its scope boundary
+                int assignEnd = positions.get(indices.get(0))[1];
+                int scopeEnd = findScopeBoundary(content, assignEnd);
+                if (scopeEnd < content.length()) {
+                    String afterScope = content.substring(scopeEnd);
+                    // If a {#for VAR in ...} appears after the scope boundary, it
+                    // rebinds the variable name as a loop variable — all references
+                    // from that point on are the loop var, not the assigned one.
+                    // Strip from the first rebinding to end before checking for refs.
+                    Pattern forRebind = Pattern.compile("\\{#for\\s+" + Pattern.quote(var) + "\\s+in\\b.*", Pattern.DOTALL);
+                    String withoutForRebinds = forRebind.matcher(afterScope).replaceAll("");
+                    Pattern varRef = Pattern.compile("(?<![.\\w'\"])" + Pattern.quote(var) + "\\b");
+                    if (varRef.matcher(withoutForRebinds).find()) {
+                        mutableVars.add(var);
+                    }
+                }
+            }
+        }
+
+        if (mutableVars.isEmpty()) {
+            return content;
+        }
+
+        // Step 1: Replace {% assign VAR = EXPR %} for mutable vars with {=_m.assign('VAR', EXPR)}
+        for (String var : mutableVars) {
+            Pattern p = Pattern.compile("\\{%\\s*assign\\s+" + Pattern.quote(var) + "\\s*=\\s*([^%]+?)\\s*%\\}");
+            Matcher matcher = p.matcher(content);
+            StringBuilder sb = new StringBuilder();
+            while (matcher.find()) {
+                String expr = matcher.group(1).trim();
+                String converted = convertTernaryToOrChain(expr);
+                if (converted.equals("nil")) {
+                    converted = "null";
+                }
+                matcher.appendReplacement(sb, Matcher.quoteReplacement(
+                        exprOpen + "_m.assign('" + var + "', " + converted + ")}"));
+            }
+            matcher.appendTail(sb);
+            content = sb.toString();
+        }
+
+        // Step 2: Replace standalone references to mutable vars with _m.read('VAR')
+        for (String var : mutableVars) {
+            content = content.replaceAll(
+                    "(?<![.\\w'\"])" + Pattern.quote(var) + "\\b(?!['\"])",
+                    "_m.read('" + var + "')");
+        }
+
+        // Step 3: Wrap with mutable-map initialisation
+        content = "{#let _m=mut:map()}" + content + "{/let}";
+
+        if (!content.equals(original)) {
+            conversionsApplied.add("Converted mutable assigns to mut:map()");
+        }
+        return content;
+    }
+
+    private int nestingDepth(String content, int position) {
+        Pattern tag = Pattern.compile("\\{#(if|for|let)\\b|\\{/(if|for|let)\\}");
+        Matcher m = tag.matcher(content);
+        m.region(0, position);
+        int depth = 0;
+        while (m.find()) {
+            if (m.group().startsWith("{#")) {
+                depth++;
+            } else {
+                depth--;
+            }
+        }
+        return depth;
     }
 
     private String convertAssignments(String content) {

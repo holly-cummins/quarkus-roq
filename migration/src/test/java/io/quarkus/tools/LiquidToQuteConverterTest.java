@@ -1495,4 +1495,103 @@ class LiquidToQuteConverterTest {
         assertFalse(result.contains(".sort("),
                 "sort() should be eliminated by mergeTypes collapse (sorting is built-in): " + result);
     }
+
+    // ── Mutable assign tests ──────────────────────────────────────────────
+
+    @Test
+    void testMutableBooleanFlag() {
+        // assign false + conditional assign true = classic mutable flag
+        String input = "{% assign active = false %}" +
+                "{#if cond}{% assign active = true %}{/if}" +
+                "{#if active}yes{/if}";
+        String result = converter.convert(input);
+        assertTrue(result.contains("_m.assign('active', false)"),
+                "Default assign should use mutable map: " + result);
+        assertTrue(result.contains("_m.assign('active', true)"),
+                "Conditional assign should use mutable map: " + result);
+        assertTrue(result.contains("_m.read('active')"),
+                "Read of mutable var should use _m.read(): " + result);
+        assertTrue(result.contains("{#let _m=mut:map()}"),
+                "Should wrap with mutable map init: " + result);
+        assertFalse(result.contains("{#let active="),
+                "Mutable var should NOT use {#let}: " + result);
+    }
+
+    @Test
+    void testMutableAssignInsideBlockUsedOutside() {
+        // Single assign inside a loop, referenced after the loop
+        String input = "{#for item in list.orEmpty}" +
+                "{#if item.best}{% assign winner = item %}{/if}" +
+                "{/for}" +
+                "{#if winner}{=winner.name}{/if}";
+        String result = converter.convert(input);
+        assertTrue(result.contains("_m.assign('winner', item)"),
+                "Assign inside loop should use mutable map: " + result);
+        assertTrue(result.contains("_m.read('winner')"),
+                "Read after loop should use _m.read(): " + result);
+    }
+
+    @Test
+    void testSingleAssignStaysAsLet() {
+        // Single assign, used only within scope — no mutable treatment needed
+        String input = "{% assign x = \"hello\" %}\n{=x}\nmore";
+        String result = converter.convert(input);
+        assertTrue(result.contains("{#let x=\"hello\"}"),
+                "Single-scope assign should stay as {#let}: " + result);
+        assertFalse(result.contains("mut:map()"),
+                "Should NOT use mutable map for simple assigns: " + result);
+    }
+
+    @Test
+    void testMutableCompoundCondition() {
+        // Two mutable flags combined with || in a condition
+        String input = "{% assign a = false %}{% assign b = false %}" +
+                "{#if x}{% assign a = true %}{/if}" +
+                "{#if y}{% assign b = true %}{/if}" +
+                "{#if a || b}active{/if}";
+        String result = converter.convert(input);
+        assertTrue(result.contains("_m.read('a') || _m.read('b')"),
+                "Compound condition should replace both vars with _m.read(): " + result);
+    }
+
+    @Test
+    void testMutableNilInit() {
+        // assign nil should convert to null in mutable map
+        String input = "{% assign found = nil %}" +
+                "{#for item in list.orEmpty}{% assign found = item %}{/for}" +
+                "{#if found}yes{/if}";
+        String result = converter.convert(input);
+        assertTrue(result.contains("_m.assign('found', null)"),
+                "nil should convert to null in mutable assign: " + result);
+    }
+
+    @Test
+    void testMutableAssignPreservesPropertyAccess() {
+        // _m.read('var').property should work for object access
+        String input = "{% assign chosen = nil %}" +
+                "{#for r in list.orEmpty}{#if r.good}{% assign chosen = r %}{/if}{/for}" +
+                "{=chosen.name}";
+        String result = converter.convert(input);
+        assertTrue(result.contains("_m.read('chosen').name"),
+                "Property access on mutable var should chain on _m.read(): " + result);
+    }
+
+    @Test
+    void testForLoopRebindingExcludesMutableTreatment() {
+        // When a variable is assigned in one loop and then reused as a loop variable
+        // name in a subsequent {%for VAR in%}, the for-loop creates a new binding.
+        // The assign should NOT get mutable treatment.
+        String input = "{% for raw in list %}" +
+                "{% assign key = raw | strip %}" +
+                "{% assign clean = clean | push: key %}" +
+                "{% endfor %}" +
+                "{% for key in clean %}" +
+                "{=data[key]}" +
+                "{% endfor %}";
+        String result = converter.convert(input);
+        assertFalse(result.contains("_m.assign"),
+                "Variable rebound as for-loop var should not use mutable map: " + result);
+        assertFalse(result.contains("_m.read"),
+                "Variable rebound as for-loop var should not use mutable map: " + result);
+    }
 }

@@ -1595,8 +1595,14 @@ public class LiquidToQuteConverter {
                     "_m.read('" + var + "')");
         }
 
-        // Step 3: Wrap with mutable-map initialisation
-        content = "{#let _m=mut:map()}" + content + "{/let}";
+        // Step 3: Wrap with mutable-map initialisation (after front matter if present)
+        Pattern fmPattern = Pattern.compile("^(---\\n.*?\\n---\\n)", Pattern.DOTALL);
+        Matcher fmMatcher = fmPattern.matcher(content);
+        if (fmMatcher.find()) {
+            content = fmMatcher.group(1) + "{#let _m=mut:map()}" + content.substring(fmMatcher.end()) + "{/let}";
+        } else {
+            content = "{#let _m=mut:map()}" + content + "{/let}";
+        }
 
         if (!content.equals(original)) {
             conversionsApplied.add("Converted mutable assigns to mut:map()");
@@ -2253,6 +2259,17 @@ public class LiquidToQuteConverter {
         result = addOrEmptyToGetArgs(content);
         if (!result.equals(content)) {
             conversionsApplied.add("Added .or('') to variable arguments in .get() calls");
+            content = result;
+        }
+
+        // Guard {=page.data.FIELD} output — Liquid outputs empty string for missing
+        // keys, but Qute renders NOT_FOUND.  Add .or('') so the output is blank.
+        // (.raw is appended later by appendRawToOutputExpressions)
+        result = content.replaceAll(
+                "\\{=((page|post)\\.data\\.[a-zA-Z_][a-zA-Z0-9_]*)\\}",
+                "{=$1.or('')}");
+        if (!result.equals(content)) {
+            conversionsApplied.add("Added .or('') to .data.*.raw output expressions");
             content = result;
         }
 

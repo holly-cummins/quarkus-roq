@@ -9,6 +9,7 @@ import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.regex.Pattern;
@@ -406,6 +407,50 @@ public class JekyllFiltersExtension {
     static RawString raw(String str) {
         if (str == null) return new RawString("");
         return new RawString(str);
+    }
+
+    // ── Mutable variable support ──────────────────────────────────────────
+    //
+    // Liquid's {% assign %} is template-scoped: a variable assigned inside an
+    // {% if %} or {% for %} block stays visible (with its updated value) after
+    // the block closes.  Qute's {#let} is block-scoped: the binding dies at
+    // {/let}, so an "assign inside if, use after endif" pattern silently loses
+    // the value.
+    //
+    // MutableMap bridges this gap.  The converter detects variables that would
+    // escape their {#let} scope (assigned inside a block but read outside, or
+    // assigned more than once) and emits mut:map() calls instead of {#let}:
+    //
+    //   {#let _m=mut:map()}
+    //   {=_m.assign('flag', false)}
+    //   {#if cond}{=_m.assign('flag', true)}{/if}
+    //   {#if _m.read('flag')}...{/if}
+    //   {/let}
+
+    @TemplateExtension(namespace = "mut")
+    static MutableMap map() {
+        return new MutableMap();
+    }
+
+    public static class MutableMap {
+        private final Map<String, Object> data = new HashMap<>();
+
+        /**
+         * Store a value under the given key (mirrors Liquid's {% assign key = value %}).
+         * Returns an empty RawString so {=_m.assign(...)} produces no visible output.
+         */
+        public RawString assign(String key, Object value) {
+            data.put(key, value);
+            return new RawString("");
+        }
+
+        /**
+         * Retrieve the current value of a key (returns null for unset keys,
+         * matching Liquid's nil-by-default semantics).
+         */
+        public Object read(String key) {
+            return data.get(key);
+        }
     }
 
     /**

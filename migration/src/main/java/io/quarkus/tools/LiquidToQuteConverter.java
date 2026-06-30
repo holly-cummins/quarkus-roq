@@ -118,9 +118,8 @@ public class LiquidToQuteConverter {
         // Make site.tags lenient (needed until  (https://github.com/quarkiverse/quarkus-roq/issues/964 is fixed in a release)
         content = makeSiteTagsLenient(content);
 
-        // Append .raw to output expressions containing .replace() calls.
-        // Jekyll never escapes output, but Qute auto-escapes in HTML templates.
-        content = appendRawToReplaceOutputs(content);
+        // Liquid {{ }} never HTML-escapes; Qute {= } does. Append .raw for fidelity.
+        content = appendRawToOutputExpressions(content);
 
         // Wrap any remaining hoisted split delimiter references in {#let}
         content = wrapHoistedSplitDelimiters(content);
@@ -2240,21 +2239,47 @@ public class LiquidToQuteConverter {
         return content;
     }
 
-    private String appendRawToReplaceOutputs(String content) {
-        // Jekyll never escapes HTML in output tags, but Qute auto-escapes in .html templates.
-        // Append .raw to output expressions containing .replace() so HTML content renders correctly.
-        Pattern pattern = Pattern.compile("(\\{=([^}]*\\.replace(?:All)?\\([^)]*\\)))\\}");
+    private String appendRawToOutputExpressions(String content) {
+        // Liquid {{ var }} never HTML-escapes, but Qute {=var} auto-escapes in .html templates.
+        // Many Jekyll data files (YAML) contain embedded HTML (links, formatting, etc.) that
+        // must render as markup, not as escaped text. Since the converter can't know which
+        // fields contain HTML, we append .raw to ALL output expressions for Liquid fidelity.
+        Pattern pattern = useExtensionSyntax
+                ? Pattern.compile("\\{=([^}]+)\\}")
+                : Pattern.compile("\\{(?![#/!|%])([^}]+)\\}");
         Matcher matcher = pattern.matcher(content);
         StringBuilder sb = new StringBuilder();
         boolean found = false;
         while (matcher.find()) {
-            matcher.appendReplacement(sb, Matcher.quoteReplacement(matcher.group(1) + ".raw}"));
+            String expr = matcher.group(1);
+            // Skip if already ends with .raw (possibly followed by ??)
+            if (expr.matches(".*\\.raw(\\?\\?)?\\s*$")) {
+                matcher.appendReplacement(sb, Matcher.quoteReplacement(matcher.group()));
+                continue;
+            }
+            // Skip string literals
+            if (expr.trim().matches("^['\"].*")) {
+                matcher.appendReplacement(sb, Matcher.quoteReplacement(matcher.group()));
+                continue;
+            }
+            // Skip elvis operator expressions — .raw can't wrap the whole ternary result
+            if (expr.contains("?:")) {
+                matcher.appendReplacement(sb, Matcher.quoteReplacement(matcher.group()));
+                continue;
+            }
+            // Insert .raw before ?? if present, otherwise append at end
+            if (expr.endsWith("??")) {
+                String base = expr.substring(0, expr.length() - 2);
+                matcher.appendReplacement(sb, Matcher.quoteReplacement(exprOpen + base + ".raw??" + "}"));
+            } else {
+                matcher.appendReplacement(sb, Matcher.quoteReplacement(exprOpen + expr + ".raw}"));
+            }
             found = true;
         }
         matcher.appendTail(sb);
 
         if (found) {
-            conversionsApplied.add("Appended .raw to replace() outputs (Jekyll never escapes HTML)");
+            conversionsApplied.add("Appended .raw to output expressions (Liquid never escapes HTML)");
             return sb.toString();
         }
         return content;

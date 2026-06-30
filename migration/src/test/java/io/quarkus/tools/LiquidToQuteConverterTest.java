@@ -1004,9 +1004,9 @@ class LiquidToQuteConverterTest {
     @Test
     void testPostCustomFieldConvertToData() {
         String input = "{{post.author}}";
-        String expected = "{=post.data.author.raw}";
+        String expected = "{=post.data.author.or('').raw}";
         assertConverts(input, expected,
-                "post.customField should convert to post.data.customField (DocumentPage custom frontmatter)");
+                "post.customField should convert to post.data.customField with .or('') safety");
     }
 
     @Test
@@ -1132,9 +1132,9 @@ class LiquidToQuteConverterTest {
     @Test
     void testCustomPageFieldConvertToData() {
         String input = "{{page.data.author}}";
-        String expected = "{=page.data.author.raw}";
+        String expected = "{=page.data.author.or('').raw}";
         assertConverts(input, expected,
-                "Custom page frontmatter should not get ?? (breaks JsonObject key lookup)");
+                "Custom page data output should get .or('') before .raw for missing-key safety");
     }
 
     @Test
@@ -1148,9 +1148,9 @@ class LiquidToQuteConverterTest {
     @Test
     void testMultipleCustomPageFields() {
         String input = "{{page.data.author}} - {{page.synopsis}}";
-        String expected = "{=page.data.author.raw} - {=page.data.synopsis.raw}";
+        String expected = "{=page.data.author.or('').raw} - {=page.data.synopsis.or('').raw}";
         assertConverts(input, expected,
-                "Multiple custom fields should not get ?? (breaks JsonObject key lookup)");
+                "Custom page data outputs should get .or('') for missing-key safety");
     }
 
     @Test
@@ -1196,7 +1196,7 @@ class LiquidToQuteConverterTest {
     @Test
     void testPageUrlEqualityComparison() {
         String input = "{#if page.url == '/'}homepage{#else}{=page.data.layout}{/if}";
-        String expected = "{#if page.url.path == '/'}homepage{#else}{=page.data.layout.raw}{/if}";
+        String expected = "{#if page.url.path == '/'}homepage{#else}{=page.data.layout.or('').raw}{/if}";
         assertConverts(input, expected,
                 "page.url == should convert to page.url.path == (RoqUrl is not a String)");
     }
@@ -1574,6 +1574,17 @@ class LiquidToQuteConverterTest {
         String result = converter.convert(input);
         assertTrue(result.contains("_m.read('chosen').name"),
                 "Property access on mutable var should chain on _m.read(): " + result);
+    }
+
+    @Test
+    void testMutableMapInitAfterFrontMatter() {
+        String input = "---\nlayout: base\n---\n" +
+                "{% assign active = false %}" +
+                "{#if cond}{% assign active = true %}{/if}" +
+                "{#if active}yes{/if}";
+        String result = converter.convert(input);
+        assertTrue(result.startsWith("---\nlayout: base\n---\n{#let _m=mut:map()}"),
+                "Mutable map init should come after front matter, not before: " + result);
     }
 
     @Test

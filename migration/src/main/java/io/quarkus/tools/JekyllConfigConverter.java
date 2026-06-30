@@ -299,36 +299,73 @@ public class JekyllConfigConverter {
     }
 
     private void addCollectionProperties(JsonNode config, Properties properties) {
-        if (config == null || !config.has("collections")) {
-            return;
+        Map<String, String> permalinks = getCollectionPermalinks(config);
+
+        if (config != null && config.has("collections")) {
+            JsonNode collections = config.get("collections");
+            if (collections.isObject()) {
+                collections.fields().forEachRemaining(entry -> {
+                    String name = entry.getKey();
+                    if ("posts".equals(name)) {
+                        return;
+                    }
+                    JsonNode collectionConfig = entry.getValue();
+                    boolean output = collectionConfig.isObject()
+                            && collectionConfig.has("output")
+                            && collectionConfig.get("output").asBoolean(false);
+                    if (!output) {
+                        return;
+                    }
+                    properties.setProperty("site.collections." + name, "true");
+                    if (collectionConfig.has("layout")) {
+                        properties.setProperty("site.collections." + name + ".layout",
+                                collectionConfig.get("layout").asText());
+                    } else {
+                        String defaultLayout = getDefaultLayout(config, name);
+                        if (defaultLayout != null) {
+                            properties.setProperty("site.collections." + name + ".layout", defaultLayout);
+                        }
+                    }
+                });
+            }
         }
-        JsonNode collections = config.get("collections");
-        if (!collections.isObject()) {
-            return;
+
+        permalinks.forEach((name, linkTemplate) ->
+                properties.setProperty("site.collections." + name + ".link", linkTemplate));
+    }
+
+    private Map<String, String> getCollectionPermalinks(JsonNode config) {
+        Map<String, String> result = new LinkedHashMap<>();
+        if (config == null || !config.has("defaults")) {
+            return result;
         }
-        collections.fields().forEachRemaining(entry -> {
-            String name = entry.getKey();
-            if ("posts".equals(name)) {
-                return;
+        JsonNode defaults = config.get("defaults");
+        if (!defaults.isArray()) {
+            return result;
+        }
+        for (JsonNode entry : defaults) {
+            if (!entry.has("scope") || !entry.has("values")) {
+                continue;
             }
-            JsonNode collectionConfig = entry.getValue();
-            boolean output = collectionConfig.isObject()
-                    && collectionConfig.has("output")
-                    && collectionConfig.get("output").asBoolean(false);
-            if (!output) {
-                return;
+            JsonNode scope = entry.get("scope");
+            if (!scope.has("type")) {
+                continue;
             }
-            properties.setProperty("site.collections." + name, "true");
-            if (collectionConfig.has("layout")) {
-                properties.setProperty("site.collections." + name + ".layout",
-                        collectionConfig.get("layout").asText());
-            } else {
-                String defaultLayout = getDefaultLayout(config, name);
-                if (defaultLayout != null) {
-                    properties.setProperty("site.collections." + name + ".layout", defaultLayout);
-                }
+            String type = scope.get("type").asText();
+            JsonNode values = entry.get("values");
+            if (values.has("permalink")) {
+                String permalink = values.get("permalink").asText();
+                result.put(type, translatePermalinkPlaceholders(permalink));
             }
-        });
+        }
+        return result;
+    }
+
+    static String translatePermalinkPlaceholders(String permalink) {
+        return permalink
+                .replace(":path", ":dir[1:]/:name")
+                .replace(":title", ":name")
+                .replace(":categories", ":collection");
     }
 
     private static final Set<String> SKIP_ESCAPE_COLLECTIONS = Set.of("posts", "redirects");

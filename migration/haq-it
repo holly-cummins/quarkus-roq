@@ -113,28 +113,9 @@ find ${project_dir}/_posts -type f \
     \( -name "*.adoc" -o -name "*.asciidoc" \) \
     -exec grep -l 'ifdef::\|ifndef::' {} \; -delete 2>/dev/null || true
 
-# Workaround for roq#1005: the default doc link template /:collection/:slug/ flattens
-# nested directory structures, causing path conflicts when multiple version directories
-# contain guides with the same title. Inject link: /:path:ext so each guide keeps its
-# full path as the URL (e.g. /versions/2-13/guides/amqp-dev-services/).
-# Must run BEFORE roq-it-jekyll, which does a batch build that would fail on the conflicts.
 # Delete YAML data files from _versions — they're not content pages and cause
 # slug collisions across version directories.
 find "${project_dir}/_versions" \( -name "*.yaml" -o -name "*.yml" \) -delete 2>/dev/null || true
-
-find "${project_dir}/_versions" \( -path "*/guides/*.adoc" -o -path "*/guides/*.md" \) ! -name "guides.md" 2>/dev/null | while read -r file; do
-    if head -n 1 "$file" | grep -q "^---$"; then
-        # File has front matter — inject link after layout line
-        sed -i '' '/^---$/,/^---$/{
-            /^layout:/a\
-link: /:path:ext
-        }' "$file"
-    else
-        # No front matter — prepend it
-        printf '%s\n' "---" "link: /:path:ext" "---" | cat - "$file" > "$file.tmp"
-        mv "$file.tmp" "$file"
-    fi
-done
 
 # Extensions layouts reference a cdi:extensions bean from deleted YAML data
 rm -f ${project_dir}/_layouts/extensions.html ${project_dir}/_layouts/extensions_old.html

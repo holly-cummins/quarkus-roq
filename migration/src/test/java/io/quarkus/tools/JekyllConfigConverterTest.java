@@ -521,6 +521,63 @@ class JekyllConfigConverterTest {
     }
 
     @Test
+    void testCollectionLinkFromPermalink(@TempDir Path tempDir) throws IOException {
+        String configYaml = """
+                title: Test Site
+                collections:
+                  guides:
+                    output: true
+                  versions:
+                    output: true
+                defaults:
+                  - scope:
+                      type: guides
+                    values:
+                      layout: guides
+                      permalink: /guides/:name
+                  - scope:
+                      type: versions
+                    values:
+                      layout: guides
+                      permalink: /version/:path
+                """;
+        Files.writeString(tempDir.resolve("_config.yml"), configYaml);
+
+        converter.convertProject(tempDir);
+
+        String propsContent = Files.readString(tempDir.resolve("config/application.properties"));
+        assertTrue(propsContent.contains("site.collections.guides.link=/guides/:name"),
+                "Should translate guides permalink to link: " + propsContent);
+        assertTrue(propsContent.contains("site.collections.versions.link=/version/:dir[1:]/:name"),
+                "Should translate versions permalink to link with :dir[1:]/:name: " + propsContent);
+    }
+
+    @Test
+    void testCollectionLinkTranslatesJekyllPlaceholders(@TempDir Path tempDir) throws IOException {
+        String configYaml = """
+                title: Test Site
+                collections:
+                  posts:
+                    output: true
+                defaults:
+                  - scope:
+                      type: posts
+                    values:
+                      layout: post
+                      permalink: /blog/:title/
+                """;
+        Files.writeString(tempDir.resolve("_config.yml"), configYaml);
+
+        converter.convertProject(tempDir);
+
+        String propsContent = Files.readString(tempDir.resolve("config/application.properties"));
+        assertFalse(propsContent.contains("site.collections.posts="),
+                "Posts should not be enabled as a collection: " + propsContent);
+        assertTrue(propsContent.contains("site.collections.posts.link=/blog/:name/"),
+                "Posts permalink should be translated to link: " + propsContent);
+    }
+
+    @Test
     void testCollectionLayoutFromConfigOverridesDefaults(@TempDir Path tempDir) throws IOException {
         String configYaml = """
                 title: Test Site

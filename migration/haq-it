@@ -43,54 +43,54 @@ rm -rf _site/
 # --- add-external-link-checking chain (must be in order, all touch LinkCrawlerTest.java) ---
 
 # Add scheduled CI job to check external links and raise defects
-git cherry-pick c4abc2ef1b || git cherry-pick --abort
+git cherry-pick c4abc2ef1b || git cherry-pick --abort || true
 
 # Tune external link checker: treat 403 as OK for medium.com, add example URLs
-git cherry-pick c9b6585113 || git cherry-pick --abort
+git cherry-pick c9b6585113 || git cherry-pick --abort || true
 
 # Add linkedin/pexels to DO_NOT_CHECK, infoq.com 405 handling
-git cherry-pick 6420f4542b || git cherry-pick --abort
+git cherry-pick 6420f4542b || git cherry-pick --abort || true
 
 # Fix up from bad merge
-git cherry-pick ed064fdce7 || git cherry-pick --abort
+git cherry-pick ed064fdce7 || git cherry-pick --abort || true
 
 # --- CI infrastructure (all touch build.yml, order matters) ---
 
 
 # CI: make site output directory configurable (ci-flexible-site-dir)
-git cherry-pick 121c20fbf7 || git cherry-pick --abort
+git cherry-pick 121c20fbf7 || git cherry-pick --abort || true
 
 # CI: make site statics directory configurable (ci-flexible-statics-dir)
-git cherry-pick eaafef317b2155c53fb35943d987af4a1dc54d32 || git cherry-pick --abort
+git cherry-pick eaafef317b2155c53fb35943d987af4a1dc54d32 || git cherry-pick --abort || true
 # CI: make site assets directory configurable (ci-flexible-statics-dir)
-git cherry-pick 029beddd2e3d63c315540c10ff7398ea8b688b71 || git cherry-pick --abort
-git cherry-pick f3e489ba412ab9e5a4ff70eb89aebabd9cdedb2a || git cherry-pick --abort
-git cherry-pick 9e5210b0dc0845d0c6ca56b844a722e35791c1a6 || git cherry-pick --abort
-git cherry-pick f1a3f96ef235d6956be6b45861b81a8fd930e700 || git cherry-pick --abort
+git cherry-pick 029beddd2e3d63c315540c10ff7398ea8b688b71 || git cherry-pick --abort || true
+git cherry-pick f3e489ba412ab9e5a4ff70eb89aebabd9cdedb2a || git cherry-pick --abort || true
+git cherry-pick 9e5210b0dc0845d0c6ca56b844a722e35791c1a6 || git cherry-pick --abort || true
+git cherry-pick f1a3f96ef235d6956be6b45861b81a8fd930e700 || git cherry-pick --abort || true
 
 # CI: allow build to continue if Java tests fail (ci-continue-on-test-failure)
-git cherry-pick 4433e5d095 || git cherry-pick --abort
+git cherry-pick 4433e5d095 || git cherry-pick --abort || true
 
 # --- Cleanup branches (independent of each other) ---
 
 # Drop stale data-search-api-server attribute referencing undefined search.url
-git cherry-pick aa625cc2a6 || git cherry-pick --abort
+git cherry-pick aa625cc2a6 || git cherry-pick --abort || true
 
 # --- Playwright test branches (independent of each other) ---
 
 # Add fragment anchor validation test (test/fragment-anchor-validation)
-git cherry-pick 020721c917 || git cherry-pick --abort
+git cherry-pick 020721c917 || git cherry-pick --abort || true
 
 # Tighten security page test to require a version number before .x
-git cherry-pick 8f13d48a9e || git cherry-pick --abort
+git cherry-pick 8f13d48a9e || git cherry-pick --abort || true
 
 # Add tests for guide admonition icons and qs-guide web component registration (test-guide-icons)
-git cherry-pick 128d3fd20e || git cherry-pick --abort
-git cherry-pick d9efd3dba3 || git cherry-pick --abort
-git cherry-pick 30ffadb637 || git cherry-pick --abort
+git cherry-pick 128d3fd20e || git cherry-pick --abort || true
+git cherry-pick d9efd3dba3 || git cherry-pick --abort || true
+git cherry-pick 30ffadb637 || git cherry-pick --abort || true
 
 # Add test for duplicate guide titles (test-guide-duplicate-title)
-git cherry-pick c283acf76d || git cherry-pick --abort
+git cherry-pick c283acf76d || git cherry-pick --abort || true
 
 )
 

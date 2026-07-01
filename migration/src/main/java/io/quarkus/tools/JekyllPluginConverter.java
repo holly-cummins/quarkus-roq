@@ -194,6 +194,8 @@ public class JekyllPluginConverter {
                 "    private static final String SCRIPT_URL = \"" + host + path + "\";\n" +
                 "    private static final String CACHED_FILE = \"" + cachedFile + "\";\n" +
                 "\n" +
+                "    // Downloads to public/ which survives mvn clean (only target/ is deleted).\n" +
+                "    // TODO: should mvn clean also remove this downloaded file?\n" +
                 "    SearchScriptDownloader() {\n" +
                 "        if (!\"cached\".equals(\"" + mode + "\")) {\n" +
                 "            return;\n" +

@@ -1553,19 +1553,29 @@ public class LiquidToQuteConverter {
             }
 
             if (indices.size() > 1) {
-                // Only flag when assigns are at different nesting depths — that's
+                // Flag when assigns are at different nesting depths — that's
                 // the "default + conditional override" pattern (e.g. assign false at
-                // loop level, assign true inside nested if).  When all assigns are at
-                // the SAME depth they are alternatives in if/else branches, already
-                // handled correctly by convertIfElseAssignsToTernary.
+                // loop level, assign true inside nested if).
                 Set<Integer> depths = new HashSet<>();
                 for (int idx : indices) {
                     depths.add(nestingDepth(content, positions.get(idx)[0]));
                 }
-                if (depths.size() <= 1) {
+                if (depths.size() > 1) {
+                    mutableVars.add(var);
                     continue;
                 }
-                mutableVars.add(var);
+                // Same-depth assigns are typically if/else alternatives handled by
+                // convertIfElseAssignsToTernary — but still need mutable treatment
+                // if the variable is used outside the enclosing block.
+                int lastAssignEnd = positions.get(indices.get(indices.size() - 1))[1];
+                int scopeEnd = findEnclosingBlockEnd(content, lastAssignEnd);
+                if (scopeEnd < content.length()) {
+                    String afterScope = content.substring(scopeEnd);
+                    Pattern varRef = Pattern.compile("(?<![.\\w'\"])" + Pattern.quote(var) + "\\b");
+                    if (varRef.matcher(afterScope).find()) {
+                        mutableVars.add(var);
+                    }
+                }
             } else {
                 // Single assign: check if the variable is used after its scope boundary
                 int assignEnd = positions.get(indices.get(0))[1];
@@ -1939,6 +1949,27 @@ public class LiquidToQuteConverter {
             }
         }
 
+        return content.length();
+    }
+
+    private int findEnclosingBlockEnd(String content, int startPos) {
+        // Find the closing tag of the nearest enclosing block (skips past {#else}).
+        // Unlike findScopeBoundary, this goes UP one nesting level to find where
+        // the entire if/else block ends.
+        int depth = 0;
+        Pattern tagPattern = Pattern.compile("\\{#(for|if|let)\\b|\\{/(for|if|let)\\}");
+        Matcher matcher = tagPattern.matcher(content);
+        matcher.region(startPos, content.length());
+        while (matcher.find()) {
+            if (matcher.group().startsWith("{#")) {
+                depth++;
+            } else {
+                depth--;
+                if (depth < 0) {
+                    return matcher.end();
+                }
+            }
+        }
         return content.length();
     }
 

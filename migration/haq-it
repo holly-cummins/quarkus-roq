@@ -126,7 +126,6 @@ rm -f ${project_dir}/_includes/templates/toc.html
 
 ${tools_dir}/roq-it-jekyll ${project_dir}
 
-
 # Add e2e profile to pom.xml (excludes e2e-tagged tests by default, profile enables them)
 sed -i '' '/<artifactId>maven-surefire-plugin<\/artifactId>/{
 N

@@ -120,6 +120,7 @@ class JekyllPluginConverterTest {
         assertThat(content).contains("search.quarkus.io");
         assertThat(content).contains("search-wc.js");
         assertThat(content).contains("sourceMappingURL");
+        assertThat(content).contains("Files.exists(dest)");
     }
 
     // --- MANUAL plugins: fail unless equivalent exists ---

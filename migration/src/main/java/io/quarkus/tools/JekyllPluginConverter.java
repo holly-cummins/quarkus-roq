@@ -181,7 +181,6 @@ public class JekyllPluginConverter {
                 "import java.net.URI;\n" +
                 "import java.nio.file.Files;\n" +
                 "import java.nio.file.Path;\n" +
-                "import java.nio.file.StandardCopyOption;\n" +
                 "\n" +
                 "import io.quarkus.runtime.Startup;\n" +
                 "import jakarta.enterprise.context.ApplicationScoped;\n" +
@@ -200,11 +199,14 @@ public class JekyllPluginConverter {
                 "            return;\n" +
                 "        }\n" +
                 "        Path dest = Path.of(\"public\", CACHED_FILE.split(\"/\"));\n" +
+                "        if (Files.exists(dest)) {\n" +
+                "            LOG.debugf(\"Search script already exists at %s, skipping download\", dest);\n" +
+                "            return;\n" +
+                "        }\n" +
                 "        try {\n" +
                 "            Files.createDirectories(dest.getParent());\n" +
                 "            try (InputStream in = URI.create(SCRIPT_URL).toURL().openStream()) {\n" +
                 "                String content = new String(in.readAllBytes());\n" +
-                "                // Strip sourcemap references (matches Ruby plugin behavior)\n" +
                 "                content = content.replaceAll(\"//# sourceMappingURL=.*\\\\.map\", \"\");\n" +
                 "                Files.writeString(dest, content);\n" +
                 "                LOG.infof(\"Downloaded search script from %s to %s\", SCRIPT_URL, dest);\n" +

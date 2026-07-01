@@ -368,7 +368,7 @@ public class JekyllConfigConverter {
                 .replace(":categories", ":collection");
     }
 
-    private static final Set<String> SKIP_ESCAPE_COLLECTIONS = Set.of("posts", "redirects");
+    private static final Set<String> SKIP_ESCAPE_COLLECTIONS = Set.of("redirects");
 
     private void addEscapedPages(JsonNode config, Properties properties) {
         if (config == null || !config.has("collections")) {

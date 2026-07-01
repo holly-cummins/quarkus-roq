@@ -47,7 +47,7 @@ rm -rf ${project_dir}/templates/
 rm -f ${project_dir}/application.properties
 
 # TODO make this generic
-sed -i '' 's|href="{{ '"'"'/assets/css/main.css'"'"' | relative_url }}?2021-07-29"|href="static/bundle/app.css"|g' ${project_dir}/_layouts/base.html
+sed -i '' 's#href="{{ '"'"'/assets/css/main.css'"'"' | relative_url }}?2021-07-29"#href="static/bundle/app.css"#g' ${project_dir}/_layouts/base.html
 #sed -i '' -e "@{{ '/assets/css/main.css' | relative_url }}?2021-07-29/@/static/bundle/app.css@" ${project_dir}/_layouts/base.html
 # TODO regular expressions are hard, sed is hard, previous regexp does not work
 # TODO need to strip local stylesheet references
@@ -139,8 +139,6 @@ mv ${project_dir}/assets ${project_dir}/public
 
 # TODO do this more flexibly, with a search, since this is specific to quarkusio
 mv ${project_dir}/newsletter ${project_dir}/public
-
-mv ${project_dir}/_site/index.html ${project_dir}
 
 # Convert Jekyll XML templates (feed.xml, sitemap.xml) to Qute
 # Strip frontmatter, stage in _includes for the converter, serve from content/

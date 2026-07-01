@@ -234,6 +234,21 @@ class LiquidToQuteConverterTest {
     }
 
     @Test
+    void testAutopagesPaginatorConvertsToFilteredIteration() {
+        String input = "{% assign author = page.pagination.author %}"
+                + "{% if paginator.posts.size > 0 %}"
+                + "{% for post in paginator.posts %}"
+                + "{{post.title}}"
+                + "{% endfor %}"
+                + "{% endif %}";
+        String converted = converter.convert(input);
+        assertFalse(converted.contains("page.paginator"),
+                "Autopages template should not use page.paginator (null on from-data pages), got: " + converted);
+        assertTrue(converted.contains(".filter('author', page.data._key)"),
+                "Should filter posts by entity key, got: " + converted);
+    }
+
+    @Test
     void testAutopagesCategoryVariables() {
         String input = "{% assign cat = page.pagination.category %}{% assign cat_info = page.pagination.category_data %}{{cat_info.title}}";
         String expected = "{#let cat=page.data._key}{#let cat_info=page.data}{=cat_info.title.raw}{/let}{/let}";

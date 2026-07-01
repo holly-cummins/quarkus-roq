@@ -408,6 +408,99 @@ class JekyllFrontMatterConverterTest {
         assertFalse(result.contains("link:"), "redundant permalink should not become link");
     }
 
+    // --- Include target prefix tests ---
+
+    @Test
+    void testPrefixIncludeTargetsRenamesFileAndUpdatesInclude(@TempDir Path tempDir) throws IOException {
+        Path postsDir = tempDir.resolve("content/posts");
+        Files.createDirectories(postsDir);
+
+        Files.writeString(postsDir.resolve("transcription.adoc"),
+                "Some content with no frontmatter\n");
+        Files.writeString(postsDir.resolve("2020-04-30-insights.adoc"), """
+                ---
+                title: Insights
+                ---
+                Here is the transcript:
+                include::transcription.adoc[]
+                """);
+
+        converter.prefixIncludeTargets(tempDir.resolve("content"));
+
+        assertFalse(Files.exists(postsDir.resolve("transcription.adoc")),
+                "Original file should be renamed");
+        assertTrue(Files.exists(postsDir.resolve("_transcription.adoc")),
+                "File should be prefixed with _");
+
+        String parentContent = Files.readString(postsDir.resolve("2020-04-30-insights.adoc"));
+        assertTrue(parentContent.contains("include::_transcription.adoc[]"),
+                "Include directive should reference the renamed file");
+        assertFalse(parentContent.contains("include::transcription.adoc[]"),
+                "Old include reference should be gone");
+    }
+
+    @Test
+    void testPrefixIncludeTargetsSkipsFilesWithFrontmatter(@TempDir Path tempDir) throws IOException {
+        Path postsDir = tempDir.resolve("content/posts");
+        Files.createDirectories(postsDir);
+
+        Files.writeString(postsDir.resolve("real-post.adoc"), """
+                ---
+                title: A real post
+                ---
+                Post content
+                """);
+
+        converter.prefixIncludeTargets(tempDir.resolve("content"));
+
+        assertTrue(Files.exists(postsDir.resolve("real-post.adoc")),
+                "File with frontmatter should not be renamed");
+        assertFalse(Files.exists(postsDir.resolve("_real-post.adoc")));
+    }
+
+    @Test
+    void testPrefixIncludeTargetsMultipleFiles(@TempDir Path tempDir) throws IOException {
+        Path postsDir = tempDir.resolve("content/posts");
+        Files.createDirectories(postsDir);
+
+        Files.writeString(postsDir.resolve("transcription_0.adoc"),
+                "First transcript\n");
+        Files.writeString(postsDir.resolve("transcription_1.adoc"),
+                "Second transcript\n");
+        Files.writeString(postsDir.resolve("2020-04-30-insights.adoc"), """
+                ---
+                title: Insights
+                ---
+                include::transcription_0.adoc[]
+                include::transcription_1.adoc[]
+                """);
+
+        converter.prefixIncludeTargets(tempDir.resolve("content"));
+
+        assertFalse(Files.exists(postsDir.resolve("transcription_0.adoc")));
+        assertFalse(Files.exists(postsDir.resolve("transcription_1.adoc")));
+        assertTrue(Files.exists(postsDir.resolve("_transcription_0.adoc")));
+        assertTrue(Files.exists(postsDir.resolve("_transcription_1.adoc")));
+
+        String parentContent = Files.readString(postsDir.resolve("2020-04-30-insights.adoc"));
+        assertTrue(parentContent.contains("include::_transcription_0.adoc[]"));
+        assertTrue(parentContent.contains("include::_transcription_1.adoc[]"));
+    }
+
+    @Test
+    void testPrefixIncludeTargetsSkipsAlreadyPrefixed(@TempDir Path tempDir) throws IOException {
+        Path postsDir = tempDir.resolve("content/posts");
+        Files.createDirectories(postsDir);
+
+        Files.writeString(postsDir.resolve("_already-prefixed.adoc"),
+                "Some content\n");
+
+        converter.prefixIncludeTargets(tempDir.resolve("content"));
+
+        assertTrue(Files.exists(postsDir.resolve("_already-prefixed.adoc")),
+                "Already-prefixed file should stay as-is");
+    }
+
     // --- Integration test ---
 
     @Test

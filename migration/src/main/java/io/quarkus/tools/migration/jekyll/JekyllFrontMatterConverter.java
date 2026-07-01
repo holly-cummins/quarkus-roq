@@ -3,7 +3,9 @@ package io.quarkus.tools.migration.jekyll;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -38,6 +40,8 @@ public class JekyllFrontMatterConverter {
         JsonNode config = Files.exists(configFile)
                 ? yamlMapper.readTree(Files.readString(configFile))
                 : null;
+
+        prefixIncludeTargets(contentDir);
 
         // Merge redirect duplicates in content/ and in pre-move _<collection> dirs
         mergeRedirectDuplicates(contentDir);
@@ -178,6 +182,63 @@ public class JekyllFrontMatterConverter {
 
                 Files.writeString(entry.getValue(), merged);
                 Files.delete(mdFile);
+            }
+        }
+    }
+
+    /**
+     * Rename content files without frontmatter that are AsciiDoc include targets.
+     * Adds a {@code _} prefix so Roq ignores them, and updates include directives in sibling files.
+     */
+    public void prefixIncludeTargets(Path contentDir) throws IOException {
+        if (!Files.isDirectory(contentDir)) {
+            return;
+        }
+
+        Path[] allFiles = findContentFiles(contentDir);
+        List<Path> noFrontmatter = new ArrayList<>();
+
+        for (Path file : allFiles) {
+            String name = file.getFileName().toString();
+            if (name.startsWith("_")) {
+                continue;
+            }
+            String firstLine = Files.readString(file).lines().findFirst().orElse("");
+            if (!"---".equals(firstLine.trim())) {
+                noFrontmatter.add(file);
+            }
+        }
+
+        for (Path file : noFrontmatter) {
+            String basename = file.getFileName().toString();
+            Path dir = file.getParent();
+            boolean included = false;
+
+            for (Path sibling : allFiles) {
+                if (sibling.equals(file) || !sibling.getParent().equals(dir) || !Files.exists(sibling)) {
+                    continue;
+                }
+                String content = Files.readString(sibling);
+                if (content.contains("include::" + basename + "[")) {
+                    included = true;
+                    break;
+                }
+            }
+
+            if (included) {
+                String prefixed = "_" + basename;
+                Files.move(file, dir.resolve(prefixed));
+                for (Path sibling : allFiles) {
+                    if (sibling.equals(file) || !sibling.getParent().equals(dir) || !Files.exists(sibling)) {
+                        continue;
+                    }
+                    String content = Files.readString(sibling);
+                    if (content.contains("include::" + basename + "[")) {
+                        content = content.replace("include::" + basename + "[", "include::" + prefixed + "[");
+                        Files.writeString(sibling, content);
+                    }
+                }
+                System.out.println("  [PREFIX] " + basename + " → " + prefixed);
             }
         }
     }

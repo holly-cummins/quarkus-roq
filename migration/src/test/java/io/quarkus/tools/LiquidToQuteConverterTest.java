@@ -1547,6 +1547,20 @@ class LiquidToQuteConverterTest {
     }
 
     @Test
+    void testMutableIfElseAssignUsedOutsideScope() {
+        // Assigns at same depth in if/else branches, but variable used outside the block
+        String input = "{#if enabled}" +
+                "{#if mode}{% assign src = a %}{#else}{% assign src = b %}{/if}" +
+                "{/if}" +
+                "<script src=\"{=src}\"></script>";
+        String result = converter.convert(input);
+        assertTrue(result.contains("_m.assign('src',"),
+                "If/else assigns used outside scope should use mutable map: " + result);
+        assertTrue(result.contains("_m.read('src')"),
+                "Read outside scope should use _m.read(): " + result);
+    }
+
+    @Test
     void testSingleAssignStaysAsLet() {
         // Single assign, used only within scope — no mutable treatment needed
         String input = "{% assign x = \"hello\" %}\n{=x}\nmore";

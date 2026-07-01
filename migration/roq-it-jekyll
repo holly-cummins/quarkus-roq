@@ -165,6 +165,9 @@ mkdir -p ${project_dir}/src/main/java/io/quarkus/tools/migration
 cp ${tools_dir}/src/main/java/io/quarkus/tools/migration/JekyllFiltersExtension.java \
    ${project_dir}/src/main/java/io/quarkus/tools/migration/
 
+# Convert Jekyll plugins (_plugins/*.rb) to Roq equivalents
+mvn -f ${tools_dir}/pom.xml -q exec:java -Dexec.mainClass="io.quarkus.tools.JekyllPluginCommand" -Dexec.args="${project_dir}"
+
 # Make all extends optional
 find ${project_dir}/web -name '*.scss' -exec \
     sed -i  '' -e 's|@extend \(.*\);|@extend \1 !optional;|g' {} +

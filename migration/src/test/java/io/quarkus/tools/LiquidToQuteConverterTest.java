@@ -430,14 +430,14 @@ class LiquidToQuteConverterTest {
     @Test
     void testAppendFilter() {
         String input = "{{\"hello\" | append: \" world\"}}";
-        String expected = "{=\"hello\".concat(\" world\")}";
+        String expected = "{=\"hello\".concat(\" world\").raw}";
         assertConverts(input, expected, "Append filter should convert to .concat()");
     }
 
     @Test
     void testMultipleAppends() {
         String input = "{{\"a\" | append: \"b\" | append: \"c\"}}";
-        String expected = "{=\"a\".concat(\"b\").concat(\"c\")}";
+        String expected = "{=\"a\".concat(\"b\").concat(\"c\").raw}";
         assertConverts(input, expected, "Multiple appends should chain");
     }
 
@@ -620,7 +620,7 @@ class LiquidToQuteConverterTest {
         // Liquid: {{ path | prepend: site.baseurl }}
         // site.baseurl is removed (Roq has no baseurl concept), empty concat cleaned up
         String input = "{{paginator.next_page_path | prepend: site.baseurl}}";
-        String expected = "{=page.paginator.next}";
+        String expected = "{=page.paginator.next.raw}";
         assertConverts(input, expected,
                 "Prepend with site.baseurl should simplify to just the expression");
     }
@@ -1294,8 +1294,8 @@ class LiquidToQuteConverterTest {
     @Test
     void testRelativeUrlFilterWithVariable() {
         String input = "{{ page.url | relative_url }}";
-        String expected = "{=page.url.raw}";
-        assertConverts(input, expected, "relative_url filter on variable is a no-op in Roq");
+        String expected = "{='/'.concat(page.url).raw}";
+        assertConverts(input, expected, "relative_url filter on variable prepends /");
     }
 
     @Test

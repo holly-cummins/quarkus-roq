@@ -89,10 +89,6 @@ rm -f ${project_dir}/_plugins/strings.rb
 
 ${tools_dir}/roq-it-jekyll ${project_dir}
 
-# Add posts to escaped-pages so { in code samples isn't parsed as Qute.
-sed -i '' 's/^site\.escaped-pages=\(.*\)/site.escaped-pages=\1,posts\/**/' \
-    ${project_dir}/config/application.properties
-
 # Add e2e profile to pom.xml (excludes e2e-tagged tests by default, profile enables them)
 sed -i '' '/<artifactId>maven-surefire-plugin<\/artifactId>/{
 N

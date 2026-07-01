@@ -1,6 +1,6 @@
 #! /bin/bash
 
-set -x
+set -ex
 
 # Parse options
 export BATCH_MODE=false
@@ -123,6 +123,12 @@ rm -f ${project_dir}/_layouts/extensions.html ${project_dir}/_layouts/extensions
 # Delete Jekyll includes too complex for auto-conversion (allejo/jekyll-toc: pure-Liquid
 # TOC generator using capture-concatenation, continue, slice, times, minus, etc.)
 rm -f ${project_dir}/_includes/templates/toc.html
+
+# Delete plugins that are already handled by the converter (filters/config) or need
+# manual migration (asciidoctor extensions). Keep only cname.rb and copy-search-wc.rb.
+rm -f ${project_dir}/_plugins/asciidoctor-extension.rb
+rm -f ${project_dir}/_plugins/regex_filter.rb
+rm -f ${project_dir}/_plugins/strings.rb
 
 ${tools_dir}/roq-it-jekyll ${project_dir}
 

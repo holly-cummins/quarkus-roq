@@ -1,6 +1,6 @@
 #! /bin/bash
 
-set -x
+set -ex
 
 command -v jbang >/dev/null 2>&1 || { echo "jbang required. Install: curl -Ls https://sh.jbang.dev | bash -s -"; exit 1; }
 
@@ -85,6 +85,25 @@ mv ${project_dir}/*.adoc ${project_dir}/content/ 2>/dev/null || true
 
 
 mkdir -p ${project_dir}/templates
+
+# Delete content files that have been superseded by a redirect.
+# Jekyll's redirect collection intentionally shadows old content at the same URL.
+# Roq treats duplicate output paths as a fatal error, so we remove the old content
+# and let the redirect (which becomes a Roq alias) own that path.
+if [ -d "${project_dir}/_redirects" ]; then
+    find ${project_dir}/_redirects -name "*.md" -o -name "*.html" | while read -r redirect; do
+        base_no_ext="$(basename "$redirect" | sed 's/\.[^.]*$//')"
+        rel=$(python3 -c "import os.path; print(os.path.relpath('$redirect', '${project_dir}/_redirects'))")
+        parent_dir=$(dirname "$rel")
+        for ext in adoc md html; do
+            content_file="${project_dir}/_${parent_dir}/${base_no_ext}.${ext}"
+            if [ -f "$content_file" ]; then
+                echo "Removing superseded content: $content_file (redirect exists at $redirect)"
+                rm -f "$content_file"
+            fi
+        done
+    done
+fi
 
 # Adjust folder names and locations
 mv ${project_dir}/_posts ${project_dir}/content/posts

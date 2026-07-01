@@ -256,8 +256,12 @@ public class LiquidToQuteConverter {
     }
 
     private String convertUrlFilters(String content) {
-        // Roq URLs are already site-relative; these Jekyll filters are no-ops
-        content = content.replaceAll("\\s*\\|\\s*relative_url", "");
+        // relative_url on a string literal starting with '/' is a no-op in Roq (already absolute)
+        // relative_url on a variable needs to prepend '/' since the value may be a bare path
+        content = content.replaceAll(
+                "'(/[^']*)'\\s*\\|\\s*relative_url", "'$1'");
+        content = content.replaceAll(
+                "([a-zA-Z_][a-zA-Z0-9_.\\-]*)\\s*\\|\\s*relative_url", "'/'.concat($1)");
         content = content.replaceAll("\\s*\\|\\s*absolute_url", "");
         return content;
     }
@@ -2469,8 +2473,8 @@ public class LiquidToQuteConverter {
                 matcher.appendReplacement(sb, Matcher.quoteReplacement(matcher.group()));
                 continue;
             }
-            // Skip string literals
-            if (expr.trim().matches("^['\"].*")) {
+            // Skip pure string literals (but not string.concat(...) chains)
+            if (expr.trim().matches("^['\"][^'\"]*['\"]\\s*$")) {
                 matcher.appendReplacement(sb, Matcher.quoteReplacement(matcher.group()));
                 continue;
             }

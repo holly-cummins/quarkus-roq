@@ -548,8 +548,8 @@ class JekyllConfigConverterTest {
         String propsContent = Files.readString(tempDir.resolve("config/application.properties"));
         assertTrue(propsContent.contains("site.collections.guides.link=/guides/:name"),
                 "Should translate guides permalink to link: " + propsContent);
-        assertTrue(propsContent.contains("site.collections.versions.link=/version/:dir[1:]/:name"),
-                "Should translate versions permalink to link with :dir[1:]/:name: " + propsContent);
+        assertTrue(propsContent.contains("site.collections.versions.link=/version/:dir[1]/:name"),
+                "Should translate versions permalink to link with :dir[1]/:name: " + propsContent);
     }
 
     @Test

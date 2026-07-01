@@ -988,9 +988,19 @@ public class LiquidToQuteConverter {
     private String convertPaginator(String content) {
         String original = content;
 
-        // Jekyll's paginator.posts -> Roq's collection access
-        content = content.replaceAll("\\bpaginator\\.posts\\b",
-                "site.collections.get('posts').paginated(page.paginator)");
+        // Jekyll autopages (paginate-v2) inject page.pagination.{entity} — detect this
+        // BEFORE converting paginator refs, since convertCustomPageFields hasn't run yet.
+        // Autopages paginator.posts is pre-filtered by entity; Roq from-data pages have
+        // no paginator, so use .filter() on the collection instead.
+        String autopagesEntity = detectAutopagesEntity(content);
+        if (autopagesEntity != null) {
+            content = content.replaceAll("\\bpaginator\\.posts\\b",
+                    "site.collections.get('posts').filter('" + autopagesEntity
+                            + "', page.pagination." + autopagesEntity + ")");
+        } else {
+            content = content.replaceAll("\\bpaginator\\.posts\\b",
+                    "site.collections.get('posts').paginated(page.paginator)");
+        }
 
         // Jekyll field names -> Roq Paginator field names
         content = content.replaceAll("\\bpaginator\\.total_pages\\b", "page.paginator.total");
@@ -1015,6 +1025,16 @@ public class LiquidToQuteConverter {
             conversionsApplied.add("Converted Jekyll paginator to Roq pagination");
         }
         return content;
+    }
+
+    private String detectAutopagesEntity(String content) {
+        Matcher m = Pattern.compile("page\\.pagination\\.(\\w+)\\b").matcher(content);
+        while (m.find()) {
+            if (!m.group(1).endsWith("_data")) {
+                return m.group(1);
+            }
+        }
+        return null;
     }
 
     private String convertLoops(String content) {

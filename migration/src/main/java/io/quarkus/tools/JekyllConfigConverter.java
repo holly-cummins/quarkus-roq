@@ -363,7 +363,7 @@ public class JekyllConfigConverter {
 
     static String translatePermalinkPlaceholders(String permalink) {
         return permalink
-                .replace(":path", ":dir[1:]/:name")
+                .replace(":path", ":dir[1]/:name")
                 .replace(":title", ":name")
                 .replace(":categories", ":collection");
     }

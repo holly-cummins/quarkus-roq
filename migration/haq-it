@@ -63,6 +63,25 @@ git cherry-pick 30ffadb637 || git cherry-pick --abort || true
 # Add test for duplicate guide titles (test-guide-duplicate-title)
 git cherry-pick c283acf76d || git cherry-pick --abort || true
 
+# Add tests for Liquid string filters — startswith, endswith (PR #2812, test-strings-filter)
+git cherry-pick aae9e3aecd5d || git cherry-pick --abort || true
+git cherry-pick a9cb1b0bff97 || git cherry-pick --abort || true
+
+# Add tests for asciidoctor-extension.rb plugin behaviors (PR #2808, test-asciidoc-extensions)
+git cherry-pick 98e9b5c962cb || git cherry-pick --abort || true
+git cherry-pick feddda33b3c6 || git cherry-pick --abort || true
+
+# Add tests for versioned guide rendering behaviors (PR #2809, test-regex-filter)
+git cherry-pick 5722237cfd4f || git cherry-pick --abort || true
+
+# --- CI infrastructure ---
+
+# Add Lighthouse CI to PR build workflow (PR #2813, lighthouse-ci)
+git cherry-pick 4b6a3fb98db6 || git cherry-pick --abort || true
+git cherry-pick a388a558fc79 || git cherry-pick --abort || true
+git cherry-pick 7d4a1a325ce7 || git cherry-pick --abort || true
+git cherry-pick cd2c90e630a1 || git cherry-pick --abort || true
+
 )
 
 

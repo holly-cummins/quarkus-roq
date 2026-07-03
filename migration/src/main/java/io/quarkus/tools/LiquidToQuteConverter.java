@@ -2537,9 +2537,9 @@ public class LiquidToQuteConverter {
             body = Pattern.compile("\\bsite\\.tags\\b")
                     .matcher(body).replaceAll("site.collections.get('posts').tagsCount");
 
-            // Step 2b: Remove .sort from tagsCount.sort — List<TagCount> has no .sort method,
-            // and the Liquid | sort filter was converted to .sort by filter conversion
-            body = body.replace("tagsCount.sort", "tagsCount");
+            // Step 2b: tagsCount.sort (argless) → tagsCount.sort('name')
+            // Liquid | sort on tag tuples sorted by first element; Roq TagCount needs explicit property
+            body = body.replace("tagsCount.sort", "tagsCount.sort('name')");
 
             // Step 3: Fix .first/.last on tag iteration variables.
             // Jekyll site.tags|sort returns [name, posts] tuples; Roq tagsCount returns TagCount(name, count).

@@ -325,6 +325,17 @@ public class JekyllFiltersExtension {
             Object val = map.get(property);
             return val != null ? val.toString() : null;
         }
+        if (obj != null) {
+            try {
+                java.lang.reflect.Method method = obj.getClass().getMethod(property);
+                Object val = method.invoke(obj);
+                return val != null ? val.toString() : null;
+            } catch (NoSuchMethodException e) {
+                // fall through to toString
+            } catch (ReflectiveOperationException e) {
+                return null;
+            }
+        }
         return obj != null ? obj.toString() : null;
     }
 

@@ -25,6 +25,8 @@ public class JekyllFrontMatterConverter {
 
     private static final Pattern PERMALINK_LINE = Pattern.compile("^permalink:[ \\t]*(.*)\\n", Pattern.MULTILINE);
 
+    private static final Pattern EXCERPT_LINE = Pattern.compile("^excerpt:[ \\t]*(.*)\\n", Pattern.MULTILINE);
+
     private final YAMLMapper yamlMapper = new YAMLMapper();
 
     /**
@@ -73,6 +75,7 @@ public class JekyllFrontMatterConverter {
                         }
                     });
         }
+        convertExcerpts(contentDir);
         convertPagination(contentDir, config);
     }
 
@@ -115,6 +118,24 @@ public class JekyllFrontMatterConverter {
                 content = PERMALINK_LINE.matcher(content).replaceFirst("link: " + Matcher.quoteReplacement(matcher.group(1)) + "\n");
             }
 
+            Files.writeString(file, content);
+        }
+    }
+
+    /**
+     * Rename Jekyll {@code excerpt} frontmatter to Roq {@code description}.
+     * Skips files that already have a {@code description} field.
+     */
+    public void convertExcerpts(Path contentDir) throws IOException {
+        for (Path file : findContentFiles(contentDir)) {
+            String content = Files.readString(file);
+            if (!EXCERPT_LINE.matcher(content).find()) {
+                continue;
+            }
+            if (Pattern.compile("^description:[ \\t]", Pattern.MULTILINE).matcher(content).find()) {
+                continue;
+            }
+            content = EXCERPT_LINE.matcher(content).replaceFirst("description: $1\n");
             Files.writeString(file, content);
         }
     }

@@ -3,10 +3,14 @@
 set -ex
 
 # Parse options
-export BATCH_MODE=false
+export LIVE_MODE=false
+export RESET_MODE=false
+export RUN_TESTS=false
 while [[ "$1" == --* ]]; do
   case "$1" in
-    --batch) BATCH_MODE=true; shift ;;
+    --live) LIVE_MODE=true; shift ;;
+    --reset) RESET_MODE=true; shift ;;
+    --run-tests) RUN_TESTS=true; shift ;;
     *) echo "Unknown option: $1"; exit 1 ;;
   esac
 done
@@ -21,6 +25,7 @@ export project_dir=$1
 export tools_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 export tmp_dir=~/tmp
 
+if [ "$RESET_MODE" = "true" ]; then
 (
 cd ${project_dir}
 
@@ -83,6 +88,13 @@ git cherry-pick 7d4a1a325ce7 || git cherry-pick --abort || true
 git cherry-pick cd2c90e630a1 || git cherry-pick --abort || true
 
 )
+fi
+
+if [ ! -d "${project_dir}/_layouts" ]; then
+    echo "ERROR: No _layouts/ found in ${project_dir} — project appears already converted."
+    echo "Use --reset to start fresh from upstream/main."
+    exit 1
+fi
 
 
 # Delete qute-reference guides — they document the {| |} escape syntax itself,
@@ -134,7 +146,7 @@ sed -i '' '/<profiles>/a\
 ' ${project_dir}/pom.xml
 
 
-if [ "${BATCH_MODE}" = "true" ]; then
+if [ "${RUN_TESTS}" = "true" ]; then
     # SSG build: render all pages like CI does (quarkus:run with BATCH=true)
     # This catches errors that dev mode misses since it renders every route.
     echo "=== SSG build (quarkus:run) ==="

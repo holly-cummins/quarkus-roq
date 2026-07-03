@@ -273,13 +273,13 @@ fi
 
 # TODO need to add name and simple-name - global config?
 
-if [ "${BATCH_MODE}" != "true" ]; then
+if [ "${LIVE_MODE}" = "true" ]; then
     (
         cd ${project_dir}
         mvn quarkus:dev
     )
 else
-    echo "Batch mode: generating static site..."
+    echo "Generating static site..."
     (
         cd ${project_dir}
         QUARKUS_ROQ_GENERATOR_BATCH=true mvn -B package quarkus:run -DskipTests 2>&1

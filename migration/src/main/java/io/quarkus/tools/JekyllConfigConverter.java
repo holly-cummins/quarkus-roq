@@ -150,9 +150,6 @@ public class JekyllConfigConverter {
             }
         });
 
-        // Add empty tags array (for Jekyll compatibility)
-        siteConfig.put("tags", new Object[0]);
-
         // Convert to YAML
         return yamlMapper.writeValueAsString(siteConfig);
     }
@@ -207,6 +204,9 @@ public class JekyllConfigConverter {
         if (config.has("description")) {
             addDescriptionToIndexPage(projectDir, config.get("description").asText());
         }
+
+        // Add tagging frontmatter to the tag layout (must run before LiquidToQuteCommand)
+        addTaggingFrontmatter(projectDir, config);
     }
 
     void moveCollectionDirectories(Path projectDir, JsonNode config) throws IOException {
@@ -260,6 +260,50 @@ public class JekyllConfigConverter {
             }
         }
         return null;
+    }
+
+    void addTaggingFrontmatter(Path projectDir, JsonNode config) throws IOException {
+        if (config == null || !config.has("jekyll-archives")) {
+            return;
+        }
+        JsonNode archives = config.get("jekyll-archives");
+        if (!archives.has("layouts")) {
+            return;
+        }
+        JsonNode layouts = archives.get("layouts");
+        if (!layouts.has("tag")) {
+            return;
+        }
+        String layoutName = layouts.get("tag").asText();
+
+        String link = null;
+        if (archives.has("permalinks")) {
+            JsonNode permalinks = archives.get("permalinks");
+            if (permalinks.has("tag")) {
+                link = permalinks.get("tag").asText().replace(":name", ":tag");
+            }
+        }
+
+        Path layoutFile = projectDir.resolve("_layouts/" + layoutName + ".html");
+        if (!Files.exists(layoutFile)) {
+            return;
+        }
+
+        String content = Files.readString(layoutFile);
+        if (content.contains("tagging:")) {
+            return;
+        }
+
+        String taggingBlock;
+        if (link != null) {
+            taggingBlock = "tagging:\n  collection: posts\n  link: " + link + "\n";
+        } else {
+            taggingBlock = "tagging: posts\n";
+        }
+
+        content = content.replaceFirst("(---\\s*\\n)", "$1" + taggingBlock.replace("\\", "\\\\"));
+        Files.writeString(layoutFile, content);
+        System.out.println("  [TAGGING] Added tagging frontmatter to " + layoutName + ".html");
     }
 
     private boolean hasPlugin(JsonNode config, String pluginName) {

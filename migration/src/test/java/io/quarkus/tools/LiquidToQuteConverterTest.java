@@ -1634,4 +1634,49 @@ class LiquidToQuteConverterTest {
         assertFalse(result.contains("_m.read"),
                 "Variable rebound as for-loop var should not use mutable map: " + result);
     }
+
+    @Test
+    void testSiteTagsByNameConvertsToCollectionGet() {
+        String input = "{% for post in site.tags.user-story %}{{ post.title }}{% endfor %}";
+        String result = converter.convert(input);
+        assertTrue(result.contains("site.collections.get('posts/tag/user-story')"),
+                "site.tags.TAGNAME should convert to site.collections.get('posts/tag/TAGNAME'): " + result);
+    }
+
+    @Test
+    void testSiteTagsListingConvertsToTagsCount() {
+        String input = "{% assign tag_words = site.tags | sort %}" +
+                "{% for stats in tag_words %}" +
+                "{% assign tag = stats | first %}" +
+                "{% assign posts = stats | last %}" +
+                "<a href=\"/tag/{{ tag }}\">{{ tag }}</a>" +
+                "{% endfor %}";
+        String result = converter.convert(input);
+        assertTrue(result.contains("tagsCount"),
+                "site.tags should convert to tagsCount: " + result);
+        assertTrue(result.contains("stats.name"),
+                "stats.first should convert to stats.name: " + result);
+        assertTrue(result.contains("stats.count"),
+                "stats.last should convert to stats.count: " + result);
+        assertFalse(result.contains("cdi:siteConfig.tags"),
+                "Should not use cdi:siteConfig.tags placeholder: " + result);
+    }
+
+    @Test
+    void testTagLayoutPagePostsConvertsToTagCollection() {
+        String input = "---\nlayout: base\ntagging: posts\n---\n{% for post in page.posts %}{{ post.title }}{% endfor %}";
+        String result = converter.convert(input);
+        assertTrue(result.contains("site.collections.get(page.data.tagCollection)"),
+                "page.data.posts in tag layout should convert to site.collections.get(page.data.tagCollection): " + result);
+    }
+
+    @Test
+    void testPagePostsWithoutTaggingFrontmatterUnchanged() {
+        String input = "{% for post in page.posts %}{{ post.title }}{% endfor %}";
+        String result = converter.convert(input);
+        assertTrue(result.contains("page.data.posts"),
+                "page.data.posts without tagging frontmatter should stay as page.data.posts: " + result);
+        assertFalse(result.contains("tagCollection"),
+                "Should not use tagCollection without tagging frontmatter: " + result);
+    }
 }

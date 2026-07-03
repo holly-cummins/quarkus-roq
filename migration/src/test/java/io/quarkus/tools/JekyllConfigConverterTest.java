@@ -82,7 +82,8 @@ class JekyllConfigConverterTest {
         assertTrue(siteConfigYaml.contains("baseurl: \"/blog\""));
         assertTrue(siteConfigYaml.contains("language: \"en\""));
         assertTrue(siteConfigYaml.contains("twitter_username: \"johndoe\""));
-        assertTrue(siteConfigYaml.contains("tags: []"));
+        assertFalse(siteConfigYaml.contains("tags:"),
+                "siteConfig should not contain tags (handled by tagging plugin): " + siteConfigYaml);
     }
 
     @Test
@@ -727,6 +728,75 @@ class JekyllConfigConverterTest {
                 "asciidoctor config should not appear in siteConfig (handled by application.properties): " + siteConfigYaml);
         assertTrue(siteConfigYaml.contains("custom: \"keep_me\""),
                 "Other unknown keys should still be copied: " + siteConfigYaml);
+    }
+
+    @Test
+    void testAddTaggingFrontmatterFromJekyllArchives(@TempDir Path tempDir) throws IOException {
+        String configYaml = """
+                title: Test Site
+                jekyll-archives:
+                  enabled:
+                    - tags
+                  layouts:
+                    tag: tag-archive
+                  permalinks:
+                    tag: '/blog/tag/:name/'
+                """;
+        Files.writeString(tempDir.resolve("_config.yml"), configYaml);
+        Files.createDirectories(tempDir.resolve("_layouts"));
+        Files.writeString(tempDir.resolve("_layouts/tag-archive.html"), """
+                ---
+                layout: base
+                ---
+                <h1>{{ page.title }}</h1>
+                """);
+
+        converter.convertProject(tempDir);
+
+        String layoutContent = Files.readString(tempDir.resolve("_layouts/tag-archive.html"));
+        assertTrue(layoutContent.contains("tagging:"),
+                "Tag layout should have tagging frontmatter: " + layoutContent);
+        assertTrue(layoutContent.contains("collection: posts"),
+                "Tagging should target posts collection: " + layoutContent);
+        assertTrue(layoutContent.contains("link: /blog/tag/:tag/"),
+                "Tagging link should use :tag placeholder: " + layoutContent);
+    }
+
+    @Test
+    void testAddTaggingFrontmatterWithoutPermalink(@TempDir Path tempDir) throws IOException {
+        String configYaml = """
+                title: Test Site
+                jekyll-archives:
+                  enabled:
+                    - tags
+                  layouts:
+                    tag: my-tags
+                """;
+        Files.writeString(tempDir.resolve("_config.yml"), configYaml);
+        Files.createDirectories(tempDir.resolve("_layouts"));
+        Files.writeString(tempDir.resolve("_layouts/my-tags.html"), """
+                ---
+                layout: base
+                ---
+                <h1>Tags</h1>
+                """);
+
+        converter.convertProject(tempDir);
+
+        String layoutContent = Files.readString(tempDir.resolve("_layouts/my-tags.html"));
+        assertTrue(layoutContent.contains("tagging: posts"),
+                "Without permalink, tagging should use simple form: " + layoutContent);
+    }
+
+    @Test
+    void testNoTaggingFrontmatterWithoutJekyllArchives(@TempDir Path tempDir) throws IOException {
+        String configYaml = """
+                title: Test Site
+                """;
+        Files.writeString(tempDir.resolve("_config.yml"), configYaml);
+
+        converter.convertProject(tempDir);
+        // Should not fail — no jekyll-archives config, nothing to do
     }
 
     @Test

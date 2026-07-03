@@ -2502,15 +2502,12 @@ public class LiquidToQuteConverter {
     }
 
     private String makeSiteTagsLenient(String content) {
-        // Jekyll's site.tags is auto-generated and doesn't exist in Roq by default.
-        // Replace with cdi:siteConfig.tags which is set to an empty list by the migration script.
+        // Jekyll's site.tags is auto-generated. Convert to Roq tagging plugin API:
+        // - site.tags.TAG-NAME → site.collections.get('posts/tag/TAG-NAME') (posts by tag)
+        // - site.tags → site.collections.get('posts').tagsCount (tag listing)
+        // Also fixes page.data.posts in tag layouts (with tagging: frontmatter)
 
-        Pattern pattern = Pattern.compile("\\bsite\\.tags\\b");
-        Matcher matcher = pattern.matcher(content);
-
-        if (!matcher.find()) {
-            return content; // No site.tags usage
-        }
+        boolean hasSiteTags = Pattern.compile("\\bsite\\.tags\\b").matcher(content).find();
 
         // Split frontmatter from template body
         String frontmatter = "";
@@ -2523,22 +2520,53 @@ public class LiquidToQuteConverter {
             body = content.substring(fmMatcher.end());
         }
 
-        // Add a warning comment at the start of the body
-        String warning = "\n{! TODO: site.tags not available in Roq by default.\n" +
-                "   The tag listing feature is currently disabled (replaced with cdi:siteConfig.tags=[]).\n" +
-                "   Options to restore functionality:\n" +
-                "   (1) Use collection.tagsCount() for a specific collection,\n" +
-                "   (2) Add a site.tags extension method, or\n" +
-                "   (3) Remove the tag listing feature entirely.\n" +
-                "   See migration implementation notes for details. !}\n";
+        boolean hasTaggingFrontmatter = frontmatter.contains("tagging:");
 
-        // Replace all site.tags with cdi:siteConfig.tags (which is an empty list)
-        body = pattern.matcher(body).replaceAll("cdi:siteConfig.tags");
+        if (!hasSiteTags && !hasTaggingFrontmatter) {
+            return content;
+        }
 
-        String result = frontmatter + warning + body;
+        if (hasSiteTags) {
+            // Step 1: site.tags.TAG-NAME → site.collections.get('posts/tag/TAG-NAME')
+            // Only match hyphenated names (tag names like user-story), not method names
+            // like .sort which were added by filter conversion
+            body = Pattern.compile("\\bsite\\.tags\\.([a-zA-Z][a-zA-Z0-9_]*-[a-zA-Z0-9_-]*)")
+                    .matcher(body).replaceAll("site.collections.get('posts/tag/$1')");
 
-        conversionsApplied.add("Replaced site.tags with cdi:siteConfig.tags (needs manual implementation)");
+            // Step 2: site.tags → site.collections.get('posts').tagsCount
+            body = Pattern.compile("\\bsite\\.tags\\b")
+                    .matcher(body).replaceAll("site.collections.get('posts').tagsCount");
 
-        return result;
+            // Step 3: Fix .first/.last on tag iteration variables.
+            // Jekyll site.tags|sort returns [name, posts] tuples; Roq tagsCount returns TagCount(name, count).
+            // The tagsCount result may be assigned to a let variable then iterated:
+            //   {#let tag_words=...tagsCount...}{#for stats in tag_words...}
+            Matcher letMatcher = Pattern.compile("\\{#let (\\w+)=[^}]*tagsCount").matcher(body);
+            while (letMatcher.find()) {
+                String letVar = letMatcher.group(1);
+                Matcher forMatcher = Pattern.compile("\\{#for (\\w+) in " + Pattern.quote(letVar)).matcher(body);
+                if (forMatcher.find()) {
+                    String loopVar = forMatcher.group(1);
+                    body = body.replace(loopVar + ".first", loopVar + ".name");
+                    body = body.replace(loopVar + ".last", loopVar + ".count");
+                }
+            }
+            // Also handle direct iteration: {#for stats in ...tagsCount...}
+            Matcher directForMatcher = Pattern.compile("\\{#for (\\w+) in [^}]*tagsCount").matcher(body);
+            while (directForMatcher.find()) {
+                String loopVar = directForMatcher.group(1);
+                body = body.replace(loopVar + ".first", loopVar + ".name");
+                body = body.replace(loopVar + ".last", loopVar + ".count");
+            }
+
+            conversionsApplied.add("Converted site.tags to Roq tagging plugin API");
+        }
+
+        // Step 4: In tag layouts (with tagging: frontmatter), fix page.data.posts
+        if (hasTaggingFrontmatter) {
+            body = body.replace("page.data.posts", "site.collections.get(page.data.tagCollection)");
+        }
+
+        return frontmatter + body;
     }
 }

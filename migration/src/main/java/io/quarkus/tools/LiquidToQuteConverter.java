@@ -126,6 +126,10 @@ public class LiquidToQuteConverter {
         // Make site.tags lenient (needed until  (https://github.com/quarkiverse/quarkus-roq/issues/964 is fixed in a release)
         content = makeSiteTagsLenient(content);
 
+        // Tags in frontmatter may be a YAML list or a comma-separated string.
+        // .asStrings handles both; .orEmpty only works for lists.
+        content = content.replace(".data.tags.orEmpty", ".data.tags.asStrings");
+
         // Liquid {{ }} never HTML-escapes; Qute {= } does. Append .raw for fidelity.
         content = appendRawToOutputExpressions(content);
 

@@ -1346,7 +1346,7 @@ class LiquidToQuteConverterTest {
     @Test
     void testForLoopPropertyIterableGetsOrEmpty() {
         String input = "{% for tag in post.tags %}{{ tag }}{% endfor %}";
-        String expected = "{#for tag in post.tags.orEmpty}{=tag.raw}{/for}";
+        String expected = "{#for tag in post.data.tags.orEmpty}{=tag.raw}{/for}";
         assertConverts(input, expected, "Property-access iterable in for loop should get .orEmpty");
     }
 

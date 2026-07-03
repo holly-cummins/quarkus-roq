@@ -2263,8 +2263,7 @@ public class LiquidToQuteConverter {
         // This applies to 'page' and page-like loop variables like 'post'
         String knownPageProps = "url|title|description|image|imageExists|date|data|content|contentAbstract|" +
                 "rawTemplate|sourcePath|sourceFileName|baseFileName|id|draft|files|file|fileExists|source|site|" +
-                "collectionId|collection|next|nextPage|previous|prev|previousPage|prevPage|hidden|paginator|" +
-                "tags|tagsCount";
+                "collectionId|collection|next|nextPage|previous|prev|previousPage|prevPage|hidden|paginator";
 
         // Match page.customField or post.customField (not *.data.*, *.url.*, or known properties)
         // and convert to *.data.customField

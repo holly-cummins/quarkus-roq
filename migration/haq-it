@@ -120,6 +120,10 @@ rm -f ${project_dir}/_plugins/strings.rb
 
 ${tools_dir}/roq-it-jekyll ${project_dir}
 
+# Move data/ back to _data/ and configure Roq to find it there
+mv ${project_dir}/data ${project_dir}/_data
+echo 'quarkus.roq.data.dir=_data' >> ${project_dir}/config/application.properties
+
 # Add e2e profile to pom.xml (excludes e2e-tagged tests by default, profile enables them)
 sed -i '' '/<artifactId>maven-surefire-plugin<\/artifactId>/{
 N

@@ -49,6 +49,13 @@
             <version>${project.version}</version>
         </dependency>
 
+        <!-- AsciidoctorJ for asciidoc extension Java implementations -->
+        <dependency>
+            <groupId>org.asciidoctor</groupId>
+            <artifactId>asciidoctorj</artifactId>
+            <version>3.0.1</version>
+        </dependency>
+
         <!-- Qute + Vert.x for compiling JekyllFiltersExtension (copied into converted sites) -->
         <dependency>
             <groupId>io.quarkus</groupId>

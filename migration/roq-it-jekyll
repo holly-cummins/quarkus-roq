@@ -177,6 +177,14 @@ find ${project_dir}/content -mindepth 2 -maxdepth 2 -type d -name 'images' | whi
     fi
 done
 
+# Same for javascript directories inside collections.
+find ${project_dir}/content -mindepth 2 -maxdepth 2 -type d -name 'javascript' | while read -r js_dir; do
+    if [ ! -f "${js_dir}/index.html" ]; then
+        collection_dir=$(echo "${js_dir}" | sed "s|${project_dir}/content/||" | cut -d/ -f1)
+        printf '%s\n' '---' "link: /${collection_dir}/javascript/" '---' '<html><body></body></html>' > "${js_dir}/index.html"
+    fi
+done
+
 # Convert Liquid to Qute; this has the side effect of renaming directories to adjust the structure
 mkdir -p ${project_dir}/templates/partials
 mvn -f ${tools_dir}/pom.xml -q exec:java -Dexec.mainClass="io.quarkus.tools.LiquidToQuteCommand" -Dexec.args="${project_dir}/_includes ${project_dir}/templates/partials --partials"

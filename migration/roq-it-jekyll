@@ -241,7 +241,7 @@ find ${project_dir}/templates/partials -name '*.html' -exec \
 
 # Check for tags usage (in posts or layouts)
 if grep -q "^tags:" ${project_dir}/content/posts/*.md 2>/dev/null || \
-   grep -q "site.tags" ${project_dir}/templates/layouts/*.html 2>/dev/null; then
+   grep -qE "site\.tags|tagsCount" ${project_dir}/templates/layouts/*.html 2>/dev/null; then
     echo "Detected tags usage - adding quarkus-roq-plugin-tagging"
     (cd ${project_dir} && mvn -q quarkus:add-extension \
         -Dextensions="io.quarkiverse.roq:quarkus-roq-plugin-tagging:${ROQ_VERSION}")

@@ -121,6 +121,7 @@ rm -f ${project_dir}/_plugins/strings.rb
 ${tools_dir}/roq-it-jekyll ${project_dir}
 
 # Move data/ back to _data/ and configure Roq to find it there
+# This makes the migration less disruptive, and less likely to have merge conflicts with what the working group sync does
 mv ${project_dir}/data ${project_dir}/_data
 echo 'quarkus.roq.data.dir=_data' >> ${project_dir}/config/application.properties
 

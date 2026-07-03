@@ -1654,8 +1654,8 @@ class LiquidToQuteConverterTest {
         String result = converter.convert(input);
         assertTrue(result.contains("tagsCount"),
                 "site.tags should convert to tagsCount: " + result);
-        assertFalse(result.contains("tagsCount.sort"),
-                ".sort should be stripped from tagsCount (List<TagCount> has no sort method): " + result);
+        assertTrue(result.contains("tagsCount.sort('name')"),
+                "tagsCount.sort should get explicit 'name' property argument: " + result);
         assertTrue(result.contains("stats.name"),
                 "stats.first should convert to stats.name: " + result);
         assertTrue(result.contains("stats.count"),

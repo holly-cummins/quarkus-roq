@@ -259,4 +259,20 @@ class JekyllFiltersExtensionTest {
         assertEquals("Beta Guide", second.getString("title"));
         assertEquals("/guides/beta", second.getString("url"));
     }
+
+    record TagCount(String name, Long count) {
+    }
+
+    @Test
+    void testSortListOfRecordsByProperty() {
+        List<?> input = List.of(
+                new TagCount("quarkus", 5L),
+                new TagCount("alternative", 3L),
+                new TagCount("messaging", 1L));
+        List<?> result = JekyllFiltersExtension.sort(input, "name");
+        assertEquals(3, result.size());
+        assertEquals("alternative", ((TagCount) result.get(0)).name());
+        assertEquals("messaging", ((TagCount) result.get(1)).name());
+        assertEquals("quarkus", ((TagCount) result.get(2)).name());
+    }
 }

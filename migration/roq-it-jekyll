@@ -149,6 +149,25 @@ mv ${project_dir}/assets ${project_dir}/public
 # TODO do this more flexibly, with a search, since this is specific to quarkusio
 mv ${project_dir}/newsletter ${project_dir}/public
 
+# Roq's static file handler cannot serve files with parentheses in their names —
+# it silently renames them (e.g. content(1) → content-1) during the build, but
+# does not update HTML references, so images 404 at runtime.
+# Fix: rename source files and update references to match.
+paren_count=0
+while IFS= read -r -d '' f; do
+    dir=$(dirname "$f")
+    base=$(basename "$f")
+    new_base=$(echo "$base" | sed 's/(/-/g; s/)//g')
+    mv "$f" "$dir/$new_base"
+    paren_count=$((paren_count + 1))
+done < <(find "${project_dir}/public" -type f -name '*(*' -print0 2>/dev/null)
+
+if [ "$paren_count" -gt 0 ]; then
+    echo "Renamed $paren_count files with parentheses in public/"
+    find "${project_dir}/public" -name '*.html' -print0 | xargs -0 \
+        perl -pi -e 's/([a-zA-Z0-9_-]+)\((\d+)\)/$1-$2/g'
+fi
+
 # Convert Jekyll XML templates (feed.xml, sitemap.xml) to Qute
 # Strip frontmatter, stage in _includes for the converter, serve from content/
 for xml_file in feed.xml sitemap.xml; do

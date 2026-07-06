@@ -123,6 +123,9 @@ ${tools_dir}/roq-it-jekyll ${project_dir}
 mv ${project_dir}/data ${project_dir}/_data
 echo 'quarkus.roq.data.dir=_data' >> ${project_dir}/config/application.properties
 
+# With all the guides, the roq plugin is a bit slow
+echo 'quarkus.roq.generator.timeout=600' >> ${project_dir}/config/application.properties
+
 # Add e2e profile to pom.xml (excludes e2e-tagged tests by default, profile enables them)
 sed -i '' '/<artifactId>maven-surefire-plugin<\/artifactId>/{
 N

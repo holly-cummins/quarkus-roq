@@ -27,65 +27,65 @@ export tmp_dir=~/tmp
 
 if [ "$RESET_MODE" = "true" ]; then
 (
-cd ${project_dir}
+  cd ${project_dir}
 
-# Fetch latest from all remotes before resetting
-git fetch origin
-git fetch upstream
+  # Fetch latest from all remotes before resetting
+  git fetch origin
+  git fetch upstream
 
-# Reset to upstream/main
-git reset --hard upstream/main
+  # Reset to upstream/main
+  git reset --hard upstream/main
 
-# Remove untracked files and directories
-git clean -fd
-rm -rf target/
-rm -rf _site/
+  # Remove untracked files and directories
+  git clean -fd
+  rm -rf target/
+  rm -rf _site/
 
-# Cherry-pick unmerged branch commits to validate conversion handles real changes.
-# Skipped: roq-conversion (is the conversion itself), branches already in upstream/main,
-# and duplicate commits across branches.
+  # Cherry-pick unmerged branch commits to validate conversion handles real changes.
+  # Skipped: roq-conversion (is the conversion itself), branches already in upstream/main,
+  # and duplicate commits across branches.
 
-# --- CI infrastructure (ci-flexible-site-dir, not yet merged) ---
+  # --- CI infrastructure (ci-flexible-site-dir, not yet merged) ---
 
-# CI: make site output directory configurable (ci-flexible-site-dir)
-git cherry-pick 121c20fbf7 || git cherry-pick --abort || true
+  # CI: make site output directory configurable (ci-flexible-site-dir)
+  git cherry-pick 121c20fbf7 || git cherry-pick --abort || true
 
-# --- Cleanup branches (independent of each other) ---
+  # --- Cleanup branches (independent of each other) ---
 
-# Drop stale data-search-api-server attribute referencing undefined search.url
-git cherry-pick aa625cc2a6 || git cherry-pick --abort || true
+  # Drop stale data-search-api-server attribute referencing undefined search.url
+  git cherry-pick aa625cc2a6 || git cherry-pick --abort || true
 
-# --- Playwright test branches (independent of each other) ---
+  # --- Playwright test branches (independent of each other) ---
 
-# Tighten security page test to require a version number before .x
-git cherry-pick 8f13d48a9e || git cherry-pick --abort || true
+  # Tighten security page test to require a version number before .x
+  git cherry-pick 8f13d48a9e || git cherry-pick --abort || true
 
-# Add tests for guide admonition icons and qs-guide web component registration (test-guide-icons)
-git cherry-pick 128d3fd20e || git cherry-pick --abort || true
-git cherry-pick d9efd3dba3 || git cherry-pick --abort || true
-git cherry-pick 30ffadb637 || git cherry-pick --abort || true
+  # Add tests for guide admonition icons and qs-guide web component registration (test-guide-icons)
+  git cherry-pick 128d3fd20e || git cherry-pick --abort || true
+  git cherry-pick d9efd3dba3 || git cherry-pick --abort || true
+  git cherry-pick 30ffadb637 || git cherry-pick --abort || true
 
-# Add test for duplicate guide titles (test-guide-duplicate-title)
-git cherry-pick c283acf76d || git cherry-pick --abort || true
+  # Add test for duplicate guide titles (test-guide-duplicate-title)
+  git cherry-pick c283acf76d || git cherry-pick --abort || true
 
-# Add tests for Liquid string filters — startswith, endswith (PR #2812, test-strings-filter)
-git cherry-pick aae9e3aecd5d || git cherry-pick --abort || true
-git cherry-pick a9cb1b0bff97 || git cherry-pick --abort || true
+  # Add tests for Liquid string filters — startswith, endswith (PR #2812, test-strings-filter)
+  git cherry-pick aae9e3aecd5d || git cherry-pick --abort || true
+  git cherry-pick a9cb1b0bff97 || git cherry-pick --abort || true
 
-# Add tests for asciidoctor-extension.rb plugin behaviors (PR #2808, test-asciidoc-extensions)
-git cherry-pick 98e9b5c962cb || git cherry-pick --abort || true
-git cherry-pick feddda33b3c6 || git cherry-pick --abort || true
+  # Add tests for asciidoctor-extension.rb plugin behaviors (PR #2808, test-asciidoc-extensions)
+  git cherry-pick 98e9b5c962cb || git cherry-pick --abort || true
+  git cherry-pick feddda33b3c6 || git cherry-pick --abort || true
 
-# Add tests for versioned guide rendering behaviors (PR #2809, test-regex-filter)
-git cherry-pick 5722237cfd4f || git cherry-pick --abort || true
+  # Add tests for versioned guide rendering behaviors (PR #2809, test-regex-filter)
+  git cherry-pick 5722237cfd4f || git cherry-pick --abort || true
 
-# --- CI infrastructure ---
+  # --- CI infrastructure ---
 
-# Add Lighthouse CI to PR build workflow (PR #2813, lighthouse-ci)
-git cherry-pick 4b6a3fb98db6 || git cherry-pick --abort || true
-git cherry-pick a388a558fc79 || git cherry-pick --abort || true
-git cherry-pick 7d4a1a325ce7 || git cherry-pick --abort || true
-git cherry-pick cd2c90e630a1 || git cherry-pick --abort || true
+  # Add Lighthouse CI to PR build workflow (PR #2813, lighthouse-ci)
+  git cherry-pick 4b6a3fb98db6 || git cherry-pick --abort || true
+  git cherry-pick a388a558fc79 || git cherry-pick --abort || true
+  git cherry-pick 7d4a1a325ce7 || git cherry-pick --abort || true
+  git cherry-pick cd2c90e630a1 || git cherry-pick --abort || true
 
 )
 fi
@@ -106,10 +106,12 @@ find ${project_dir}/_guides ${project_dir}/_versions -name "qute-reference.adoc"
 find "${project_dir}/_versions" \( -name "*.yaml" -o -name "*.yml" \) -delete 2>/dev/null || true
 
 # Extensions layouts reference a cdi:extensions bean from deleted YAML data
+# TODO is this still needed?
 rm -f ${project_dir}/_layouts/extensions.html ${project_dir}/_layouts/extensions_old.html
 
 # Delete Jekyll includes too complex for auto-conversion (allejo/jekyll-toc: pure-Liquid
 # TOC generator using capture-concatenation, continue, slice, times, minus, etc.)
+# TODO fix this
 rm -f ${project_dir}/_includes/templates/toc.html
 
 # Delete plugins that are already handled by the converter (filters/config) or need

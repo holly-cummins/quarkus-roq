@@ -4,6 +4,16 @@ set -ex
 
 command -v jbang >/dev/null 2>&1 || { echo "jbang required. Install: curl -Ls https://sh.jbang.dev | bash -s -"; exit 1; }
 
+# Cross-platform sed in-place edit
+# macOS requires 'sed -i ""' while Linux uses 'sed -i'
+sed_inplace() {
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        sed -i '' "$@"
+    else
+        sed -i "$@"
+    fi
+}
+
 export project_dir=$1
 export tools_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 export tmp_dir=~/tmp
@@ -47,12 +57,12 @@ rm -rf ${project_dir}/templates/
 rm -f ${project_dir}/application.properties
 
 # TODO make this generic
-sed -i 's#href="{{ '"'"'/assets/css/main.css'"'"' | relative_url }}?2021-07-29"#href="static/bundle/app.css"#g' ${project_dir}/_layouts/base.html
+sed_inplace 's#href="{{ '"'"'/assets/css/main.css'"'"' | relative_url }}?2021-07-29"#href="static/bundle/app.css"#g' ${project_dir}/_layouts/base.html
 #sed -i -e "@{{ '/assets/css/main.css' | relative_url }}?2021-07-29/@/static/bundle/app.css@" ${project_dir}/_layouts/base.html
 # TODO regular expressions are hard, sed is hard, previous regexp does not work
 # TODO need to strip local stylesheet references
 # TODO need to do this for all templates
-sed -i -e 's|<head>|<head>  {#bundle /}|g' ${project_dir}/_layouts/base.html
+sed_inplace -e 's|<head>|<head>  {#bundle /}|g' ${project_dir}/_layouts/base.html
 
 
 ## Generate Roq project skeleton via roq create
@@ -218,11 +228,11 @@ mvn -f ${tools_dir}/pom.xml -q exec:java -Dexec.mainClass="io.quarkus.tools.Jeky
 
 # Make all extends optional
 find ${project_dir}/web -name '*.scss' -exec \
-    sed -i  '' -e 's|@extend \(.*\);|@extend \1 !optional;|g' {} +
+    sed_inplace -e 's|@extend \(.*\);|@extend \1 !optional;|g' {} +
 
 # then fix up any where we double-optionaled
 find ${project_dir}/web -name '*.scss' -exec \
-    sed -i  '' -e 's|!optional !optional;|!optional;|g' {} +
+    sed_inplace -e 's|!optional !optional;|!optional;|g' {} +
 
 # TODO: Workaround for Jekyll→Qute variable scoping mismatch in includes.
 # Problem: Jekyll's {% assign %} creates page-scoped variables that are visible inside {% include %} blocks.
@@ -240,7 +250,7 @@ find ${project_dir}/web -name '*.scss' -exec \
 #   3. Restructure templates to inline the partial content where scoped variables are needed.
 #   4. Add a Roq/Qute feature for "transparent includes" that inherit the parent's variable scope (like Jekyll).
 find ${project_dir}/templates/partials -name '*.html' -exec \
-    sed -i 's/{=\([a-z_][a-z_0-9]*\)}/{=\1??}/g' {} +
+    sed_inplace 's/{=\([a-z_][a-z_0-9]*\)}/{=\1??}/g' {} +
 
 
 # Detect Jekyll features and add corresponding Roq plugins
@@ -271,7 +281,7 @@ fi
 # through the parent POM chain (which roq-create-generated standalone POMs don't have).
 # Harmless for releases — the parent chain already provides them.
 if [ "${ROQ_VERSION}" = "999-SNAPSHOT" ]; then
-    sed -i '/<skipITs>/a\
+    sed_inplace '/<skipITs>/a\
 \        <quarkus-web-bundler.version>2.3.2</quarkus-web-bundler.version>\
 \        <asciidoctorj-diagram.version>3.2.1</asciidoctorj-diagram.version>
 ' ${project_dir}/pom.xml

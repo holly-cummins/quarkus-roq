@@ -107,6 +107,10 @@ if [ ! -d "${project_dir}/_layouts" ]; then
 fi
 
 
+# Delete qute-reference guides — they document the {| |} escape syntax itself,
+# which prematurely closes the escaped-pages {| wrapper.
+find ${project_dir}/_guides ${project_dir}/_versions -name "qute-reference.adoc" -delete 2>/dev/null || true
+
 # Note: Previously deleted .yaml/.yml files from _versions, but the only YAML files
 # that exist are telemetry-examples.yaml, which are content pages rendered by Roq.
 # No deletion needed.

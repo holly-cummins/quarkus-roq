@@ -252,8 +252,9 @@ done
 #   2. Convert Jekyll assigns to Qute @TemplateData beans or CDI-injected values so they're globally accessible.
 #   3. Restructure templates to inline the partial content where scoped variables are needed.
 #   4. Add a Roq/Qute feature for "transparent includes" that inherit the parent's variable scope (like Jekyll).
-find ${project_dir}/templates/partials -name '*.html' -exec \
-    sed_inplace 's/{=\([a-z_][a-z_0-9]*\)}/{=\1??}/g' {} +
+find ${project_dir}/templates/partials -name '*.html' | while read -r file; do
+    sed_inplace 's/{=\([a-z_][a-z_0-9]*\)}/{=\1??}/g' "$file"
+done
 
 
 # Detect Jekyll features and add corresponding Roq plugins

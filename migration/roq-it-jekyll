@@ -2,7 +2,15 @@
 
 set -ex
 
-command -v jbang >/dev/null 2>&1 || { echo "jbang required. Install: curl -Ls https://sh.jbang.dev | bash -s -"; exit 1; }
+# Add .jbang/bin to PATH if jbang is not already available
+if ! command -v jbang >/dev/null 2>&1; then
+    if [ -f "$HOME/.jbang/bin/jbang" ]; then
+        export PATH="$HOME/.jbang/bin:$PATH"
+    else
+        echo "jbang required. Install: curl -Ls https://sh.jbang.dev | bash -s -"
+        exit 1
+    fi
+fi
 
 # Cross-platform sed in-place edit
 # macOS requires 'sed -i ""' while Linux uses 'sed -i'

@@ -25,6 +25,8 @@ public class JekyllFrontMatterConverter {
 
     private static final Pattern PERMALINK_LINE = Pattern.compile("^permalink:[ \\t]*(.*)\\n", Pattern.MULTILINE);
 
+    private static final Pattern NEWURL_LINE = Pattern.compile("^newUrl:[ \\t]*(.*)\\n", Pattern.MULTILINE);
+
     private static final Pattern EXCERPT_LINE = Pattern.compile("^excerpt:[ \\t]*(.*)\\n", Pattern.MULTILINE);
 
     private final YAMLMapper yamlMapper = new YAMLMapper();
@@ -75,6 +77,7 @@ public class JekyllFrontMatterConverter {
                         }
                     });
         }
+        convertNewUrlToAliases(contentDir);
         convertExcerpts(contentDir);
         convertPagination(contentDir, config);
     }
@@ -118,6 +121,24 @@ public class JekyllFrontMatterConverter {
                 content = PERMALINK_LINE.matcher(content).replaceFirst("link: " + Matcher.quoteReplacement(matcher.group(1)) + "\n");
             }
 
+            Files.writeString(file, content);
+        }
+    }
+
+    /**
+     * Convert Jekyll redirect {@code newUrl} frontmatter to Roq {@code aliases}.
+     * Jekyll redirects use newUrl to specify the target; Roq uses aliases for redirects.
+     */
+    public void convertNewUrlToAliases(Path contentDir) throws IOException {
+        for (Path file : findContentFiles(contentDir)) {
+            String content = Files.readString(file);
+            Matcher matcher = NEWURL_LINE.matcher(content);
+            if (!matcher.find()) {
+                continue;
+            }
+
+            String newUrlValue = matcher.group(1).trim();
+            content = NEWURL_LINE.matcher(content).replaceFirst("aliases:\n  - " + Matcher.quoteReplacement(newUrlValue) + "\n");
             Files.writeString(file, content);
         }
     }

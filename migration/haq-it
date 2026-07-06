@@ -111,10 +111,9 @@ fi
 # which prematurely closes the escaped-pages {| wrapper.
 find ${project_dir}/_guides ${project_dir}/_versions -name "qute-reference.adoc" -delete 2>/dev/null || true
 
-# Delete YAML data files from _versions — they're not content pages and cause
-# slug collisions across version directories.
-# Exception: telemetry-examples.yaml is a content page, not data, so preserve it.
-find "${project_dir}/_versions" \( -name "*.yaml" -o -name "*.yml" \) ! -name "telemetry-examples.yaml" -delete 2>/dev/null || true
+# Note: Previously deleted .yaml/.yml files from _versions, but the only YAML files
+# that exist are telemetry-examples.yaml, which are content pages rendered by Roq.
+# No deletion needed.
 
 # Extensions layouts reference a cdi:extensions bean from deleted YAML data
 # TODO is this still needed?

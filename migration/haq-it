@@ -96,17 +96,13 @@ if [ ! -d "${project_dir}/_layouts" ]; then
     exit 1
 fi
 
-
-# Delete qute-reference guides — they document the {| |} escape syntax itself,
-# which prematurely closes the escaped-pages {| wrapper.
-find ${project_dir}/_guides ${project_dir}/_versions -name "qute-reference.adoc" -delete 2>/dev/null || true
-
+# TODO can we drop this?
 # Delete YAML data files from _versions — they're not content pages and cause
 # slug collisions across version directories.
 find "${project_dir}/_versions" \( -name "*.yaml" -o -name "*.yml" \) -delete 2>/dev/null || true
 
 # Extensions layouts reference a cdi:extensions bean from deleted YAML data
-# TODO is this still needed?
+# TODO is this still needed? done in main?
 rm -f ${project_dir}/_layouts/extensions.html ${project_dir}/_layouts/extensions_old.html
 
 # Delete Jekyll includes too complex for auto-conversion (allejo/jekyll-toc: pure-Liquid

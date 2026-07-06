@@ -113,7 +113,8 @@ find ${project_dir}/_guides ${project_dir}/_versions -name "qute-reference.adoc"
 
 # Delete YAML data files from _versions — they're not content pages and cause
 # slug collisions across version directories.
-find "${project_dir}/_versions" \( -name "*.yaml" -o -name "*.yml" \) -delete 2>/dev/null || true
+# Exception: telemetry-examples.yaml is a content page, not data, so preserve it.
+find "${project_dir}/_versions" \( -name "*.yaml" -o -name "*.yml" \) ! -name "telemetry-examples.yaml" -delete 2>/dev/null || true
 
 # Extensions layouts reference a cdi:extensions bean from deleted YAML data
 # TODO is this still needed?

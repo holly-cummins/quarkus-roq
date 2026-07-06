@@ -2,6 +2,16 @@
 
 set -ex
 
+# Cross-platform sed in-place edit
+# macOS requires 'sed -i ""' while Linux uses 'sed -i'
+sed_inplace() {
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        sed -i '' "$@"
+    else
+        sed -i "$@"
+    fi
+}
+
 # Parse options
 export LIVE_MODE=false
 export RESET_MODE=false
@@ -133,14 +143,14 @@ echo 'quarkus.roq.data.dir=_data' >> ${project_dir}/config/application.propertie
 echo 'quarkus.roq.generator.timeout=600' >> ${project_dir}/config/application.properties
 
 # Add e2e profile to pom.xml (excludes e2e-tagged tests by default, profile enables them)
-sed -i '/<artifactId>maven-surefire-plugin<\/artifactId>/{
+sed_inplace '/<artifactId>maven-surefire-plugin<\/artifactId>/{
 N
 N
 s|<configuration>|<configuration>\
                     <excludedGroups>e2e</excludedGroups>|
 }' ${project_dir}/pom.xml
 
-sed -i '/<profiles>/a\
+sed_inplace '/<profiles>/a\
 \        <profile>\
 \            <id>e2e</id>\
 \            <build>\

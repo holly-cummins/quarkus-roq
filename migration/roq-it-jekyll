@@ -47,12 +47,12 @@ rm -rf ${project_dir}/templates/
 rm -f ${project_dir}/application.properties
 
 # TODO make this generic
-sed -i '' 's#href="{{ '"'"'/assets/css/main.css'"'"' | relative_url }}?2021-07-29"#href="static/bundle/app.css"#g' ${project_dir}/_layouts/base.html
-#sed -i '' -e "@{{ '/assets/css/main.css' | relative_url }}?2021-07-29/@/static/bundle/app.css@" ${project_dir}/_layouts/base.html
+sed -i 's#href="{{ '"'"'/assets/css/main.css'"'"' | relative_url }}?2021-07-29"#href="static/bundle/app.css"#g' ${project_dir}/_layouts/base.html
+#sed -i -e "@{{ '/assets/css/main.css' | relative_url }}?2021-07-29/@/static/bundle/app.css@" ${project_dir}/_layouts/base.html
 # TODO regular expressions are hard, sed is hard, previous regexp does not work
 # TODO need to strip local stylesheet references
 # TODO need to do this for all templates
-sed -i '' -e 's|<head>|<head>  {#bundle /}|g' ${project_dir}/_layouts/base.html
+sed -i -e 's|<head>|<head>  {#bundle /}|g' ${project_dir}/_layouts/base.html
 
 
 ## Generate Roq project skeleton via roq create
@@ -240,7 +240,7 @@ find ${project_dir}/web -name '*.scss' -exec \
 #   3. Restructure templates to inline the partial content where scoped variables are needed.
 #   4. Add a Roq/Qute feature for "transparent includes" that inherit the parent's variable scope (like Jekyll).
 find ${project_dir}/templates/partials -name '*.html' -exec \
-    sed -i '' 's/{=\([a-z_][a-z_0-9]*\)}/{=\1??}/g' {} +
+    sed -i 's/{=\([a-z_][a-z_0-9]*\)}/{=\1??}/g' {} +
 
 
 # Detect Jekyll features and add corresponding Roq plugins
@@ -271,7 +271,7 @@ fi
 # through the parent POM chain (which roq-create-generated standalone POMs don't have).
 # Harmless for releases — the parent chain already provides them.
 if [ "${ROQ_VERSION}" = "999-SNAPSHOT" ]; then
-    sed -i '' '/<skipITs>/a\
+    sed -i '/<skipITs>/a\
 \        <quarkus-web-bundler.version>2.3.2</quarkus-web-bundler.version>\
 \        <asciidoctorj-diagram.version>3.2.1</asciidoctorj-diagram.version>
 ' ${project_dir}/pom.xml

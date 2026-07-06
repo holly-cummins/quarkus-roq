@@ -182,22 +182,23 @@ mvn -f ${tools_dir}/pom.xml -q exec:java -Dexec.mainClass="io.quarkus.tools.migr
 mvn -f ${tools_dir}/pom.xml -q exec:java -Dexec.mainClass="io.quarkus.tools.JekyllConfigCommand" -Dexec.args="${project_dir}"
 rm -rf ${project_dir}/_config.yml
 
-# Add index pages for image directories inside collections so Roq serves them as attachments.
+# Add index pages for image directories so Roq serves them as attachments.
 # Without an index page, non-template files in content/ are orphaned and silently dropped.
-# Only handles images/ dirs directly inside a collection root (depth 2 from content/).
-# Deeper nested cases (e.g. versions/3.15/guides/images/) need collection link fixes first.
-find ${project_dir}/content -mindepth 2 -maxdepth 2 -type d -name 'images' | while read -r img_dir; do
+# This handles both top-level collections (guides/images) and nested ones (versions/3.33/guides/images).
+find ${project_dir}/content -type d -name 'images' | while read -r img_dir; do
     if [ ! -f "${img_dir}/index.html" ]; then
-        collection_dir=$(echo "${img_dir}" | sed "s|${project_dir}/content/||" | cut -d/ -f1)
-        printf '%s\n' '---' "link: /${collection_dir}/images/" '---' '<html><body></body></html>' > "${img_dir}/index.html"
+        # Extract the path relative to content/ (e.g., "guides" or "versions/3.33/guides")
+        rel_path=$(echo "${img_dir}" | sed "s|${project_dir}/content/||" | sed 's|/images$||')
+        printf '%s\n' '---' "link: /${rel_path}/images/" '---' '<html><body></body></html>' > "${img_dir}/index.html"
     fi
 done
 
-# Same for javascript directories inside collections.
-find ${project_dir}/content -mindepth 2 -maxdepth 2 -type d -name 'javascript' | while read -r js_dir; do
+# Same for javascript directories.
+find ${project_dir}/content -type d -name 'javascript' | while read -r js_dir; do
     if [ ! -f "${js_dir}/index.html" ]; then
-        collection_dir=$(echo "${js_dir}" | sed "s|${project_dir}/content/||" | cut -d/ -f1)
-        printf '%s\n' '---' "link: /${collection_dir}/javascript/" '---' '<html><body></body></html>' > "${js_dir}/index.html"
+        # Extract the path relative to content/ (e.g., "guides" or "versions/3.33/guides")
+        rel_path=$(echo "${js_dir}" | sed "s|${project_dir}/content/||" | sed 's|/javascript$||')
+        printf '%s\n' '---' "link: /${rel_path}/javascript/" '---' '<html><body></body></html>' > "${js_dir}/index.html"
     fi
 done
 

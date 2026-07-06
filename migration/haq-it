@@ -116,6 +116,8 @@ rm -f ${project_dir}/_plugins/asciidoctor-extension.rb
 rm -f ${project_dir}/_plugins/regex_filter.rb
 rm -f ${project_dir}/_plugins/strings.rb
 
+### Convert!
+
 ${tools_dir}/roq-it-jekyll ${project_dir}
 
 # Move data/ back to _data/ and configure Roq to find it there

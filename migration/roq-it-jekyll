@@ -227,12 +227,15 @@ cp ${tools_dir}/src/main/resources/META-INF/services/org.asciidoctor.jruby.exten
 mvn -f ${tools_dir}/pom.xml -q exec:java -Dexec.mainClass="io.quarkus.tools.JekyllPluginCommand" -Dexec.args="${project_dir}"
 
 # Make all extends optional
-find ${project_dir}/web -name '*.scss' -exec \
-    sed_inplace -e 's|@extend \(.*\);|@extend \1 !optional;|g' {} +
+# Use bash to run sed_inplace for each file since find -exec doesn't have access to functions
+find ${project_dir}/web -name '*.scss' | while read -r file; do
+    sed_inplace -e 's|@extend \(.*\);|@extend \1 !optional;|g' "$file"
+done
 
 # then fix up any where we double-optionaled
-find ${project_dir}/web -name '*.scss' -exec \
-    sed_inplace -e 's|!optional !optional;|!optional;|g' {} +
+find ${project_dir}/web -name '*.scss' | while read -r file; do
+    sed_inplace -e 's|!optional !optional;|!optional;|g' "$file"
+done
 
 # TODO: Workaround for Jekyll→Qute variable scoping mismatch in includes.
 # Problem: Jekyll's {% assign %} creates page-scoped variables that are visible inside {% include %} blocks.

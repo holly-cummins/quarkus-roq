@@ -186,27 +186,6 @@ done
 # Convert frontmatter (permalinks → aliases, pagination → paginate)
 mvn -f ${tools_dir}/pom.xml -q exec:java -Dexec.mainClass="io.quarkus.tools.migration.jekyll.JekyllFrontMatterCommand" -Dexec.args="${project_dir}"
 
-# Convert AsciiDoc link: macros to xref: for cross-document references.
-#
-# Background: In Jekyll, all guides lived at _guides/ (same directory), so relative links
-# like link:building-native-image#anchor worked fine - they resolved to sibling files.
-# In Roq, guides render with directory-style URLs (/guides/foo/) even though source files
-# are flat (content/guides/foo.adoc), so link:bar resolves relative to the page URL:
-# /guides/foo/ + bar → /guides/foo/bar (404).
-#
-# AsciiDoc's xref: cross-reference macro uses relfileprefix/relfilesuffix attributes to
-# construct proper relative paths. Roq sets relfileprefix=../ and relfilesuffix=/, so:
-# xref:building-native-image.adoc#anchor → ../building-native-image/#anchor
-# which resolves correctly from /guides/foo/ to /guides/building-native-image/#anchor.
-#
-# This works at any nesting depth (content/guides/ or content/versions/3.33/guides/)
-# because the page URL depth matches the nesting, and ../ goes up one level.
-#
-# Pattern: link:bare-filename → xref:filename.adoc
-# Preserves anchors (#section) and link text [text].
-# Skips URLs (http/https), absolute paths (/foo), and relative paths (./foo).
-mvn -f ${tools_dir}/pom.xml -q exec:java -Dexec.mainClass="io.quarkus.tools.migration.command.AsciiDocLinkToXrefCommand" -Dexec.args="${project_dir}/content"
-
 # Convert Jekyll config to Roq (creates config/application.properties and data/siteConfig.yml)
 mvn -f ${tools_dir}/pom.xml -q exec:java -Dexec.mainClass="io.quarkus.tools.JekyllConfigCommand" -Dexec.args="${project_dir}"
 rm -rf ${project_dir}/_config.yml
@@ -255,6 +234,30 @@ cp ${tools_dir}/src/main/resources/META-INF/services/org.asciidoctor.jruby.exten
 
 # Convert Jekyll plugins (_plugins/*.rb) to Roq equivalents
 mvn -f ${tools_dir}/pom.xml -q exec:java -Dexec.mainClass="io.quarkus.tools.JekyllPluginCommand" -Dexec.args="${project_dir}"
+
+# Convert AsciiDoc link: macros to xref: for cross-document references.
+#
+# Background: In Jekyll, all guides lived at _guides/ (same directory), so relative links
+# like link:building-native-image#anchor worked fine - they resolved to sibling files.
+# In Roq, guides render with directory-style URLs (/guides/foo/) even though source files
+# are flat (content/guides/foo.adoc), so link:bar resolves relative to the page URL:
+# /guides/foo/ + bar → /guides/foo/bar (404).
+#
+# AsciiDoc's xref: cross-reference macro uses relfileprefix/relfilesuffix attributes to
+# construct proper relative paths. Roq sets relfileprefix=../ and relfilesuffix=/, so:
+# xref:building-native-image.adoc#anchor → ../building-native-image/#anchor
+# which resolves correctly from /guides/foo/ to /guides/building-native-image/#anchor.
+#
+# This works at any nesting depth (content/guides/ or content/versions/3.33/guides/)
+# because the page URL depth matches the nesting, and ../ goes up one level.
+#
+# Pattern: link:bare-filename → xref:filename.adoc
+# Preserves anchors (#section) and link text [text].
+# Skips URLs (http/https), absolute paths (/foo), and relative paths (./foo).
+#
+# NOTE: This must run AFTER the Liquid converter, which moves _guides → content/guides
+# and _versions → content/versions as a side effect of the directory renaming.
+mvn -f ${tools_dir}/pom.xml -q exec:java -Dexec.mainClass="io.quarkus.tools.migration.command.AsciiDocLinkToXrefCommand" -Dexec.args="${project_dir}/content"
 
 # Make all extends optional
 # Use bash to run sed_inplace for each file since find -exec doesn't have access to functions

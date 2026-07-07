@@ -206,7 +206,7 @@ mvn -f ${tools_dir}/pom.xml -q exec:java -Dexec.mainClass="io.quarkus.tools.migr
 # Preserves anchors (#section) and link text [text].
 # Skips URLs (http/https), absolute paths (/foo), and relative paths (./foo).
 echo "Converting link: to xref: for cross-document references..."
-find ${project_dir}/content -name "*.adoc" -o -name "*.asciidoc" | while read -r file; do
+find ${project_dir}/content -type f \( -name "*.adoc" -o -name "*.asciidoc" \) | while read -r file; do
     # Match link:bare-word (no protocol, no leading /, no ./) and convert to xref
     # Captures: \1=filename, \2=#anchor (optional), \3=[link text] (optional)
     sed_inplace -E 's|link:([a-z][a-z0-9-]+)(#[a-z0-9_-]+)?(\[[^\]]*\])?|xref:\1.adoc\2\3|g' "$file"

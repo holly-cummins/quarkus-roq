@@ -118,16 +118,40 @@ public class RedirectMergerCommand implements Callable<Integer> {
                 .replaceAll("/index\\.(md|html)$", "")
                 .replaceAll("\\.(md|html)$", "");
 
-        // Find target file
+        // Check if target is external URL (keep these as redirect pages)
+        boolean isExternal = target.startsWith("http://") || target.startsWith("https://");
+
+        if (isExternal) {
+            // External redirects stay as redirect pages - don't merge or delete
+            System.out.println("  Keep: " + sourcePath + " → " + target + " (external URL)");
+            return false;
+        }
+
+        // Find target file for internal redirects
         // Remove leading slash and .html/.adoc extensions from target
         String targetPath = target.replaceFirst("^/", "")
                 .replaceAll("/$", "")
                 .replaceAll("\\.html$", "");
-        
+
         Path targetFile = findTargetFile(contentDir, targetPath);
         if (targetFile == null) {
-            System.out.println("  Skip: " + sourcePath + " → " + target + " (target not found)");
-            return false;
+            // Internal redirect to non-existent target - delete it (broken redirect)
+            Files.delete(redirectFile);
+            System.out.println("  Deleted: " + sourcePath + " → " + target + " (broken internal redirect)");
+            return true;
+        }
+
+        // Delete if source and target resolve to the same path (circular redirect - useless)
+        // Normalize both for comparison (remove trailing slashes)
+        String normalizedSource = sourcePath.replaceAll("/$", "");
+        String normalizedTarget = target.replaceAll("/$", "");
+        if (!normalizedTarget.startsWith("/")) {
+            normalizedTarget = "/" + normalizedTarget;
+        }
+        if (normalizedSource.equals(normalizedTarget)) {
+            Files.delete(redirectFile);
+            System.out.println("  Deleted: " + sourcePath + " → " + target + " (circular redirect)");
+            return true;
         }
 
         // Delete if source and target resolve to the same path (circular redirect - useless)

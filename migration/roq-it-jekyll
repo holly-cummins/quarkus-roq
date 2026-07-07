@@ -79,7 +79,12 @@ mkdir -p ${tmp_dir}
 # Generate pom.xml via jbang + roq create in a temp directory
 roq_tmp="${tmp_dir}/roq-create-$$"
 rm -rf ${roq_tmp}
-(cd ${tmp_dir} && jbang roq@quarkiverse/quarkus-roq create "roq-create-$$" --no-code -x theme:base --roq-version ${ROQ_VERSION})
+# Use local jar for 999-SNAPSHOT to avoid downloading from Maven Central
+if [ "${ROQ_VERSION}" = "999-SNAPSHOT" ] && [ -f "${tools_dir}/../roq-cli/target/quarkus-roq-cli-999-SNAPSHOT-runner.jar" ]; then
+    (cd ${tmp_dir} && jbang "${tools_dir}/../roq-cli/target/quarkus-roq-cli-999-SNAPSHOT-runner.jar" create "roq-create-$$" --no-code -x theme:base --roq-version ${ROQ_VERSION})
+else
+    (cd ${tmp_dir} && jbang roq@quarkiverse/quarkus-roq create "roq-create-$$" --no-code -x theme:base --roq-version ${ROQ_VERSION})
+fi
 cp ${roq_tmp}/pom.xml ${project_dir}/pom.xml
 rm -rf ${roq_tmp}
 

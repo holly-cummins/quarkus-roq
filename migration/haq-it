@@ -16,11 +16,15 @@ sed_inplace() {
 export LIVE_MODE=false
 export RESET_MODE=false
 export RUN_TESTS=false
+export COMMIT_MODE=false
+export PUSH_MODE=false
 while [[ "$1" == --* ]]; do
   case "$1" in
     --live) LIVE_MODE=true; shift ;;
     --reset) RESET_MODE=true; shift ;;
     --run-tests) RUN_TESTS=true; shift ;;
+    --commit) COMMIT_MODE=true; shift ;;
+    --push) PUSH_MODE=true; COMMIT_MODE=true; shift ;;
     *) echo "Unknown option: $1"; exit 1 ;;
   esac
 done
@@ -278,4 +282,47 @@ if [ "${RUN_TESTS}" = "true" ]; then
 
     kill $SERVER_PID 2>/dev/null
     wait $SERVER_PID 2>/dev/null
+fi
+
+if [ "$COMMIT_MODE" = "true" ]; then
+(
+    cd ${project_dir}
+
+    # Check if there are changes to commit
+    if git diff --quiet && git diff --cached --quiet && [ -z "$(git status --porcelain)" ]; then
+        echo "No changes to commit"
+    else
+        echo "Committing migration changes..."
+
+        # Add all changes
+        git add -A
+
+        # Create commit
+        git commit -m "$(cat <<'EOF'
+Migrate from Jekyll to Roq
+
+Automated migration using roq-it-jekyll and haq-it scripts:
+- Converted Liquid templates to Qute
+- Converted Jekyll config to Roq
+- Converted frontmatter (permalinks → aliases, pagination → paginate)
+- Converted AsciiDoc link: to xref: for cross-references
+- Moved directories (_guides → content/guides, etc.)
+- Updated asset paths and static file handling
+- Copied AsciidoctorJ extensions
+- Applied cherry-picked fixes from unmerged branches
+
+Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>
+EOF
+)"
+
+        echo "✓ Migration committed"
+
+        if [ "$PUSH_MODE" = "true" ]; then
+            CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+            echo "Force pushing to origin/$CURRENT_BRANCH..."
+            git push --force origin $CURRENT_BRANCH
+            echo "✓ Pushed to origin/$CURRENT_BRANCH"
+        fi
+    fi
+)
 fi

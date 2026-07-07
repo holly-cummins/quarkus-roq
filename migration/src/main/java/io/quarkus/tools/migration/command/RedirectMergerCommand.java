@@ -37,6 +37,7 @@ public class RedirectMergerCommand implements Callable<Integer> {
     private Path projectDir;
 
     private static final Pattern ALIASES_LINE = Pattern.compile("^aliases:\\s*\\n((?:[ \\t]+-[ \\t]+[^\\n]+\\n)*)", Pattern.MULTILINE);
+    private static final Pattern NEWURL_LINE = Pattern.compile("^newUrl:[ \\t]*(.*)\\n", Pattern.MULTILINE);
     private static final Pattern FRONTMATTER = Pattern.compile("^---\\s*\\n(.*?)^---\\s*\\n", Pattern.MULTILINE | Pattern.DOTALL);
 
     public static void main(String... args) {
@@ -82,22 +83,30 @@ public class RedirectMergerCommand implements Callable<Integer> {
         }
         
         String frontmatter = fmMatcher.group(1);
-        
-        // Extract aliases (target URL)
+
+        // Extract target URL from either aliases: or newUrl:
+        String target = null;
+
+        // Try aliases: first (if JekyllFrontMatterCommand already converted it)
         Matcher aliasesMatcher = ALIASES_LINE.matcher(frontmatter);
-        if (!aliasesMatcher.find()) {
-            return false;
+        if (aliasesMatcher.find()) {
+            String aliasesBlock = aliasesMatcher.group(1);
+            target = aliasesBlock.lines()
+                    .map(String::trim)
+                    .filter(l -> l.startsWith("- "))
+                    .findFirst()
+                    .map(l -> l.substring(2).trim())
+                    .orElse(null);
         }
-        
-        String aliasesBlock = aliasesMatcher.group(1);
-        // Get first alias (target)
-        String target = aliasesBlock.lines()
-                .map(String::trim)
-                .filter(l -> l.startsWith("- "))
-                .findFirst()
-                .map(l -> l.substring(2).trim())
-                .orElse(null);
-        
+
+        // Fall back to newUrl: (if not yet converted)
+        if (target == null) {
+            Matcher newUrlMatcher = NEWURL_LINE.matcher(frontmatter);
+            if (newUrlMatcher.find()) {
+                target = newUrlMatcher.group(1).trim();
+            }
+        }
+
         if (target == null || target.isEmpty()) {
             return false;
         }

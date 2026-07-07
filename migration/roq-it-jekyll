@@ -209,7 +209,9 @@ echo "Converting link: to xref: for cross-document references..."
 find ${project_dir}/content -type f \( -name "*.adoc" -o -name "*.asciidoc" \) | while read -r file; do
     # Match link:bare-word (no protocol, no leading /, no ./) and convert to xref
     # Captures: \1=filename, \2=#anchor (optional), \3=[link text] (optional)
-    sed_inplace -E 's|link:([a-z][a-z0-9-]+)(#[a-z0-9_-]+)?(\[[^\]]*\])?|xref:\1.adoc\2\3|g' "$file"
+    # CRITICAL: Must NOT match URLs - skip lines containing link:http:// or link:https://
+    # The /link:https?:\/\//b says: if line matches this, branch to end (skip substitution)
+    sed_inplace -E '/link:https?:\/\//b; s|link:([a-z][a-z0-9-]+)(#[a-z0-9_-]+)?(\[[^\]]*\])?|xref:\1.adoc\2\3|g' "$file"
 done
 
 # Convert Jekyll config to Roq (creates config/application.properties and data/siteConfig.yml)

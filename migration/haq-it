@@ -107,10 +107,6 @@ if [ ! -d "${project_dir}/_layouts" ]; then
 fi
 
 
-# Delete qute-reference guides — they document the {| |} escape syntax itself,
-# which prematurely closes the escaped-pages {| wrapper.
-find ${project_dir}/_guides ${project_dir}/_versions -name "qute-reference.adoc" -delete 2>/dev/null || true
-
 # Note: Previously deleted .yaml/.yml files from _versions, but the only YAML files
 # that exist are telemetry-examples.yaml, which are content pages rendered by Roq.
 # No deletion needed.
@@ -129,6 +125,16 @@ rm -f ${project_dir}/_includes/templates/toc.html
 rm -f ${project_dir}/_plugins/asciidoctor-extension.rb
 rm -f ${project_dir}/_plugins/regex_filter.rb
 rm -f ${project_dir}/_plugins/strings.rb
+
+# Escape literal {| and |} sequences in qute-reference files BEFORE conversion.
+# These files document Qute's escape syntax, so they contain literal {| and |}
+# in backticks that would otherwise prematurely close Roq's {| |} escape wrapper.
+echo "Escaping literal {| |} in qute-reference guides..."
+find ${project_dir}/_guides ${project_dir}/_versions -type f -name "*qute-reference.adoc" -print0 2>/dev/null | while IFS= read -r -d '' file; do
+    sed_inplace 's/|}/|\\}/g' "$file"
+    sed_inplace 's/{|/\\{|/g' "$file"
+    echo "  Escaped: $file"
+done
 
 ### Convert!
 

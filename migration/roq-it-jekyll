@@ -104,24 +104,16 @@ mv ${project_dir}/*.adoc ${project_dir}/content/ 2>/dev/null || true
 
 mkdir -p ${project_dir}/templates
 
-# Delete content files that have been superseded by a redirect.
-# Jekyll's redirect collection intentionally shadows old content at the same URL.
-# Roq treats duplicate output paths as a fatal error, so we remove the old content
-# and let the redirect (which becomes a Roq alias) own that path.
-if [ -d "${project_dir}/_redirects" ]; then
-    find ${project_dir}/_redirects -name "*.md" -o -name "*.html" | while read -r redirect; do
-        base_no_ext="$(basename "$redirect" | sed 's/\.[^.]*$//')"
-        rel=$(python3 -c "import os.path; print(os.path.relpath('$redirect', '${project_dir}/_redirects'))")
-        parent_dir=$(dirname "$rel")
-        for ext in adoc md html; do
-            content_file="${project_dir}/_${parent_dir}/${base_no_ext}.${ext}"
-            if [ -f "$content_file" ]; then
-                echo "Removing superseded content: $content_file (redirect exists at $redirect)"
-                rm -f "$content_file"
-            fi
-        done
-    done
-fi
+# Note: Previously deleted content files when redirects existed, but this was too aggressive.
+# Some redirects coexist with content (e.g., security-webauthn has both the guide and
+# a redirect for backward compatibility). Roq's alias plugin can handle this correctly
+# by creating an alias without needing to delete the original content.
+#
+# The deletion caused issues:
+# - security-webauthn.adoc was deleted due to a circular redirect
+# - Other guides with backward-compat aliases were incorrectly removed
+#
+# Solution: Don't delete anything. Let Roq's alias plugin handle redirects.
 
 # Adjust folder names and locations
 mv ${project_dir}/_posts ${project_dir}/content/posts
@@ -342,6 +334,24 @@ if [ "${ROQ_VERSION}" = "999-SNAPSHOT" ]; then
 fi
 
 # TODO need to add name and simple-name - global config?
+
+# Merge standalone redirect files into their target files as aliases before deletion.
+# Redirect files (e.g., _redirects/guides/old-name/index.md with aliases: /guides/new-name)
+# should add "aliases: /guides/old-name" to the target file (guides/new-name.adoc).
+# This preserves redirects when the redirects/ directory is deleted.
+if [ -d "${project_dir}/content/redirects" ]; then
+    echo "Merging redirect files into target files as aliases..."
+    mvn -f ${tools_dir}/pom.xml -q exec:java -Dexec.mainClass="io.quarkus.tools.migration.command.RedirectMergerCommand" -Dexec.args="${project_dir}"
+fi
+
+# Delete redirects/ directory if it exists to avoid path conflicts
+# The newUrl → aliases conversion has already run via JekyllFrontMatterCommand,
+# and redirects have been merged into target files above, so redirect files
+# are no longer needed and would cause build errors.
+if [ -d "${project_dir}/content/redirects" ]; then
+    echo "Removing redirects/ directory to avoid path conflicts..."
+    rm -rf "${project_dir}/content/redirects"
+fi
 
 if [ "${LIVE_MODE}" = "true" ]; then
     (

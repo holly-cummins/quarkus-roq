@@ -154,19 +154,6 @@ public class RedirectMergerCommand implements Callable<Integer> {
             return true;
         }
 
-        // Delete if source and target resolve to the same path (circular redirect - useless)
-        // Normalize both for comparison (remove trailing slashes)
-        String normalizedSource = sourcePath.replaceAll("/$", "");
-        String normalizedTarget = target.replaceAll("/$", "");
-        if (!normalizedTarget.startsWith("/")) {
-            normalizedTarget = "/" + normalizedTarget;
-        }
-        if (normalizedSource.equals(normalizedTarget)) {
-            Files.delete(redirectFile);
-            System.out.println("  Deleted: " + sourcePath + " → " + target + " (circular redirect)");
-            return true;
-        }
-
         // Add source path as alias to target file
         addAliasToFile(targetFile, sourcePath);
         System.out.println("  Merged: " + sourcePath + " → " + target);

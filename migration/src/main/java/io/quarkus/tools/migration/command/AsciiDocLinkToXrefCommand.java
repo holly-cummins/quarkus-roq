@@ -1,12 +1,13 @@
 ///usr/bin/env jbang "$0" "$@" ; exit $?
 //DEPS info.picocli:picocli:4.7.5
 
-package io.quarkus.tools.migration.asciidoc;
+package io.quarkus.tools.migration.command;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.concurrent.Callable;
 
+import io.quarkus.tools.migration.asciidoc.AsciiDocLinkToXrefConverter;
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Parameters;

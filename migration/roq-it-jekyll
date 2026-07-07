@@ -344,13 +344,19 @@ if [ -d "${project_dir}/content/redirects" ]; then
     mvn -f ${tools_dir}/pom.xml -q exec:java -Dexec.mainClass="io.quarkus.tools.migration.command.RedirectMergerCommand" -Dexec.args="${project_dir}"
 fi
 
-# Delete redirects/ directory if it exists to avoid path conflicts
-# The newUrl → aliases conversion has already run via JekyllFrontMatterCommand,
-# and redirects have been merged into target files above, so redirect files
-# are no longer needed and would cause build errors.
+# Delete redirects/ directory if it's empty after merging.
+# Merged redirects were deleted by RedirectMergerCommand; remaining files are
+# external URLs, version-prefix redirects, or other redirects that should stay as redirect pages.
 if [ -d "${project_dir}/content/redirects" ]; then
-    echo "Removing redirects/ directory to avoid path conflicts..."
-    rm -rf "${project_dir}/content/redirects"
+    # Remove empty subdirectories first
+    find "${project_dir}/content/redirects" -type d -empty -delete 2>/dev/null || true
+    # Remove the redirects directory only if it's now empty
+    if [ -z "$(ls -A ${project_dir}/content/redirects 2>/dev/null)" ]; then
+        echo "Removing empty redirects/ directory..."
+        rmdir "${project_dir}/content/redirects"
+    else
+        echo "Keeping redirects/ directory with $(find ${project_dir}/content/redirects -type f | wc -l) remaining redirect files"
+    fi
 fi
 
 if [ "${LIVE_MODE}" = "true" ]; then

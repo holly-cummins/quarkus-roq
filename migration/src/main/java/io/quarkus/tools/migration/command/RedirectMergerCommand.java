@@ -117,7 +117,7 @@ public class RedirectMergerCommand implements Callable<Integer> {
                 .replace('\\', '/')
                 .replaceAll("/index\\.(md|html)$", "")
                 .replaceAll("\\.(md|html)$", "");
-        
+
         // Find target file
         // Remove leading slash and .html/.adoc extensions from target
         String targetPath = target.replaceFirst("^/", "")
@@ -129,10 +129,14 @@ public class RedirectMergerCommand implements Callable<Integer> {
             System.out.println("  Skip: " + sourcePath + " → " + target + " (target not found)");
             return false;
         }
-        
+
         // Add source path as alias to target file
         addAliasToFile(targetFile, sourcePath);
         System.out.println("  Merged: " + sourcePath + " → " + target);
+
+        // Delete the redirect file after successful merge
+        Files.delete(redirectFile);
+
         return true;
     }
 

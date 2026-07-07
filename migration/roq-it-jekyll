@@ -205,22 +205,7 @@ mvn -f ${tools_dir}/pom.xml -q exec:java -Dexec.mainClass="io.quarkus.tools.migr
 # Pattern: link:bare-filename → xref:filename.adoc
 # Preserves anchors (#section) and link text [text].
 # Skips URLs (http/https), absolute paths (/foo), and relative paths (./foo).
-echo "Converting link: to xref: for cross-document references..."
-find ${project_dir}/content -type f \( -name "*.adoc" -o -name "*.asciidoc" \) | while read -r file; do
-    # Match link:bare-word (no protocol, no leading /, no ./) and convert to xref
-    # Captures: \1=filename, \2=#anchor (optional), \3=[link text] (optional)
-    # CRITICAL: Must NOT match URLs - specifically exclude 'http' and 'https' as filenames
-    # Use negative lookahead pattern: match link:word but NOT if word is 'http' or 'https'
-    # Since sed doesn't support negative lookahead, we do two passes:
-    # 1. Temporarily mark http/https links to protect them
-    # 2. Convert bare links
-    # 3. Restore http/https links
-    sed_inplace -E '
-        s|link:(https?://[^][ ]+)|\x00HTTPLINK:\1\x00|g
-        s|link:([a-z][a-z0-9-]+)(#[a-z0-9_-]+)?(\[[^\]]*\])?|xref:\1.adoc\2\3|g
-        s|\x00HTTPLINK:([^][ ]+)\x00|link:\1|g
-    ' "$file"
-done
+mvn -f ${tools_dir}/pom.xml -q exec:java -Dexec.mainClass="io.quarkus.tools.migration.asciidoc.AsciiDocLinkToXrefCommand" -Dexec.args="${project_dir}/content"
 
 # Convert Jekyll config to Roq (creates config/application.properties and data/siteConfig.yml)
 mvn -f ${tools_dir}/pom.xml -q exec:java -Dexec.mainClass="io.quarkus.tools.JekyllConfigCommand" -Dexec.args="${project_dir}"

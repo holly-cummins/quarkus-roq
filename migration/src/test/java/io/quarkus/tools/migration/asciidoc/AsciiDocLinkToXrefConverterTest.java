@@ -80,4 +80,28 @@ public class AsciiDocLinkToXrefConverterTest {
 
         assertEquals(expected, converter.convertLinks(input));
     }
+
+    @Test
+    public void testDoesNotConvertPathsWithSlashes() {
+        // Static files or paths with / should not be converted
+        String input = "Download link:assets/mallocstacks.py[mallocstacks.py] script.";
+        String expected = "Download link:assets/mallocstacks.py[mallocstacks.py] script.";
+        assertEquals(expected, converter.convertLinks(input));
+    }
+
+    @Test
+    public void testDoesNotConvertFilesWithExtensions() {
+        // Files that already have extensions should not be converted
+        String input = "See link:example.pdf[PDF guide] for details.";
+        String expected = "See link:example.pdf[PDF guide] for details.";
+        assertEquals(expected, converter.convertLinks(input));
+    }
+
+    @Test
+    public void testDoesNotConvertRelativePaths() {
+        // Relative paths with ./ should not be converted
+        String input = "Check link:./other-guide[other guide] here.";
+        String expected = "Check link:./other-guide[other guide] here.";
+        assertEquals(expected, converter.convertLinks(input));
+    }
 }

@@ -182,13 +182,28 @@ for guides_dir in ${project_dir}/_guides ${project_dir}/_versions/*/guides; do
     # Update AsciiDoc links in this guides directory to point to assets/ subdirectory
     if [ -d "${guides_dir}/assets" ]; then
         find "${guides_dir}" -maxdepth 1 -type f \( -name "*.adoc" -o -name "*.asciidoc" \) | while read -r doc_file; do
-            # Fix links to static files - prepend assets/ to the filename
+            # Fix links to static files - use ../assets/ relative path
+            #
+            # Why ../assets/ and not assets/?
+            # - File path: content/guides/foo.adoc (flat structure)
+            # - Render URL: /guides/foo/ (directory-style URL, note trailing slash)
+            # - Asset path: content/guides/assets/file.py
+            # - Asset URL: /guides/assets/file.py
+            #
+            # AsciiDoc link: macro resolves relative to the page's URL location:
+            # - link:assets/file.py → /guides/foo/ + assets/file.py = /guides/foo/assets/file.py (404)
+            # - link:../assets/file.py → /guides/foo/ + ../assets/file.py = /guides/assets/file.py (correct)
+            #
+            # This works for all nesting depths:
+            # - /guides/foo/ → ../assets/ = /guides/assets/
+            # - /versions/3.2/guides/foo/ → ../assets/ = /versions/3.2/guides/assets/
+            #
             # Do each extension separately to avoid nested parentheses issues with BSD sed
-            sed_inplace -E 's|link:([a-zA-Z0-9_-]+\.py)|link:assets/\1|g' "${doc_file}"
-            sed_inplace -E 's|link:([a-zA-Z0-9_-]+\.sh)|link:assets/\1|g' "${doc_file}"
-            sed_inplace -E 's|link:([a-zA-Z0-9_-]+\.zip)|link:assets/\1|g' "${doc_file}"
-            sed_inplace -E 's|link:([a-zA-Z0-9_-]+\.jar)|link:assets/\1|g' "${doc_file}"
-            sed_inplace -E 's|link:([a-zA-Z0-9_-]+\.tar\.gz)|link:assets/\1|g' "${doc_file}"
+            sed_inplace -E 's|link:([a-zA-Z0-9_-]+\.py)|link:../assets/\1|g' "${doc_file}"
+            sed_inplace -E 's|link:([a-zA-Z0-9_-]+\.sh)|link:../assets/\1|g' "${doc_file}"
+            sed_inplace -E 's|link:([a-zA-Z0-9_-]+\.zip)|link:../assets/\1|g' "${doc_file}"
+            sed_inplace -E 's|link:([a-zA-Z0-9_-]+\.jar)|link:../assets/\1|g' "${doc_file}"
+            sed_inplace -E 's|link:([a-zA-Z0-9_-]+\.tar\.gz)|link:../assets/\1|g' "${doc_file}"
         done
     fi
 done

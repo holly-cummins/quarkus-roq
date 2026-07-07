@@ -21,12 +21,13 @@ import java.util.stream.Stream;
 public class AsciiDocLinkToXrefConverter {
 
     // Match link:bare-filename with optional anchor and link text
-    // Group 1: filename (lowercase letters, numbers, hyphens)
+    // Group 1: filename (lowercase letters, numbers, hyphens - NO slashes or dots)
     // Group 2: #anchor (optional)
     // Group 3: [link text] (optional)
     // Negative lookahead BEFORE capture: don't match if filename is http or https (URL scheme)
+    // Positive lookahead AFTER filename: must be followed by # or [ or end of string (no / or .)
     private static final Pattern LINK_PATTERN = Pattern.compile(
-        "link:(?!https?:)([a-z][a-z0-9-]+)(#[a-z0-9_-]+)?(\\[[^\\]]*\\])?"
+        "link:(?!https?:)([a-z][a-z0-9-]+)(?=[#\\[\\s]|$)(#[a-z0-9_-]+)?(\\[[^\\]]*\\])?"
     );
 
     /**

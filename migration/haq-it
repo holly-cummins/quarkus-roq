@@ -97,7 +97,15 @@ if [ "$RESET_MODE" = "true" ]; then
   git cherry-pick 7d4a1a325ce7 || git cherry-pick --abort || true
   git cherry-pick cd2c90e630a1 || git cherry-pick --abort || true
 
+  # --- Link crawler fixes ---
+
+  # Fix LinkCrawlerTest to rewrite production URLs in pagination links
+  # Fixes false positive 503 errors when blog pagination uses absolute quarkus.io URLs
+  # Excludes /extensions and /benchmarks (production-only services)
+  git cherry-pick 43b74e5 || git cherry-pick --abort || true
+
 )
+
 fi
 
 if [ ! -d "${project_dir}/_layouts" ]; then

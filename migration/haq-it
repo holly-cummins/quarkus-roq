@@ -171,7 +171,12 @@ for guides_dir in ${project_dir}/_guides ${project_dir}/_versions/*/guides; do
     if [ -d "${guides_dir}/assets" ]; then
         find "${guides_dir}" -maxdepth 1 -type f \( -name "*.adoc" -o -name "*.asciidoc" \) | while read -r doc_file; do
             # Fix links to static files - prepend assets/ to the filename
-            sed_inplace -E 's|link:([a-zA-Z0-9_-]+\.(py|sh|zip|tar\.gz|jar))|link:assets/\1|g' "${doc_file}"
+            # Do each extension separately to avoid nested parentheses issues with BSD sed
+            sed_inplace -E 's|link:([a-zA-Z0-9_-]+\.py)|link:assets/\1|g' "${doc_file}"
+            sed_inplace -E 's|link:([a-zA-Z0-9_-]+\.sh)|link:assets/\1|g' "${doc_file}"
+            sed_inplace -E 's|link:([a-zA-Z0-9_-]+\.zip)|link:assets/\1|g' "${doc_file}"
+            sed_inplace -E 's|link:([a-zA-Z0-9_-]+\.jar)|link:assets/\1|g' "${doc_file}"
+            sed_inplace -E 's|link:([a-zA-Z0-9_-]+\.tar\.gz)|link:assets/\1|g' "${doc_file}"
         done
     fi
 done

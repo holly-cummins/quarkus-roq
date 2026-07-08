@@ -223,15 +223,35 @@ ${tools_dir}/roq-it-jekyll ${project_dir}
 # the meta refresh tag has unbalanced quotes: content="0; url="https://..."
 # This causes RedirectTest.publicationsRedirectsToNewsletter to fail.
 #
-# Workaround: Remove the /publications alias from newsletter.md so it doesn't trigger
-# the bug. The redirect still works because the redirect file is kept in content/redirects/.
+# Workaround: Remove the /publications alias from newsletter.md and create a static
+# redirect page instead, bypassing the aliases plugin entirely.
 #
 # TODO: Remove this workaround once https://github.com/quarkiverse/quarkus-roq/pull/1078
 # is merged and released (expected in Roq 2.1.6 or later).
 if [ -f "${project_dir}/content/newsletter.md" ]; then
-    # Remove the /publications alias line from newsletter.md
     sed_inplace '/^  - \/publications$/d' "${project_dir}/content/newsletter.md"
     echo "WORKAROUND: Removed /publications alias from newsletter.md (Roq 2.1.5 quote bug)"
+fi
+# Create a static redirect page that bypasses the aliases plugin
+mkdir -p "${project_dir}/public/publications"
+cat > "${project_dir}/public/publications/index.html" << 'REDIRECT'
+<!doctype html>
+<html>
+<head>
+<meta http-equiv="refresh" content="0; url=/newsletter/">
+<link rel="canonical" href="/newsletter/" />
+</head>
+</html>
+REDIRECT
+echo "WORKAROUND: Created static /publications/ redirect page"
+
+# Fix canonical URL for versioned guides.
+# The converter produces a condition checking page.data.layout == 'guides', but guides
+# don't have layout in their frontmatter — it's set as a Jekyll default in _config.yml,
+# which isn't carried over to Roq. Fix: check the URL path instead.
+if [ -f "${project_dir}/templates/layouts/base.html" ]; then
+    sed_inplace "s#page.data.layout == 'guides' || page.data.layout == 'guides-index'#page.url.path.startsWith('/version/')#g" "${project_dir}/templates/layouts/base.html"
+    echo "FIX: Canonical URL condition uses URL path instead of layout"
 fi
 
 # Move data/ back to _data/ and configure Roq to find it there

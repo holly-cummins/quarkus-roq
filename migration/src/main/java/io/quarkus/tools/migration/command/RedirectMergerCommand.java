@@ -135,10 +135,10 @@ public class RedirectMergerCommand implements Callable<Integer> {
 
         Path targetFile = findTargetFile(contentDir, targetPath);
         if (targetFile == null) {
-            // Internal redirect to non-existent target - delete it (broken redirect)
-            Files.delete(redirectFile);
-            System.out.println("  Deleted: " + sourcePath + " → " + target + " (broken internal redirect)");
-            return true;
+            // Can't find target file - keep as redirect page (might be rendered at different path via frontmatter)
+            // Only delete if we're confident it's truly broken to avoid false positives
+            System.out.println("  Keep: " + sourcePath + " → " + target + " (redirect page, target file not found)");
+            return false;
         }
 
         // Delete if source and target resolve to the same path (circular redirect - useless)

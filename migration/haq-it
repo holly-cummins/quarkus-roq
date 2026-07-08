@@ -261,9 +261,13 @@ if [ "${RUN_TESTS}" = "true" ]; then
     grep 'ERROR' ${tmp_dir}/roq-ssg.log | head -10
 
     # Install Playwright browsers
+    # Try with system deps first (works on Debian/Ubuntu), fall back to browser-only on other systems
     (cd ${project_dir} && mvn exec:java -e -Dexec.classpathScope=test \
         -Dexec.mainClass=com.microsoft.playwright.CLI \
-        -Dexec.args="install --with-deps chromium")
+        -Dexec.args="install --with-deps chromium") || \
+    (cd ${project_dir} && mvn exec:java -e -Dexec.classpathScope=test \
+        -Dexec.mainClass=com.microsoft.playwright.CLI \
+        -Dexec.args="install chromium")
 
     # Kill anything already on port 8090 — be emphatic to avoid stale servers
     # from prior runs returning cached error pages
@@ -287,7 +291,8 @@ if [ "${RUN_TESTS}" = "true" ]; then
 
     # Run tests against the dev server
     # Use a separate Maven invocation with -pl to avoid stomping the dev server's target/
-    (cd ${project_dir} && mvn -B surefire:test -Dtest.url=http://localhost:8090) || true
+    # Skip validation on systems where deps aren't installed (fallback from install step above)
+    (cd ${project_dir} && PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS=1 mvn -B surefire:test -Dtest.url=http://localhost:8090) || true
 
     kill $SERVER_PID 2>/dev/null
     wait $SERVER_PID 2>/dev/null

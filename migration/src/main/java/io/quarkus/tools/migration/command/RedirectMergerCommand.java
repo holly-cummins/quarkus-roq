@@ -118,6 +118,19 @@ public class RedirectMergerCommand implements Callable<Integer> {
                 .replaceAll("/index\\.(md|html)$", "")
                 .replaceAll("\\.(md|html)$", "");
 
+        // Check if there's a content file at the source path that will render there
+        String sourceFilePath = relPath.toString()
+                .replace('\\', '/')
+                .replaceAll("/index\\.(md|html)$", "")
+                .replaceAll("\\.(md|html)$", "");
+        Path sourceContentFile = findTargetFile(contentDir, sourceFilePath);
+        if (sourceContentFile != null && !hasLinkFrontmatter(sourceContentFile)) {
+            // Content file exists at same path as redirect and will render there - delete redirect to avoid conflict
+            Files.delete(redirectFile);
+            System.out.println("  Deleted: " + sourcePath + " → " + target + " (conflicts with content page)");
+            return true;
+        }
+
         // Check if target is external URL (keep these as redirect pages)
         boolean isExternal = target.startsWith("http://") || target.startsWith("https://");
 
@@ -184,6 +197,17 @@ public class RedirectMergerCommand implements Callable<Integer> {
         }
         
         return null;
+    }
+
+    private boolean hasLinkFrontmatter(Path file) throws IOException {
+        String content = Files.readString(file);
+        Matcher fmMatcher = FRONTMATTER.matcher(content);
+        if (!fmMatcher.find()) {
+            return false;
+        }
+        String frontmatter = fmMatcher.group(1);
+        // Check if frontmatter has "link:" key (means file renders at different URL)
+        return frontmatter.contains("link:");
     }
 
     private void addAliasToFile(Path file, String alias) throws IOException {

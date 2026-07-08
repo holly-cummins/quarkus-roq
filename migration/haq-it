@@ -216,6 +216,24 @@ done
 
 ${tools_dir}/roq-it-jekyll ${project_dir}
 
+# TEMPORARY WORKAROUND for Roq 2.1.5 quote escaping bug in aliases plugin
+# Issue: https://github.com/quarkiverse/quarkus-roq/pull/1078
+# The /publications redirect gets merged as an alias into newsletter.md, and when
+# Roq renders the alias redirect page with an absolute URL (because site.url is set),
+# the meta refresh tag has unbalanced quotes: content="0; url="https://..."
+# This causes RedirectTest.publicationsRedirectsToNewsletter to fail.
+#
+# Workaround: Remove the /publications alias from newsletter.md so it doesn't trigger
+# the bug. The redirect still works because the redirect file is kept in content/redirects/.
+#
+# TODO: Remove this workaround once https://github.com/quarkiverse/quarkus-roq/pull/1078
+# is merged and released (expected in Roq 2.1.6 or later).
+if [ -f "${project_dir}/content/newsletter.md" ]; then
+    # Remove the /publications alias line from newsletter.md
+    sed_inplace '/^  - \/publications$/d' "${project_dir}/content/newsletter.md"
+    echo "WORKAROUND: Removed /publications alias from newsletter.md (Roq 2.1.5 quote bug)"
+fi
+
 # Move data/ back to _data/ and configure Roq to find it there
 # This makes the migration less disruptive, and less likely to have merge conflicts with what the working group sync does
 mv ${project_dir}/data ${project_dir}/_data

@@ -55,6 +55,16 @@ if [ "$RESET_MODE" = "true" ]; then
   rm -rf target/
   rm -rf _site/
 
+  # TODO: Remove this once Roq has a content-level path exclusion mechanism
+  # (equivalent to Jekyll's exclude: in _only_latest_guides_config.yml).
+  # Jekyll CI builds with: --config _config.yml,_only_latest_guides_config.yml
+  # which excludes _versions/2.* through _versions/5.* (~447MB of rendered output).
+  # Roq has no equivalent, so we delete them before conversion.
+  # See also: RoqSelection bean for programmatic path filtering (generator-level only).
+  echo "Deleting excluded version directories (Jekyll _only_latest_guides_config.yml equivalent)..."
+  rm -rf _versions/[2-5].*
+  echo "Remaining versions: $(ls -d _versions/*/ 2>/dev/null | wc -l) directories"
+
   # Cherry-pick unmerged branch commits to validate conversion handles real changes.
   # Skipped: roq-conversion (is the conversion itself), branches already in upstream/main,
   # and duplicate commits across branches.
@@ -100,6 +110,11 @@ if [ "$RESET_MODE" = "true" ]; then
   git cherry-pick a388a558fc79 || git cherry-pick --abort || true
   git cherry-pick 7d4a1a325ce7 || git cherry-pick --abort || true
   git cherry-pick cd2c90e630a1 || git cherry-pick --abort || true
+
+  # Fix site size reduction for Roq output paths (fix/build-reduce-size-roq-paths)
+  # find searched $STATICS_DIR (public/) but rm used $SITE_DIR/public/... — wrong path.
+  # Fix: search $SITE_DIR directly so paths are correct for both Jekyll and Roq.
+  git cherry-pick 890c38d55c || git cherry-pick --abort || true
 
   # --- Conversion fixes ---
 

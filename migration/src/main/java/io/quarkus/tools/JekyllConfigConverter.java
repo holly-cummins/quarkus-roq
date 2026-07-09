@@ -5,9 +5,11 @@ import java.io.Writer;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
+import java.util.stream.Stream;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -93,6 +95,7 @@ public class JekyllConfigConverter {
         addAsciidoctorAttributes(config, properties);
         addCollectionProperties(config, properties);
         addEscapedPages(config, properties);
+        addIgnoredFiles(config, properties);
 
         return properties;
     }
@@ -122,7 +125,8 @@ public class JekyllConfigConverter {
             "description",  // → index page frontmatter
             "autopages",    // → application.properties (auto-author config)
             "title",        // → index page frontmatter / Roq site.title
-            "asciidoctor"   // → application.properties quarkus.asciidoc.attributes.*
+            "asciidoctor",  // → application.properties quarkus.asciidoc.attributes.*
+            "exclude"       // → application.properties site.ignored-files
     );
 
     public String createSiteConfigYaml(JsonNode config, String cnameContent) throws IOException {
@@ -188,6 +192,7 @@ public class JekyllConfigConverter {
             for (String key : props.stringPropertyNames().stream().sorted().toList()) {
                 writer.write(key + "=" + props.getProperty(key) + "\n");
             }
+            convertOverlayConfigs(projectDir, writer);
         }
         
         // Create data/siteConfig.yml
@@ -435,6 +440,119 @@ public class JekyllConfigConverter {
         if (!escaped.isEmpty()) {
             properties.setProperty("site.escaped-pages", escaped.toString());
         }
+    }
+
+    private void addIgnoredFiles(JsonNode config, Properties properties) {
+        String ignored = buildIgnoredFiles(config);
+        if (ignored != null) {
+            properties.setProperty("site.ignored-files", ignored);
+        }
+    }
+
+    String buildIgnoredFiles(JsonNode config) {
+        if (config == null || !config.has("exclude")) {
+            return null;
+        }
+        JsonNode exclude = config.get("exclude");
+        if (!exclude.isArray()) {
+            return null;
+        }
+        StringBuilder ignored = new StringBuilder();
+        for (JsonNode entry : exclude) {
+            String pattern = entry.asText();
+            if (pattern.startsWith("_")) {
+                pattern = pattern.substring(1);
+            }
+            if (!pattern.endsWith("/**") && !pattern.endsWith("/")) {
+                pattern = pattern + "/**";
+            }
+            if (!ignored.isEmpty()) {
+                ignored.append(",");
+            }
+            ignored.append(pattern);
+        }
+        return ignored.isEmpty() ? null : ignored.toString();
+    }
+
+    void convertOverlayConfigs(Path projectDir, Writer mainPropsWriter) throws IOException {
+        List<Path> overlays;
+        try (Stream<Path> files = Files.list(projectDir)) {
+            overlays = files
+                    .filter(p -> {
+                        String name = p.getFileName().toString();
+                        return name.endsWith(".yml")
+                                && name.startsWith("_")
+                                && name.contains("config")
+                                && !name.equals("_config.yml");
+                    })
+                    .sorted()
+                    .toList();
+        }
+        Path configDir = projectDir.resolve("config");
+        for (Path overlay : overlays) {
+            JsonNode overlayConfig = yamlMapper.readTree(Files.readString(overlay));
+            String profile = deriveProfileName(overlay.getFileName().toString());
+
+            String ignored = buildIgnoredFiles(overlayConfig);
+
+            if (ignored == null) {
+                Files.delete(overlay);
+                continue;
+            }
+
+            if ("dev".equals(profile)) {
+                mainPropsWriter.write("%" + profile + ".site.ignored-files=" + ignored + "\n");
+            } else {
+                Path profileProps = configDir.resolve("application-" + profile + ".properties");
+                try (Writer writer = Files.newBufferedWriter(profileProps)) {
+                    writer.write("site.ignored-files=" + ignored + "\n");
+                }
+            }
+            Files.delete(overlay);
+        }
+    }
+
+    List<String> buildSiteConfigOverrides(JsonNode config) {
+        List<String> lines = new java.util.ArrayList<>();
+        if (config == null) {
+            return lines;
+        }
+        config.fieldNames().forEachRemaining(key -> {
+            if ("exclude".equals(key)) {
+                return;
+            }
+            JsonNode value = config.get(key);
+            if (value.isObject()) {
+                value.fields().forEachRemaining(field -> {
+                    if (field.getValue().isValueNode()) {
+                        lines.add("site." + key + "." + hyphenToCamelCase(field.getKey())
+                                + "=" + field.getValue().asText());
+                    }
+                });
+            } else if (value.isValueNode()) {
+                lines.add("site." + key + "=" + value.asText());
+            }
+        });
+        return lines;
+    }
+
+    static String deriveProfileName(String filename) {
+        String name = filename;
+        if (name.startsWith("_")) {
+            name = name.substring(1);
+        }
+        if (name.endsWith(".yml")) {
+            name = name.substring(0, name.length() - 4);
+        }
+        name = name.replace("_config", "").replace("config_", "").replace("config", "");
+        if (name.startsWith("_")) {
+            name = name.substring(1);
+        }
+        if (name.endsWith("_")) {
+            name = name.substring(0, name.length() - 1);
+        }
+        name = name.replace('_', '-');
+        return name.isEmpty() ? "overlay" : name;
     }
 
     private void addAutoAuthorProperties(JsonNode config, Properties properties) {

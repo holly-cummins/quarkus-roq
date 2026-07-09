@@ -827,4 +827,161 @@ class JekyllConfigConverterTest {
         assertTrue(siteConfigYaml.contains("search:"));
         assertTrue(siteConfigYaml.contains("scriptMode: \"defer\""));
     }
+
+    @Test
+    void testExcludeGeneratesIgnoredFiles(@TempDir Path tempDir) throws IOException {
+        String configYaml = """
+                title: Test Site
+                exclude:
+                  - _versions/2.*
+                  - _versions/3.*
+                """;
+        Files.writeString(tempDir.resolve("_config.yml"), configYaml);
+
+        converter.convertProject(tempDir);
+
+        String propsContent = Files.readString(tempDir.resolve("config/application.properties"));
+        assertTrue(propsContent.contains("site.ignored-files=versions/2.*/**,versions/3.*/**"),
+                "Should have ignored-files property: " + propsContent);
+    }
+
+    @Test
+    void testExcludeStripsUnderscorePrefix(@TempDir Path tempDir) throws IOException {
+        String configYaml = """
+                title: Test Site
+                exclude:
+                  - _guides
+                  - _versions/4.*
+                """;
+        Files.writeString(tempDir.resolve("_config.yml"), configYaml);
+
+        converter.convertProject(tempDir);
+
+        String propsContent = Files.readString(tempDir.resolve("config/application.properties"));
+        assertTrue(propsContent.contains("site.ignored-files=guides/**,versions/4.*/**"),
+                "Should strip underscore prefix: " + propsContent);
+    }
+
+    @Test
+    void testExcludePreservesExistingGlobs(@TempDir Path tempDir) throws IOException {
+        String configYaml = """
+                title: Test Site
+                exclude:
+                  - vendor/bundle/
+                  - _versions/2.*
+                """;
+        Files.writeString(tempDir.resolve("_config.yml"), configYaml);
+
+        converter.convertProject(tempDir);
+
+        String propsContent = Files.readString(tempDir.resolve("config/application.properties"));
+        assertTrue(propsContent.contains("vendor/bundle/"),
+                "Should preserve trailing slash pattern: " + propsContent);
+        assertTrue(propsContent.contains("versions/2.*/**"),
+                "Should append /** to glob without suffix: " + propsContent);
+    }
+
+    @Test
+    void testNoExcludeNoIgnoredFiles(@TempDir Path tempDir) throws IOException {
+        String configYaml = """
+                title: Test Site
+                """;
+        Files.writeString(tempDir.resolve("_config.yml"), configYaml);
+
+        converter.convertProject(tempDir);
+
+        String propsContent = Files.readString(tempDir.resolve("config/application.properties"));
+        assertFalse(propsContent.contains("site.ignored-files"),
+                "Should not have ignored-files without exclude: " + propsContent);
+    }
+
+    @Test
+    void testExcludeNotInSiteConfig(@TempDir Path tempDir) throws IOException {
+        String configYaml = """
+                title: Test Site
+                exclude:
+                  - _versions/2.*
+                """;
+        Files.writeString(tempDir.resolve("_config.yml"), configYaml);
+
+        converter.convertProject(tempDir);
+
+        String siteConfigYaml = Files.readString(tempDir.resolve("data/siteConfig.yml"));
+        assertFalse(siteConfigYaml.contains("exclude"),
+                "exclude should not leak into siteConfig.yml: " + siteConfigYaml);
+    }
+
+    @Test
+    void testDeriveProfileName() {
+        assertEquals("only-latest-guides",
+                JekyllConfigConverter.deriveProfileName("_only_latest_guides_config.yml"));
+        assertEquals("noguides",
+                JekyllConfigConverter.deriveProfileName("_noguides_config.yml"));
+        assertEquals("dev",
+                JekyllConfigConverter.deriveProfileName("_config_dev.yml"));
+        assertEquals("overlay",
+                JekyllConfigConverter.deriveProfileName("_config.yml"));
+    }
+
+    @Test
+    void testOverlayConfigCreatesProfileAwareFiles(@TempDir Path tempDir) throws IOException {
+        Files.writeString(tempDir.resolve("_config.yml"), "title: Test Site\n");
+        Files.writeString(tempDir.resolve("_only_latest_guides_config.yml"), """
+                exclude:
+                  - _versions/2.*
+                  - _versions/3.*
+                """);
+        Files.writeString(tempDir.resolve("_noguides_config.yml"), """
+                exclude:
+                  - _guides
+                  - _versions
+                """);
+
+        converter.convertProject(tempDir);
+
+        String noguides = Files.readString(
+                tempDir.resolve("config/application-noguides.properties"));
+        assertTrue(noguides.contains("site.ignored-files=guides/**,versions/**"),
+                "Should have noguides profile file: " + noguides);
+
+        String latestGuides = Files.readString(
+                tempDir.resolve("config/application-only-latest-guides.properties"));
+        assertTrue(latestGuides.contains(
+                        "site.ignored-files=versions/2.*/**,versions/3.*/**"),
+                "Should have only-latest-guides profile file: " + latestGuides);
+
+        assertFalse(Files.exists(tempDir.resolve("_noguides_config.yml")),
+                "Original overlay should be deleted");
+        assertFalse(Files.exists(tempDir.resolve("_only_latest_guides_config.yml")),
+                "Original overlay should be deleted");
+    }
+
+    @Test
+    void testOverlayWithOnlySearchConfigIsDeletedNoProps(@TempDir Path tempDir) throws IOException {
+        Files.writeString(tempDir.resolve("_config.yml"), "title: Test Site\n");
+        Files.writeString(tempDir.resolve("_config_dev.yml"), """
+                search:
+                  script-mode: direct
+                  host: https://search-dev.example.com
+                """);
+
+        converter.convertProject(tempDir);
+
+        String propsContent = Files.readString(tempDir.resolve("config/application.properties"));
+        assertFalse(propsContent.contains("site.search"),
+                "Search config has no ConfigMapping; should not appear in props: " + propsContent);
+        assertFalse(Files.exists(tempDir.resolve("_config_dev.yml")),
+                "Original overlay should be deleted");
+    }
+
+    @Test
+    void testEmptyOverlayIsSkipped(@TempDir Path tempDir) throws IOException {
+        Files.writeString(tempDir.resolve("_config.yml"), "title: Test Site\n");
+        Files.writeString(tempDir.resolve("_config_empty.yml"), "# empty\n");
+
+        converter.convertProject(tempDir);
+
+        assertFalse(Files.exists(tempDir.resolve("config/application-empty.properties")),
+                "Empty overlay should not create profile file");
+    }
 }

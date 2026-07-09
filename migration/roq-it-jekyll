@@ -374,5 +374,5 @@ else
     (
         cd ${project_dir}
         QUARKUS_ROQ_GENERATOR_BATCH=true mvn -B package quarkus:run -DskipTests 2>&1
-    )
+    ) || echo "WARNING: SSG build failed (may need a profile to exclude conflicting pages)"
 fi

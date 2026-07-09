@@ -46,6 +46,8 @@ if [ "$RESET_MODE" = "true" ]; then
   # Fetch latest from all remotes before resetting
   git fetch origin
   git fetch upstream
+  git remote add holly https://github.com/holly-cummins/quarkusio.github.io 2>/dev/null || true
+  git fetch holly
 
   # Reset to upstream/main
   git reset --hard upstream/main
@@ -55,66 +57,28 @@ if [ "$RESET_MODE" = "true" ]; then
   rm -rf target/
   rm -rf _site/
 
-  # TODO: Remove this once Roq has a content-level path exclusion mechanism
-  # (equivalent to Jekyll's exclude: in _only_latest_guides_config.yml).
-  # Jekyll CI builds with: --config _config.yml,_only_latest_guides_config.yml
-  # which excludes _versions/2.* through _versions/5.* (~447MB of rendered output).
-  # Roq has no equivalent, so we delete them before conversion.
-  # See also: RoqSelection bean for programmatic path filtering (generator-level only).
-  echo "Deleting excluded version directories (Jekyll _only_latest_guides_config.yml equivalent)..."
-  rm -rf _versions/[2-5].*
-  echo "Remaining versions: $(ls -d _versions/*/ 2>/dev/null | wc -l) directories"
-
   # Cherry-pick unmerged branch commits to validate conversion handles real changes.
-  # Skipped: roq-conversion (is the conversion itself), branches already in upstream/main,
-  # and duplicate commits across branches.
-
-  # --- CI infrastructure (ci-flexible-site-dir, not yet merged) ---
-
-  # CI: make site output directory configurable (ci-flexible-site-dir)
-  git cherry-pick 121c20fbf7 || git cherry-pick --abort || true
-
-  # --- Cleanup branches (independent of each other) ---
-
-  # Drop stale data-search-api-server attribute referencing undefined search.url
-  git cherry-pick aa625cc2a6 || git cherry-pick --abort || true
-
-  # --- Playwright test branches (independent of each other) ---
-
-  # Tighten security page test to require a version number before .x
-  git cherry-pick 8f13d48a9e || git cherry-pick --abort || true
-
-  # Add tests for guide admonition icons and qs-guide web component registration (test-guide-icons)
-  git cherry-pick 128d3fd20e || git cherry-pick --abort || true
-  git cherry-pick d9efd3dba3 || git cherry-pick --abort || true
-  git cherry-pick 30ffadb637 || git cherry-pick --abort || true
-
-  # Add test for duplicate guide titles (test-guide-duplicate-title)
-  git cherry-pick c283acf76d || git cherry-pick --abort || true
-
-  # Add tests for Liquid string filters — startswith, endswith (PR #2812, test-strings-filter)
-  git cherry-pick aae9e3aecd5d || git cherry-pick --abort || true
-  git cherry-pick a9cb1b0bff97 || git cherry-pick --abort || true
-
-  # Add tests for asciidoctor-extension.rb plugin behaviors (PR #2808, test-asciidoc-extensions)
-  git cherry-pick 98e9b5c962cb || git cherry-pick --abort || true
-  git cherry-pick feddda33b3c6 || git cherry-pick --abort || true
-
-  # Add tests for versioned guide rendering behaviors (PR #2809, test-regex-filter)
-  git cherry-pick 5722237cfd4f || git cherry-pick --abort || true
+  # Merged PRs (now in upstream/main): ci-flexible-site-dir (#2740),
+  # data-search-api-server cleanup, security-test (#2787), guide-icons (#2800),
+  # duplicate-title (#2803), strings-filter (#2812), asciidoc-extensions (#2808),
+  # regex-filter (#2809).
 
   # --- CI infrastructure ---
 
-  # Add Lighthouse CI to PR build workflow (PR #2813, lighthouse-ci)
-  git cherry-pick 4b6a3fb98db6 || git cherry-pick --abort || true
-  git cherry-pick a388a558fc79 || git cherry-pick --abort || true
-  git cherry-pick 7d4a1a325ce7 || git cherry-pick --abort || true
-  git cherry-pick cd2c90e630a1 || git cherry-pick --abort || true
+  # Add Lighthouse CI to PR build workflow (PR #2813, holly-cummins fork)
+  git cherry-pick 7b4f063d4f || git cherry-pick --abort || true
+  git cherry-pick c1f741a9e2 || git cherry-pick --abort || true
+  git cherry-pick a1e815c57e || git cherry-pick --abort || true
+  git cherry-pick b8df7f8a7a || git cherry-pick --abort || true
 
   # Fix site size reduction for Roq output paths (fix/build-reduce-size-roq-paths)
   # find searched $STATICS_DIR (public/) but rm used $SITE_DIR/public/... — wrong path.
   # Fix: search $SITE_DIR directly so paths are correct for both Jekyll and Roq.
   git cherry-pick 890c38d55c || git cherry-pick --abort || true
+
+  # Activate only-latest-guides profile for Roq CI builds (fix/build-roq-profile)
+  # Equivalent of Jekyll's --config _config.yml,_only_latest_guides_config.yml
+  git cherry-pick b7eb97ae7d || git cherry-pick --abort || true
 
   # --- Conversion fixes ---
 
@@ -140,6 +104,34 @@ fi
 # Note: Previously deleted .yaml/.yml files from _versions, but the only YAML files
 # that exist are telemetry-examples.yaml, which are content pages rendered by Roq.
 # No deletion needed.
+
+# Delete Jekyll docker-compose files (Jekyll-specific, not handled by converter)
+rm -f ${project_dir}/docker-compose.yml ${project_dir}/docker-compose_with_guides.yml
+
+# Rewrite serve scripts from Jekyll to Roq with Quarkus profiles
+# serve.sh: full site (dev profile is automatic in quarkus:dev)
+cat > ${project_dir}/serve.sh << 'SERVE'
+#!/bin/sh
+mvn quarkus:dev "$@"
+SERVE
+
+# serve-noguides.sh: no guides (fast iteration on non-guide pages)
+cat > ${project_dir}/serve-noguides.sh << 'SERVE'
+#!/bin/sh
+echo "WARNING: Serving site with no guides. It is fast though!"
+QUARKUS_PROFILE=noguides mvn quarkus:dev "$@"
+SERVE
+
+# serve-only-latest-guides.sh: only latest guides (skip old versions)
+cat > ${project_dir}/serve-only-latest-guides.sh << 'SERVE'
+#!/bin/bash
+SCRIPTDIR=$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )
+pushd "${SCRIPTDIR}"
+echo "WARNING: Serving site with only the latest guides (latest and main)"
+QUARKUS_PROFILE=only-latest-guides mvn quarkus:dev "$@"
+popd
+SERVE
+chmod +x ${project_dir}/serve.sh ${project_dir}/serve-noguides.sh ${project_dir}/serve-only-latest-guides.sh
 
 # Extensions layouts reference a cdi:extensions bean from deleted YAML data
 # TODO is this still needed?
@@ -277,6 +269,7 @@ echo 'quarkus.roq.data.dir=_data' >> ${project_dir}/config/application.propertie
 # With all the guides, the roq plugin is a bit slow
 echo 'quarkus.roq.generator.timeout=600' >> ${project_dir}/config/application.properties
 
+
 # Add e2e profile to pom.xml (excludes e2e-tagged tests by default, profile enables them)
 sed_inplace '/<artifactId>maven-surefire-plugin<\/artifactId>/{
 N
@@ -307,7 +300,7 @@ if [ "${RUN_TESTS}" = "true" ]; then
     # SSG build: render all pages like CI does (quarkus:run with BATCH=true)
     # This catches errors that dev mode misses since it renders every route.
     echo "=== SSG build (quarkus:run) ==="
-    (cd ${project_dir} && QUARKUS_ROQ_GENERATOR_BATCH=true mvn -B package quarkus:run -DskipTests \
+    (cd ${project_dir} && QUARKUS_ROQ_GENERATOR_BATCH=true QUARKUS_PROFILE=only-latest-guides mvn -B package quarkus:run -DskipTests \
         > ${tmp_dir}/roq-ssg.log 2>&1) || true
     SSG_ERRORS=$(grep -c 'ERROR' ${tmp_dir}/roq-ssg.log 2>/dev/null || echo 0)
     echo "SSG build complete — ${SSG_ERRORS} error lines (see ${tmp_dir}/roq-ssg.log)"

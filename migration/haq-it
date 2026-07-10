@@ -320,7 +320,6 @@ Automated migration using roq-it-jekyll and haq-it scripts:
 - Copied AsciidoctorJ extensions
 - Applied cherry-picked fixes from unmerged branches
 
-Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>
 EOF
 )"
 

@@ -5,7 +5,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
@@ -30,9 +29,6 @@ public class JekyllFrontMatterConverter {
 
     private static final Pattern EXCERPT_LINE = Pattern.compile("^excerpt:[ \\t]*(.*)\\n", Pattern.MULTILINE);
 
-    private static final Pattern FRONTMATTER_BLOCK = Pattern.compile(
-            "^---\\s*\\n(.*?)^---\\s*\\n", Pattern.MULTILINE | Pattern.DOTALL);
-
     private final YAMLMapper yamlMapper = new YAMLMapper();
 
     /**
@@ -48,8 +44,6 @@ public class JekyllFrontMatterConverter {
         JsonNode config = Files.exists(configFile)
                 ? yamlMapper.readTree(Files.readString(configFile))
                 : null;
-
-        injectDefaults(projectDir, config);
 
         prefixIncludeTargets(contentDir);
 
@@ -189,95 +183,6 @@ public class JekyllFrontMatterConverter {
                     + "  link: " + pageSlug + "/page/:page\n";
 
             content = PAGINATION_BLOCK.matcher(content).replaceFirst(replacement);
-            Files.writeString(file, content);
-        }
-    }
-
-    /**
-     * Inject Jekyll default frontmatter values into matching content files.
-     * Jekyll's {@code defaults:} section in {@code _config.yml} sets frontmatter values
-     * (like {@code layout}) on pages matching certain scopes. These must be injected into
-     * individual files so they are available as {@code page.data.*} in Roq templates.
-     * <p>
-     * Skips {@code permalink} values since those are handled by {@code JekyllConfigConverter}
-     * as collection-level link patterns.
-     */
-    public void injectDefaults(Path projectDir, JsonNode config) throws IOException {
-        if (config == null || !config.has("defaults")) {
-            return;
-        }
-        JsonNode defaults = config.get("defaults");
-        if (!defaults.isArray()) {
-            return;
-        }
-
-        for (JsonNode entry : defaults) {
-            JsonNode scope = entry.get("scope");
-            JsonNode values = entry.get("values");
-            if (values == null || !values.isObject()) {
-                continue;
-            }
-
-            Map<String, String> valuesToInject = new LinkedHashMap<>();
-            values.fields().forEachRemaining(field -> {
-                if (!"permalink".equals(field.getKey()) && field.getValue().isValueNode()) {
-                    valuesToInject.put(field.getKey(), field.getValue().asText());
-                }
-            });
-            if (valuesToInject.isEmpty()) {
-                continue;
-            }
-
-            String type = scope != null && scope.has("type") ? scope.get("type").asText() : null;
-            String pathPrefix = scope != null && scope.has("path") ? scope.get("path").asText() : "";
-
-            Path targetDir;
-            if (type != null) {
-                targetDir = projectDir.resolve("_" + type);
-                if (!Files.isDirectory(targetDir)) {
-                    targetDir = projectDir.resolve("content").resolve(type);
-                }
-            } else {
-                targetDir = projectDir.resolve("content");
-            }
-
-            if (!Files.isDirectory(targetDir)) {
-                continue;
-            }
-
-            for (Path file : findContentFiles(targetDir)) {
-                if (!pathPrefix.isEmpty()) {
-                    String relPath = targetDir.relativize(file).toString().replace('\\', '/');
-                    if (!relPath.startsWith(pathPrefix)) {
-                        continue;
-                    }
-                }
-                injectFrontmatterValues(file, valuesToInject);
-            }
-        }
-    }
-
-    private void injectFrontmatterValues(Path file, Map<String, String> values) throws IOException {
-        String content = Files.readString(file);
-
-        Matcher fm = FRONTMATTER_BLOCK.matcher(content);
-        if (!fm.find()) {
-            return;
-        }
-
-        String frontmatter = fm.group(1);
-
-        StringBuilder additions = new StringBuilder();
-        for (Map.Entry<String, String> entry : values.entrySet()) {
-            Pattern keyPattern = Pattern.compile("^" + Pattern.quote(entry.getKey()) + ":", Pattern.MULTILINE);
-            if (!keyPattern.matcher(frontmatter).find()) {
-                additions.append(entry.getKey()).append(": ").append(entry.getValue()).append("\n");
-            }
-        }
-
-        if (additions.length() > 0) {
-            content = FRONTMATTER_BLOCK.matcher(content).replaceFirst(
-                    Matcher.quoteReplacement("---\n" + additions + frontmatter + "---\n"));
             Files.writeString(file, content);
         }
     }

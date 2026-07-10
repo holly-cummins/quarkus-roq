@@ -101,15 +101,6 @@ if [ "$RESET_MODE" = "true" ]; then
   git cherry-pick 7d4a1a325ce7 || git cherry-pick --abort || true
   git cherry-pick cd2c90e630a1 || git cherry-pick --abort || true
 
-  # --- Conversion fixes ---
-
-  # Remove layout-based canonical URL guard (PR #2833, fix/canonical-url-version-check)
-  # https://github.com/quarkusio/quarkusio.github.io/pull/2833
-  # replace_regex is a no-op on non-versioned URLs, so the if/else was unnecessary.
-  # Also fixes Roq migration: page.data.layout is null for collection-inherited layouts
-  # (https://github.com/quarkiverse/quarkus-roq/issues/1080).
-  git cherry-pick 0448aaa0da || git cherry-pick --abort || true
-
 
 )
 
@@ -253,6 +244,15 @@ cat > "${project_dir}/public/publications/index.html" << 'REDIRECT'
 </html>
 REDIRECT
 echo "WORKAROUND: Created static /publications/ redirect page"
+
+# Fix canonical URL for versioned guides.
+# The converter produces a condition checking page.data.layout == 'guides', but guides
+# don't have layout in their frontmatter — it's set as a Jekyll default in _config.yml,
+# which isn't carried over to Roq. Fix: check the URL path instead.
+if [ -f "${project_dir}/templates/layouts/base.html" ]; then
+    sed_inplace "s#page.data.layout == 'guides' || page.data.layout == 'guides-index'#page.url.path.startsWith('/version/')#g" "${project_dir}/templates/layouts/base.html"
+    echo "FIX: Canonical URL condition uses URL path instead of layout"
+fi
 
 # Move data/ back to _data/ and configure Roq to find it there
 # This makes the migration less disruptive, and less likely to have merge conflicts with what the working group sync does

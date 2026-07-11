@@ -210,6 +210,11 @@ public class JekyllConfigConverter {
             addDescriptionToIndexPage(projectDir, config.get("description").asText());
         }
 
+        // Add name and simple-name to index page frontmatter (Roq templates use site.data.name and site.data.simple-name)
+        if (config.has("title")) {
+            addNameToIndexPage(projectDir, config.get("title").asText());
+        }
+
         // Add tagging frontmatter to the tag layout (must run before LiquidToQuteCommand)
         addTaggingFrontmatter(projectDir, config);
     }
@@ -253,6 +258,25 @@ public class JekyllConfigConverter {
         content = content.replaceFirst("(---\\s*\\n)", "$1description: \"" +
                 description.replace("\"", "\\\"") + "\"\n");
         Files.writeString(indexFile, content);
+    }
+
+    void addNameToIndexPage(Path projectDir, String title) throws IOException {
+        Path indexFile = findIndexFile(projectDir);
+        if (indexFile == null) {
+            return;
+        }
+        String content = Files.readString(indexFile);
+        StringBuilder toInsert = new StringBuilder();
+        if (!content.contains("name:")) {
+            toInsert.append("name: \"").append(title.replace("\"", "\\\"")).append("\"\n");
+        }
+        if (!content.contains("simple-name:")) {
+            toInsert.append("simple-name: \"").append(title.replace("\"", "\\\"")).append("\"\n");
+        }
+        if (!toInsert.isEmpty()) {
+            content = content.replaceFirst("(---\\s*\\n)", "$1" + toInsert);
+            Files.writeString(indexFile, content);
+        }
     }
 
     private Path findIndexFile(Path projectDir) {

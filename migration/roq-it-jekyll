@@ -337,8 +337,6 @@ if [ "${ROQ_VERSION}" = "999-SNAPSHOT" ]; then
 ' ${project_dir}/pom.xml
 fi
 
-# TODO need to add name and simple-name - global config?
-
 # Merge standalone redirect files into their target files as aliases before deletion.
 # Redirect files (e.g., _redirects/guides/old-name/index.md with aliases: /guides/new-name)
 # should add "aliases: /guides/old-name" to the target file (guides/new-name.adoc).

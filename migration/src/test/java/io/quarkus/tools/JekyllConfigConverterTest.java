@@ -227,6 +227,54 @@ class JekyllConfigConverterTest {
     }
 
     @Test
+    void testConvertProjectAddsNameToIndexPage(@TempDir Path tempDir) throws IOException {
+        String configYaml = """
+                title: Test Site
+                """;
+        Files.writeString(tempDir.resolve("_config.yml"), configYaml);
+        Files.writeString(tempDir.resolve("index.md"), """
+                ---
+                layout: index
+                ---
+                Hello
+                """);
+
+        converter.convertProject(tempDir);
+
+        String indexContent = Files.readString(tempDir.resolve("index.md"));
+        assertTrue(indexContent.contains("name: \"Test Site\""),
+                "Index page should have name from _config.yml title: " + indexContent);
+        assertTrue(indexContent.contains("simple-name: \"Test Site\""),
+                "Index page should have simple-name from _config.yml title: " + indexContent);
+    }
+
+    @Test
+    void testConvertProjectDoesNotOverwriteExistingName(@TempDir Path tempDir) throws IOException {
+        String configYaml = """
+                title: Test Site
+                """;
+        Files.writeString(tempDir.resolve("_config.yml"), configYaml);
+        Files.writeString(tempDir.resolve("index.md"), """
+                ---
+                layout: index
+                name: My Custom Name
+                simple-name: MCN
+                ---
+                Hello
+                """);
+
+        converter.convertProject(tempDir);
+
+        String indexContent = Files.readString(tempDir.resolve("index.md"));
+        assertTrue(indexContent.contains("name: My Custom Name"),
+                "Existing name should not be overwritten: " + indexContent);
+        assertTrue(indexContent.contains("simple-name: MCN"),
+                "Existing simple-name should not be overwritten: " + indexContent);
+        assertFalse(indexContent.contains("name: \"Test Site\""),
+                "Should not add duplicate name: " + indexContent);
+    }
+
+    @Test
     void testConvertProjectWithoutCname(@TempDir Path tempDir) throws IOException {
         // Create _config.yml only
         String configYaml = """

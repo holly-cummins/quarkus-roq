@@ -74,6 +74,7 @@ if [ "$RESET_MODE" = "true" ]; then
   # Activate only-latest-guides profile for Roq CI builds (fix/build-roq-profile)
   # Equivalent of Jekyll's --config _config.yml,_only_latest_guides_config.yml
   git cherry-pick b7eb97ae7d || git cherry-pick --abort || true
+  git cherry-pick 7c636c8fe2 || git cherry-pick --abort || true
 
   # --- Conversion fixes ---
 

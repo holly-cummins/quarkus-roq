@@ -258,6 +258,10 @@ cat > "${project_dir}/public/publications/index.html" << 'REDIRECT'
 REDIRECT
 echo "WORKAROUND: Created static /publications/ redirect page"
 
+# TODO emporary workaround pending https://github.com/quarkusio/quarkus/issues/55438
+git cherry-pick 5b2e7ebb07 || git cherry-pick --abort || true
+
+
 # Move data/ back to _data/ and configure Roq to find it there
 # This makes the migration less disruptive, and less likely to have merge conflicts with what the working group sync does
 mv ${project_dir}/data ${project_dir}/_data

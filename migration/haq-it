@@ -70,11 +70,12 @@ if [ "$RESET_MODE" = "true" ]; then
   # find searched $STATICS_DIR (public/) but rm used $SITE_DIR/public/... — wrong path.
   # Fix: search $SITE_DIR directly so paths are correct for both Jekyll and Roq.
   git cherry-pick 890c38d55c || git cherry-pick --abort || true
+  git cherry-pick 16984b092d24519f54ac888bc3a7574d3a915d64 || git cherry-pick --abort || true
+
 
   # Activate only-latest-guides profile for Roq CI builds (fix/build-roq-profile)
   # Equivalent of Jekyll's --config _config.yml,_only_latest_guides_config.yml
   git cherry-pick b7eb97ae7d || git cherry-pick --abort || true
-  git cherry-pick 7c636c8fe2 || git cherry-pick --abort || true
 
   # --- Conversion fixes ---
 

@@ -259,7 +259,7 @@ REDIRECT
 echo "WORKAROUND: Created static /publications/ redirect page"
 
 # TODO temporary workaround pending https://github.com/quarkusio/quarkus/issues/55438
-git cherry-pick 1a0ce3f3fb9b5f6aab9818994dcb6da0923e5b73 || git cherry-pick --abort || true
+git cherry-pick 47b6a0be00240b68e6fcd99b763b8d1ce096c706 || git cherry-pick --abort || true
 
 
 # Move data/ back to _data/ and configure Roq to find it there

@@ -258,8 +258,8 @@ cat > "${project_dir}/public/publications/index.html" << 'REDIRECT'
 REDIRECT
 echo "WORKAROUND: Created static /publications/ redirect page"
 
-# TODO emporary workaround pending https://github.com/quarkusio/quarkus/issues/55438
-git cherry-pick 5b2e7ebb07 || git cherry-pick --abort || true
+# TODO temporary workaround pending https://github.com/quarkusio/quarkus/issues/55438
+git cherry-pick 1a0ce3f3fb9b5f6aab9818994dcb6da0923e5b73 || git cherry-pick --abort || true
 
 
 # Move data/ back to _data/ and configure Roq to find it there

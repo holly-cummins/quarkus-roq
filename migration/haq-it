@@ -65,11 +65,6 @@ if [ "$RESET_MODE" = "true" ]; then
 
   # --- CI infrastructure ---
 
-  # Add Lighthouse CI to PR build workflow (PR #2813, holly-cummins fork)
-  git cherry-pick 7b4f063d4f || git cherry-pick --abort || true
-  git cherry-pick c1f741a9e2 || git cherry-pick --abort || true
-  git cherry-pick a1e815c57e || git cherry-pick --abort || true
-  git cherry-pick b8df7f8a7a || git cherry-pick --abort || true
 
   # Fix site size reduction for Roq output paths (fix/build-reduce-size-roq-paths)
   # find searched $STATICS_DIR (public/) but rm used $SITE_DIR/public/... — wrong path.

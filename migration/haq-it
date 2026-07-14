@@ -75,6 +75,10 @@ if [ "$RESET_MODE" = "true" ]; then
   # (https://github.com/quarkiverse/quarkus-roq/issues/1080).
   git cherry-pick 0448aaa0da || git cherry-pick --abort || true
 
+# Java equivalents of Jekyll plugins
+  git cherry-pick 650c33608052c36b7e926ea579e5192675b2747e || git cherry-pick --abort || true
+
+
 
 )
 
@@ -119,9 +123,6 @@ popd
 SERVE
 chmod +x ${project_dir}/serve.sh ${project_dir}/serve-noguides.sh ${project_dir}/serve-only-latest-guides.sh
 
-# Extensions layouts reference a cdi:extensions bean from deleted YAML data
-# TODO is this still needed?
-rm -f ${project_dir}/_layouts/extensions.html ${project_dir}/_layouts/extensions_old.html
 
 # Delete Jekyll includes too complex for auto-conversion (allejo/jekyll-toc: pure-Liquid
 # TOC generator using capture-concatenation, continue, slice, times, minus, etc.)

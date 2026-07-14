@@ -66,17 +66,6 @@ if [ "$RESET_MODE" = "true" ]; then
   # --- CI infrastructure ---
 
 
-  # Fix site size reduction for Roq output paths (fix/build-reduce-size-roq-paths)
-  # find searched $STATICS_DIR (public/) but rm used $SITE_DIR/public/... — wrong path.
-  # Fix: search $SITE_DIR directly so paths are correct for both Jekyll and Roq.
-  git cherry-pick 545580f29bcb081f06cd7fb51219c9693fe87217 || git cherry-pick --abort || true
-  git cherry-pick 4dcc1df1bb9d403b4ed5da4b6773f28f86759eda || git cherry-pick --abort || true
-
-
-  # Activate only-latest-guides profile for Roq CI builds (fix/build-roq-profile)
-  # Equivalent of Jekyll's --config _config.yml,_only_latest_guides_config.yml
-  git cherry-pick b7eb97ae7d || git cherry-pick --abort || true
-
   # --- Conversion fixes ---
 
   # Remove layout-based canonical URL guard (PR #2833, fix/canonical-url-version-check)

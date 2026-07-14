@@ -258,9 +258,6 @@ cat > "${project_dir}/public/publications/index.html" << 'REDIRECT'
 REDIRECT
 echo "WORKAROUND: Created static /publications/ redirect page"
 
-# TODO temporary workaround pending https://github.com/quarkusio/quarkus/issues/55438
-git cherry-pick 47b6a0be00240b68e6fcd99b763b8d1ce096c706 || git cherry-pick --abort || true
-
 
 # Move data/ back to _data/ and configure Roq to find it there
 # This makes the migration less disruptive, and less likely to have merge conflicts with what the working group sync does
@@ -376,6 +373,11 @@ EOF
 )"
 
         echo "✓ Migration committed"
+
+
+# TODO temporary workaround pending https://github.com/quarkusio/quarkus/issues/55438
+git cherry-pick 446c50d009f82da9ae86cef16a74e3d4a659fb5e || git cherry-pick --abort || true
+git cherry-pick bf92c65aea457acb0102799f924dffe3bcf44488 || git cherry-pick --abort || true
 
         if [ "$PUSH_MODE" = "true" ]; then
             CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)

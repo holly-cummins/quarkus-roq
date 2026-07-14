@@ -4,7 +4,10 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class LiquidToQuteConverterTest {
 
@@ -501,44 +504,48 @@ class LiquidToQuteConverterTest {
 
     @Test
     void testPushInLoopCollapsedToSplitTrimmed() {
-        String input = "{% assign authors_raw = post.author | default: \"\" | split: \",\" %}\n" +
-                "{% assign authors_clean = \"\" | split: \"\" %}\n" +
-                "{% for a in authors_raw %}\n" +
-                "{% assign a_trimmed = a | strip %}\n" +
-                "{% if a_trimmed != \"\" %}\n" +
-                "{% assign authors_clean = authors_clean | push: a_trimmed %}\n" +
-                "{% endif %}\n" +
-                "{% endfor %}\n" +
-                "{% for author_key in authors_clean %}\n" +
-                "{{author_key}}\n" +
-                "{% endfor %}";
-        String expected = "{#for author_key in str:splitTrimmed(post.data.author.or(''), \",\").orEmpty}\n" +
-                "{=author_key.raw}\n" +
-                "{/for}";
+        String input = """
+                {% assign authors_raw = post.author | default: "" | split: "," %}
+                {% assign authors_clean = "" | split: "" %}
+                {% for a in authors_raw %}
+                {% assign a_trimmed = a | strip %}
+                {% if a_trimmed != "" %}
+                {% assign authors_clean = authors_clean | push: a_trimmed %}
+                {% endif %}
+                {% endfor %}
+                {% for author_key in authors_clean %}
+                {{author_key}}
+                {% endfor %}""";
+        String expected = """
+                {#for author_key in str:splitTrimmed(post.data.author.or(''), ",").orEmpty}
+                {=author_key.raw}
+                {/for}""";
         assertConverts(input, expected,
                 "Init-empty-list + push-in-loop + iterate should collapse to str:splitTrimmed");
     }
 
     @Test
     void testPushInLoopWithHtmlBetween() {
-        String input = "{% assign authors_raw = post.author | default: \"\" | split: \",\" %}\n" +
-                "{% assign authors_clean = \"\" | split: \"\" %}\n" +
-                "{% for a in authors_raw %}\n" +
-                "{% assign a_trimmed = a | strip %}\n" +
-                "{% if a_trimmed != \"\" %}\n" +
-                "{% assign authors_clean = authors_clean | push: a_trimmed %}\n" +
-                "{% endif %}\n" +
-                "{% endfor %}\n" +
-                "<p class=\"byline\">\n" +
-                "By\n" +
-                "{% for author_key in authors_clean %}\n" +
-                "{{author_key}}\n" +
-                "{% endfor %}";
-        String expected = "<p class=\"byline\">\n" +
-                "By\n" +
-                "{#for author_key in str:splitTrimmed(post.data.author.or(''), \",\").orEmpty}\n" +
-                "{=author_key.raw}\n" +
-                "{/for}";
+        String input = """
+                {% assign authors_raw = post.author | default: "" | split: "," %}
+                {% assign authors_clean = "" | split: "" %}
+                {% for a in authors_raw %}
+                {% assign a_trimmed = a | strip %}
+                {% if a_trimmed != "" %}
+                {% assign authors_clean = authors_clean | push: a_trimmed %}
+                {% endif %}
+                {% endfor %}
+                <p class="byline">
+                By
+                {% for author_key in authors_clean %}
+                {{author_key}}
+                {% endfor %}""";
+        String expected = """
+                <p class="byline">
+                By
+                {#for author_key in str:splitTrimmed(post.data.author.or(''), ",").orEmpty}
+                {=author_key.raw}
+                {/for}""";
         assertConverts(input, expected,
                 "Push-in-loop with HTML between should collapse, preserving the HTML");
     }
@@ -555,13 +562,17 @@ class LiquidToQuteConverterTest {
 
     @Test
     void testAuthorFileLines36to38() {
-        String input = "      {% comment %} Build multi-author list for this post {% endcomment %}\n" +
-                       "      {% assign authors_raw = post.author | default: \"\" | split: \",\" %}\n" +
-                       "      {% assign authors_clean = \"\" | split: \"\" %}";
+        String input = """
+                      {% comment %} Build multi-author list for this post {% endcomment %}
+                      {% assign authors_raw = post.author | default: "" | split: "," %}
+                      {% assign authors_clean = "" | split: "" %}\
+                """;
 
-        String expected = "      {!  Build multi-author list for this post  !}\n" +
-                         "      {#let authors_raw=str:split(post.data.author.or(''), \",\")}\n" +
-                         "      {#let authors_clean=str:split(\"\", \"\")}{/let}{/let}";
+        String expected = """
+                      {!  Build multi-author list for this post  !}
+                      {#let authors_raw=str:split(post.data.author.or(''), ",")}
+                      {#let authors_clean=str:split("", "")}{/let}{/let}\
+                """;
 
         assertConverts(input, expected, "Author file lines 36-38 should convert without {?:} errors");
     }
@@ -1494,14 +1505,15 @@ class LiquidToQuteConverterTest {
 
     @Test
     void testPushInNestedLoopCollapsedToMergeTypes() {
-        String input = "{% assign v_type = include.type %}\n" +
-                "{% assign values = \"\" | split: \",\" %}\n" +
-                "{% for source in index -%}\n" +
-                "    {% for item in source[1].types[v_type] -%}\n" +
-                "        {% assign values = values | push: item %}\n" +
-                "    {% endfor -%}\n" +
-                "{% endfor -%}\n" +
-                "{% assign values = values | sort: 'title' %}";
+        String input = """
+                {% assign v_type = include.type %}
+                {% assign values = "" | split: "," %}
+                {% for source in index -%}
+                    {% for item in source[1].types[v_type] -%}
+                        {% assign values = values | push: item %}
+                    {% endfor -%}
+                {% endfor -%}
+                {% assign values = values | sort: 'title' %}""";
         String result = converter.convert(input);
         assertTrue(result.contains("mergeTypes("),
                 "Nested push-in-loop with sort should collapse to mergeTypes(): " + result);
@@ -1607,10 +1619,13 @@ class LiquidToQuteConverterTest {
 
     @Test
     void testMutableMapInitAfterFrontMatter() {
-        String input = "---\nlayout: base\n---\n" +
-                "{% assign active = false %}" +
-                "{#if cond}{% assign active = true %}{/if}" +
-                "{#if active}yes{/if}";
+        String input = """
+                ---
+                layout: base
+                ---
+                {% assign active = false %}\
+                {#if cond}{% assign active = true %}{/if}\
+                {#if active}yes{/if}""";
         String result = converter.convert(input);
         assertTrue(result.startsWith("---\nlayout: base\n---\n{#let _m=mut:map()}"),
                 "Mutable map init should come after front matter, not before: " + result);

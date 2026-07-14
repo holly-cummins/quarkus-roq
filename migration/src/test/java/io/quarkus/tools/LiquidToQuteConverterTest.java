@@ -1620,12 +1620,12 @@ class LiquidToQuteConverterTest {
     @Test
     void testMutableMapInitAfterFrontMatter() {
         String input = """
-                                ---
-                                layout: base
-                                ---
-                                {% assign active = false %}\
-                                {#if cond}{% assign active = true %}{/if}\
-                                {#if active}yes{/if}""";
+                ---
+                layout: base
+                ---
+                {% assign active = false %}\
+                {#if cond}{% assign active = true %}{/if}\
+                {#if active}yes{/if}""";
         String result = converter.convert(input);
         assertTrue(result.startsWith("---\nlayout: base\n---\n{#let _m=mut:map()}"),
                 "Mutable map init should come after front matter, not before: " + result);

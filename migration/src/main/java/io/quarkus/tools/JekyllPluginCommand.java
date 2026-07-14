@@ -9,8 +9,7 @@ import picocli.CommandLine;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Parameters;
 
-@Command(name = "jekyll-plugins", mixinStandardHelpOptions = true, version = "1.0",
-        description = "Converts Jekyll _plugins/*.rb to Roq/Quarkus equivalents")
+@Command(name = "jekyll-plugins", mixinStandardHelpOptions = true, version = "1.0", description = "Converts Jekyll _plugins/*.rb to Roq/Quarkus equivalents")
 public class JekyllPluginCommand implements Callable<Integer> {
 
     @Parameters(index = "0", description = "Project directory (must contain _plugins/)")

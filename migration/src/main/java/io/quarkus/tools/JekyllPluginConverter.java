@@ -13,7 +13,11 @@ import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 
 public class JekyllPluginConverter {
 
-    enum Classification { HANDLED, TRANSLATABLE, MANUAL }
+    enum Classification {
+        HANDLED,
+        TRANSLATABLE,
+        MANUAL
+    }
 
     record PluginInfo(Classification classification, String reason, String equivalentFile) {
         PluginInfo(Classification classification, String reason) {
@@ -26,7 +30,8 @@ public class JekyllPluginConverter {
             List<String> translated,
             List<String> skipped,
             List<String> failed,
-            Map<String, String> failureMessages) {}
+            Map<String, String> failureMessages) {
+    }
 
     private static final Map<String, PluginInfo> KNOWN_PLUGINS = Map.of(
             "cname.rb", new PluginInfo(Classification.HANDLED,
@@ -40,8 +45,7 @@ public class JekyllPluginConverter {
                     "SearchScriptDownloader.java"),
             "asciidoctor-extension.rb", new PluginInfo(Classification.MANUAL,
                     "AsciiDoc extensions (inline macros, tree/post processors)",
-                    "AsciidoctorExtension.java")
-    );
+                    "AsciidoctorExtension.java"));
 
     private static final String JAVA_PACKAGE = "io.quarkus.tools.migration";
     private static final String JAVA_PACKAGE_PATH = "src/main/java/io/quarkus/tools/migration";
@@ -159,10 +163,14 @@ public class JekyllPluginConverter {
             JsonNode root = mapper.readTree(Files.readString(siteConfig));
             JsonNode search = root.get("search");
             if (search != null) {
-                if (search.has("host")) searchHost = search.get("host").asText();
-                if (search.has("scriptPath")) scriptPath = search.get("scriptPath").asText();
-                if (search.has("cachedScriptFile")) cachedFile = search.get("cachedScriptFile").asText();
-                if (search.has("scriptMode")) scriptMode = search.get("scriptMode").asText();
+                if (search.has("host"))
+                    searchHost = search.get("host").asText();
+                if (search.has("scriptPath"))
+                    scriptPath = search.get("scriptPath").asText();
+                if (search.has("cachedScriptFile"))
+                    cachedFile = search.get("cachedScriptFile").asText();
+                if (search.has("scriptMode"))
+                    scriptMode = search.get("scriptMode").asText();
             }
         }
 

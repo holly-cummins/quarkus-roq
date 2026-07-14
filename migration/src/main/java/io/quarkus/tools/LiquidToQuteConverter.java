@@ -377,19 +377,19 @@ public class LiquidToQuteConverter {
     private String convertTableDrivenFilters(String content) {
         // Filters with a single argument: | filter: arg -> .method(arg)
         String[][] filterWithArgMap = {
-                {"group_by", "groupBy"},
-                {"sort", "sort"},
-                {"startswith", "startsWith"},
-                {"endswith", "endsWith"},
-                {"contains", "contains"},
-                {"equals", "equals"},
-                {"map", "map"},
-                {"slice", "slice"},
-                {"add", "add"},
-                {"minus", "minus"},
-                {"times", "times"},
-                {"truncate", "truncate"},
-                {"remove_first", "removeFirst"},
+                { "group_by", "groupBy" },
+                { "sort", "sort" },
+                { "startswith", "startsWith" },
+                { "endswith", "endsWith" },
+                { "contains", "contains" },
+                { "equals", "equals" },
+                { "map", "map" },
+                { "slice", "slice" },
+                { "add", "add" },
+                { "minus", "minus" },
+                { "times", "times" },
+                { "truncate", "truncate" },
+                { "remove_first", "removeFirst" },
         };
 
         for (String[] mapping : filterWithArgMap) {
@@ -414,28 +414,28 @@ public class LiquidToQuteConverter {
 
         // No-arg filters: | filter -> .method
         String[][] filterMap = {
-                {"upcase", "toUpperCase"},
-                {"downcase", "toLowerCase"},
-                {"capitalize", "capitalize"},
-                {"strip_html", "stripHtml"},
-                {"number_of_words", "numberOfWords"},
-                {"size", "size"},
-                {"first", "first"},
-                {"last", "last"},
-                {"join", "join"},
-                {"sort", "sort"},
-                {"reverse", "reverse"},
-                {"uniq", "distinct"},
-                {"compact", "filterNotNull"},
-                {"strip", "trim()"},
-                {"lstrip", "trimStart"},
-                {"rstrip", "trimEnd"},
-                {"xml_escape", "escapeHtml"},
-                {"escape", "escapeHtml"},
-                {"date_to_rfc822", "rfc822"},
-                {"url_encode", "urlEncode"},
-                {"slugify", "slugify"},
-                {"markdownify", "markdownify"}
+                { "upcase", "toUpperCase" },
+                { "downcase", "toLowerCase" },
+                { "capitalize", "capitalize" },
+                { "strip_html", "stripHtml" },
+                { "number_of_words", "numberOfWords" },
+                { "size", "size" },
+                { "first", "first" },
+                { "last", "last" },
+                { "join", "join" },
+                { "sort", "sort" },
+                { "reverse", "reverse" },
+                { "uniq", "distinct" },
+                { "compact", "filterNotNull" },
+                { "strip", "trim()" },
+                { "lstrip", "trimStart" },
+                { "rstrip", "trimEnd" },
+                { "xml_escape", "escapeHtml" },
+                { "escape", "escapeHtml" },
+                { "date_to_rfc822", "rfc822" },
+                { "url_encode", "urlEncode" },
+                { "slugify", "slugify" },
+                { "markdownify", "markdownify" }
         };
 
         for (String[] mapping : filterMap) {
@@ -578,7 +578,8 @@ public class LiquidToQuteConverter {
         // Replace_regex (must be before replace to avoid partial match)
         // Also convert Ruby backreferences (\1, \2) to Java ($1, $2)
         // \\s* before \\| consumes whitespace so .replaceAll attaches directly to the expression
-        Pattern replaceRegexPattern = Pattern.compile("\\s*\\|\\s*replace_regex:\\s*(['\"][^'\"]*['\"])\\s*,\\s*(['\"][^'\"]*['\"])");
+        Pattern replaceRegexPattern = Pattern
+                .compile("\\s*\\|\\s*replace_regex:\\s*(['\"][^'\"]*['\"])\\s*,\\s*(['\"][^'\"]*['\"])");
         Matcher replaceRegexMatcher = replaceRegexPattern.matcher(content);
         StringBuilder replaceRegexSb = new StringBuilder();
         boolean replaceRegexChanged = false;
@@ -760,7 +761,8 @@ public class LiquidToQuteConverter {
         if (orParts.length > 1) {
             StringBuilder result = new StringBuilder();
             for (int i = 0; i < orParts.length; i++) {
-                if (i > 0) result.append(" and ");
+                if (i > 0)
+                    result.append(" and ");
                 result.append(negateSingleCondition(orParts[i].trim()));
             }
             return result.toString();
@@ -771,7 +773,8 @@ public class LiquidToQuteConverter {
         if (andParts.length > 1) {
             StringBuilder result = new StringBuilder();
             for (int i = 0; i < andParts.length; i++) {
-                if (i > 0) result.append(" or ");
+                if (i > 0)
+                    result.append(" or ");
                 result.append(negateSingleCondition(andParts[i].trim()));
             }
             return result.toString();
@@ -837,7 +840,7 @@ public class LiquidToQuteConverter {
                     i += 2;
                 } else if (i + 1 < condition.length()
                         && (condition.substring(i, i + 2).equals("!=")
-                            || condition.substring(i, i + 2).equals("=="))) {
+                                || condition.substring(i, i + 2).equals("=="))) {
                     // Qute uses 'ne' for !=, '==' stays as-is but needs spaces
                     String op = condition.substring(i, i + 2);
                     String quteOp = op.equals("!=") ? "ne" : op;
@@ -859,17 +862,21 @@ public class LiquidToQuteConverter {
                     result.append(".contains(");
                     i += "contains".length();
                     // Skip whitespace after "contains"
-                    while (i < condition.length() && condition.charAt(i) == ' ') i++;
+                    while (i < condition.length() && condition.charAt(i) == ' ')
+                        i++;
                     // Find the argument (quoted string or expression)
                     int argStart = i;
                     if (i < condition.length() && (condition.charAt(i) == '\'' || condition.charAt(i) == '"')) {
                         char quote = condition.charAt(i);
                         i++;
-                        while (i < condition.length() && condition.charAt(i) != quote) i++;
-                        if (i < condition.length()) i++; // consume closing quote
+                        while (i < condition.length() && condition.charAt(i) != quote)
+                            i++;
+                        if (i < condition.length())
+                            i++; // consume closing quote
                     } else {
                         while (i < condition.length() && condition.charAt(i) != ' '
-                                && condition.charAt(i) != ')') i++;
+                                && condition.charAt(i) != ')')
+                            i++;
                     }
                     result.append(condition, argStart, i);
                     result.append(")");
@@ -924,14 +931,14 @@ public class LiquidToQuteConverter {
         String original = content;
 
         Pattern pattern = Pattern.compile(
-                "\\{%\\s*assign\\s+(\\w+)\\s*=\\s*nil\\s*%\\}" +         // 1: guard var = nil
-                "\\s*\\{%\\s*for\\s+(\\w+)\\s+in\\s+(.+?)\\s*%\\}" +     // 2: loop var, 3: list
-                "\\s*\\{%\\s*unless\\s+\\2\\.(\\w+)\\s*%\\}" +            // 4: filter property
-                "\\s*\\{%\\s*unless\\s+\\1\\s*%\\}" +                     // guard check
-                "((?:\\s*\\{%\\s*assign\\s+\\w+\\s*=\\s*.+?\\s*%\\})+)" + // 5: assign block
-                "\\s*\\{%\\s*endunless\\s*%\\}" +
-                "\\s*\\{%\\s*endunless\\s*%\\}" +
-                "\\s*\\{%\\s*endfor\\s*%\\}",
+                "\\{%\\s*assign\\s+(\\w+)\\s*=\\s*nil\\s*%\\}" + // 1: guard var = nil
+                        "\\s*\\{%\\s*for\\s+(\\w+)\\s+in\\s+(.+?)\\s*%\\}" + // 2: loop var, 3: list
+                        "\\s*\\{%\\s*unless\\s+\\2\\.(\\w+)\\s*%\\}" + // 4: filter property
+                        "\\s*\\{%\\s*unless\\s+\\1\\s*%\\}" + // guard check
+                        "((?:\\s*\\{%\\s*assign\\s+\\w+\\s*=\\s*.+?\\s*%\\})+)" + // 5: assign block
+                        "\\s*\\{%\\s*endunless\\s*%\\}" +
+                        "\\s*\\{%\\s*endunless\\s*%\\}" +
+                        "\\s*\\{%\\s*endfor\\s*%\\}",
                 Pattern.DOTALL);
 
         Matcher m = pattern.matcher(content);
@@ -972,10 +979,10 @@ public class LiquidToQuteConverter {
         //   {% endfor %}
         // Collapse to: {% assign VAR = list:whereExp(VAR, "LOOPVAR", QUERIES) %}
         Pattern pattern = Pattern.compile(
-                "\\{%\\s*for\\s+(\\w+)\\s+in\\s+(.+?)\\s*%\\}" +              // 1: loop var, 2: queries list
-                "\\s*\\{%\\s*assign\\s+(\\w+)\\s*=\\s*\\3\\s*\\|\\s*" +        // 3: accumulator var (same on both sides)
-                "where_exp:\\s*(\"[^\"]*\"|'[^']*')\\s*,\\s*\\1\\s*%\\}" +     // 4: loopVar name, then loop var ref as expr
-                "\\s*\\{%\\s*endfor\\s*%\\}",
+                "\\{%\\s*for\\s+(\\w+)\\s+in\\s+(.+?)\\s*%\\}" + // 1: loop var, 2: queries list
+                        "\\s*\\{%\\s*assign\\s+(\\w+)\\s*=\\s*\\3\\s*\\|\\s*" + // 3: accumulator var (same on both sides)
+                        "where_exp:\\s*(\"[^\"]*\"|'[^']*')\\s*,\\s*\\1\\s*%\\}" + // 4: loopVar name, then loop var ref as expr
+                        "\\s*\\{%\\s*endfor\\s*%\\}",
                 Pattern.DOTALL);
 
         Matcher m = pattern.matcher(content);
@@ -1062,7 +1069,8 @@ public class LiquidToQuteConverter {
         // Handle limit and offset: wrap loop body with a count guard
         // since Roq collections don't have .limit()/.skip() methods.
         // {#for x in list limit: N} → {#for x in list}{#if x_count <= N}...{/if}{/for}
-        Pattern limitPattern = Pattern.compile("\\{#for\\s+(\\w+)\\s+in\\s+([^}]+?)\\s+limit:\\s*(\\w+)(?:\\s+offset:\\s*(\\w+))?\\s*\\}");
+        Pattern limitPattern = Pattern
+                .compile("\\{#for\\s+(\\w+)\\s+in\\s+([^}]+?)\\s+limit:\\s*(\\w+)(?:\\s+offset:\\s*(\\w+))?\\s*\\}");
         Matcher limitMatcher = limitPattern.matcher(content);
         while (limitMatcher.find()) {
             String var = limitMatcher.group(1);
@@ -1072,7 +1080,8 @@ public class LiquidToQuteConverter {
 
             int forEnd = limitMatcher.end();
             int endForPos = findMatchingEndFor(content, forEnd);
-            if (endForPos < 0) continue;
+            if (endForPos < 0)
+                continue;
 
             String loopBody = content.substring(forEnd, endForPos);
             String forOpen;
@@ -1216,9 +1225,11 @@ public class LiquidToQuteConverter {
         return result;
     }
 
-    private record IfElseBlock(int start, int end, String condition, String ifBranch, String elseBranch) {}
+    private record IfElseBlock(int start, int end, String condition, String ifBranch, String elseBranch) {
+    }
 
-    private record IfBlock(int start, int end, String condition, String body) {}
+    private record IfBlock(int start, int end, String condition, String body) {
+    }
 
     private List<IfElseBlock> findIfElseBlocks(String content) {
         List<IfElseBlock> blocks = new ArrayList<>();
@@ -1312,8 +1323,10 @@ public class LiquidToQuteConverter {
         condA = condA.trim();
         condB = condB.trim();
         // {#if X} + {#if !X}
-        if (condB.equals("!" + condA)) return true;
-        if (condA.equals("!" + condB)) return true;
+        if (condB.equals("!" + condA))
+            return true;
+        if (condA.equals("!" + condB))
+            return true;
         return false;
     }
 
@@ -1522,7 +1535,7 @@ public class LiquidToQuteConverter {
         List<String> expressions = new ArrayList<>();
 
         while (m.find()) {
-            positions.add(new int[]{ m.start(), m.end() });
+            positions.add(new int[] { m.start(), m.end() });
             varNames.add(m.group(1));
             expressions.add(m.group(2).trim());
         }
@@ -1753,9 +1766,10 @@ public class LiquidToQuteConverter {
             // Find the init pattern: {#let X=str:split(EXPR)}\n{#let Y=str:split("", "")}
             Pattern initPattern = Pattern.compile(
                     "\\{#let (\\w+)=str:split\\(([^)]+)\\)\\}\\s*" +
-                    "\\{#let (\\w+)=str:split\\(\"\", \"\"\\)\\}");
+                            "\\{#let (\\w+)=str:split\\(\"\", \"\"\\)\\}");
             Matcher m = initPattern.matcher(content);
-            if (!m.find()) break;
+            if (!m.find())
+                break;
 
             String rawVar = m.group(1);
             String splitExpr = m.group(2);
@@ -1768,12 +1782,14 @@ public class LiquidToQuteConverter {
             Pattern pushLoopPattern = Pattern.compile(
                     "\\s*\\{#for \\w+ in " + Pattern.quote(rawVar) + "\\.orEmpty\\}");
             Matcher pushLoopMatcher = pushLoopPattern.matcher(afterInitContent);
-            if (!pushLoopMatcher.find() || pushLoopMatcher.start() != 0) break;
+            if (!pushLoopMatcher.find() || pushLoopMatcher.start() != 0)
+                break;
 
             int pushLoopBodyStart = afterInit + pushLoopMatcher.end();
             int pushLoopEnd = findMatchingEndFor(content, pushLoopBodyStart);
             String pushLoopBody = content.substring(pushLoopBodyStart, pushLoopEnd);
-            if (!pushLoopBody.contains(cleanVar + ".push(")) break;
+            if (!pushLoopBody.contains(cleanVar + ".push("))
+                break;
 
             int afterPushLoop = pushLoopEnd + "{/for}".length();
 
@@ -1783,7 +1799,8 @@ public class LiquidToQuteConverter {
             Pattern iterPattern = Pattern.compile(
                     "\\{#for (\\w+) in " + Pattern.quote(cleanVar) + "\\.orEmpty\\}");
             Matcher iterMatcher = iterPattern.matcher(afterPushContent);
-            if (!iterMatcher.find()) break;
+            if (!iterMatcher.find())
+                break;
 
             String iterVar = iterMatcher.group(1);
             String contentBetween = afterPushContent.substring(0, iterMatcher.start()).stripLeading();
@@ -1812,7 +1829,8 @@ public class LiquidToQuteConverter {
                 } else {
                     letDepth--;
                     if (letDepth < 0) {
-                        if (closerStart < 0) closerStart = letMatcher.start();
+                        if (closerStart < 0)
+                            closerStart = letMatcher.start();
                         closersNeeded--;
                         if (closersNeeded == 0) {
                             afterFor = afterFor.substring(0, closerStart) + afterFor.substring(letMatcher.end());
@@ -1837,16 +1855,16 @@ public class LiquidToQuteConverter {
      * Qute because {#let} is block-scoped (push results are discarded in loops).
      *
      * Detects:
-     *   {#let ACCUM=str:split("", ",")}
-     *   {#for OUTER in SOURCE.orEmpty}
-     *       {#for ITEM in OUTER.get(1).PATH.get(TYPE_VAR...).orEmpty}
-     *           {#let ACCUM=ACCUM.push(ITEM)}
-     *       {/let}{/for}
-     *   {/for}
-     *   {#let ACCUM=ACCUM.sort('KEY')}
+     * {#let ACCUM=str:split("", ",")}
+     * {#for OUTER in SOURCE.orEmpty}
+     * {#for ITEM in OUTER.get(1).PATH.get(TYPE_VAR...).orEmpty}
+     * {#let ACCUM=ACCUM.push(ITEM)}
+     * {/let}{/for}
+     * {/for}
+     * {#let ACCUM=ACCUM.sort('KEY')}
      *
      * Replaces with:
-     *   {#let ACCUM=SOURCE.mergeTypes(TYPE_EXPR)}
+     * {#let ACCUM=SOURCE.mergeTypes(TYPE_EXPR)}
      */
     private String collapsePushInNestedLoopToMergeTypes(String content) {
         String original = content;
@@ -1865,7 +1883,8 @@ public class LiquidToQuteConverter {
             Pattern outerLoopPattern = Pattern.compile(
                     "^\\s*\\{#for (\\w+) in (\\w[\\w.]*)\\.orEmpty\\}");
             Matcher outerMatcher = outerLoopPattern.matcher(afterInitContent);
-            if (!outerMatcher.find()) continue;
+            if (!outerMatcher.find())
+                continue;
 
             String outerVar = outerMatcher.group(1);
             String source = outerMatcher.group(2);
@@ -1876,10 +1895,11 @@ public class LiquidToQuteConverter {
             String outerBody = content.substring(outerBodyStart);
             Pattern innerLoopPattern = Pattern.compile(
                     "^\\s*(?:\\{!.*?!\\}\\s*)*\\{#for (\\w+) in " + Pattern.quote(outerVar) +
-                    "\\.get\\(1\\)\\.\\w+\\.get\\(([^)]+?)(?:\\.or\\(''\\))?\\)\\.orEmpty\\}",
+                            "\\.get\\(1\\)\\.\\w+\\.get\\(([^)]+?)(?:\\.or\\(''\\))?\\)\\.orEmpty\\}",
                     Pattern.DOTALL);
             Matcher innerMatcher = innerLoopPattern.matcher(outerBody);
-            if (!innerMatcher.find()) continue;
+            if (!innerMatcher.find())
+                continue;
 
             String typeExpr = innerMatcher.group(2);
 
@@ -1887,21 +1907,23 @@ public class LiquidToQuteConverter {
             int innerBodyStart = outerBodyStart + innerMatcher.end();
             int innerForEnd = findMatchingEndFor(content, innerBodyStart);
             String innerBody = content.substring(innerBodyStart, innerForEnd);
-            if (!innerBody.contains(accumVar + ".push(")) continue;
+            if (!innerBody.contains(accumVar + ".push("))
+                continue;
 
             // Find the outer loop end
             int afterInnerFor = innerForEnd + "{/for}".length();
             String afterInner = content.substring(afterInnerFor);
             Pattern outerEndPattern = Pattern.compile("^\\s*\\{/for\\}");
             Matcher outerEndMatcher = outerEndPattern.matcher(afterInner);
-            if (!outerEndMatcher.find()) continue;
+            if (!outerEndMatcher.find())
+                continue;
             int outerForEnd = afterInnerFor + outerEndMatcher.end();
 
             // Look for sort: {#let ACCUM=ACCUM.sort('KEY')}
             String afterOuterLoop = content.substring(outerForEnd);
             Pattern sortPattern = Pattern.compile(
                     "^\\s*\\{#let " + Pattern.quote(accumVar) + "=" +
-                    Pattern.quote(accumVar) + "\\.sort\\('[^']*'\\)\\}");
+                            Pattern.quote(accumVar) + "\\.sort\\('[^']*'\\)\\}");
             Matcher sortMatcher = sortPattern.matcher(afterOuterLoop);
             int replaceEnd;
             if (sortMatcher.find()) {
@@ -2062,7 +2084,8 @@ public class LiquidToQuteConverter {
         // Highlight blocks (for code syntax highlighting)
         // Liquid: {% highlight lang %}...{% endhighlight %}
         // Qute: <pre><code class="language-lang">...</code></pre>
-        Pattern highlightPattern = Pattern.compile("\\{%\\s*highlight\\s+(\\w+)\\s*%\\}(.*?)\\{%\\s*endhighlight\\s*%\\}", Pattern.DOTALL);
+        Pattern highlightPattern = Pattern.compile("\\{%\\s*highlight\\s+(\\w+)\\s*%\\}(.*?)\\{%\\s*endhighlight\\s*%\\}",
+                Pattern.DOTALL);
         Matcher highlightMatcher = highlightPattern.matcher(content);
         StringBuilder sb = new StringBuilder();
 
@@ -2209,7 +2232,8 @@ public class LiquidToQuteConverter {
 
         // Match site.prop and optionally .sub-prop chains (YAML keys may contain hyphens)
         Pattern pattern = Pattern.compile(
-                "\\bsite\\.((?!(?:" + knownSiteProps + ")\\b)[a-zA-Z_][a-zA-Z0-9_]*(?:\\.[a-zA-Z][a-zA-Z0-9_]*(?:-[a-zA-Z][a-zA-Z0-9_]*)*)*)");
+                "\\bsite\\.((?!(?:" + knownSiteProps
+                        + ")\\b)[a-zA-Z_][a-zA-Z0-9_]*(?:\\.[a-zA-Z][a-zA-Z0-9_]*(?:-[a-zA-Z][a-zA-Z0-9_]*)*)*)");
         StringBuffer sb = new StringBuffer();
         Matcher m = pattern.matcher(content);
         while (m.find()) {
@@ -2232,7 +2256,8 @@ public class LiquidToQuteConverter {
         String[] segments = chain.split("\\.");
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < segments.length; i++) {
-            if (i > 0) sb.append('.');
+            if (i > 0)
+                sb.append('.');
             sb.append(JekyllConfigConverter.hyphenToCamelCase(segments[i]));
         }
         return sb.toString();
@@ -2381,7 +2406,7 @@ public class LiquidToQuteConverter {
         StringBuilder sb = new StringBuilder();
 
         while (matcher.find()) {
-            String urlExpr = matcher.group(1);  // site.url or page.url
+            String urlExpr = matcher.group(1); // site.url or page.url
             String arg = matcher.group(2).trim();
 
             String replacement = urlExpr + ".resolve(" + arg + ")";
@@ -2432,7 +2457,8 @@ public class LiquidToQuteConverter {
         content = content.replaceAll("\\bpage\\.url\\.replaceAll\\(", "page.url.path.replaceAll(");
         content = content.replaceAll("\\bpage\\.url\\.replace\\(", "page.url.path.replace(");
         if (!content.equals(original)) {
-            conversionsApplied.add("Converted page.url.replaceAll/replace to page.url.path.replaceAll/replace (RoqUrl methods return RoqUrl, not String)");
+            conversionsApplied.add(
+                    "Converted page.url.replaceAll/replace to page.url.path.replaceAll/replace (RoqUrl methods return RoqUrl, not String)");
         }
 
         return content;

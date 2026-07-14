@@ -6,8 +6,7 @@ import picocli.CommandLine;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Parameters;
 
-@Command(name = "rename-parens", mixinStandardHelpOptions = true, version = "1.0",
-        description = "Renames files with parentheses and updates HTML references")
+@Command(name = "rename-parens", mixinStandardHelpOptions = true, version = "1.0", description = "Renames files with parentheses and updates HTML references")
 public class ParenthesisFileRenamerCommand implements Callable<Integer> {
 
     @Parameters(index = "0", description = "Directory to scan (e.g. public/)")
@@ -29,7 +28,8 @@ public class ParenthesisFileRenamerCommand implements Callable<Integer> {
         ParenthesisFileRenamer.Result result = renamer.rename(directory);
 
         if (result.filesRenamed() > 0) {
-            System.out.println("Renamed " + result.filesRenamed() + " files with parentheses, updated " + result.htmlFilesUpdated() + " HTML files");
+            System.out.println("Renamed " + result.filesRenamed() + " files with parentheses, updated "
+                    + result.htmlFilesUpdated() + " HTML files");
         }
 
         return 0;

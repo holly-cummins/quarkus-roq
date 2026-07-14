@@ -53,7 +53,8 @@ class ExtensionStatusTreeprocessorTest {
     @Test
     void previewHasCorrectTooltip() {
         String html = convert(":extension-status: preview\n\n== Guide\n\nContent.");
-        assertThat(html).contains("title=\"This extension's backward compatibility and presence in the ecosystem is not guaranteed\"");
+        assertThat(html)
+                .contains("title=\"This extension's backward compatibility and presence in the ecosystem is not guaranteed\"");
     }
 
     @Test

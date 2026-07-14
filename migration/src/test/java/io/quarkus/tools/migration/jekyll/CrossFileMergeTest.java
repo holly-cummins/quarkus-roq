@@ -1,17 +1,18 @@
 package io.quarkus.tools.migration.jekyll;
 
-import io.quarkus.qute.Engine;
-import io.quarkus.qute.TemplateException;
-import io.quarkus.tools.LiquidToQuteCommand;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
+import static org.junit.jupiter.api.Assertions.*;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
-import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+
+import io.quarkus.qute.Engine;
+import io.quarkus.qute.TemplateException;
+import io.quarkus.tools.LiquidToQuteCommand;
 
 class CrossFileMergeTest {
 

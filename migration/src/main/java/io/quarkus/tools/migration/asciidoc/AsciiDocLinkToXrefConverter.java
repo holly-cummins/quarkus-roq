@@ -27,8 +27,7 @@ public class AsciiDocLinkToXrefConverter {
     // Negative lookahead BEFORE capture: don't match if filename is http or https (URL scheme)
     // Positive lookahead AFTER filename: must be followed by # or [ or end of string (no / or .)
     private static final Pattern LINK_PATTERN = Pattern.compile(
-        "link:(?!https?:)([a-z][a-z0-9-]+)(?=[#\\[\\s]|$)(#[a-z0-9_-]+)?(\\[[^\\]]*\\])?"
-    );
+            "link:(?!https?:)([a-z][a-z0-9-]+)(?=[#\\[\\s]|$)(#[a-z0-9_-]+)?(\\[[^\\]]*\\])?");
 
     /**
      * Convert link: to xref: in all .adoc and .asciidoc files under contentDir.
@@ -40,19 +39,20 @@ public class AsciiDocLinkToXrefConverter {
         }
 
         try (Stream<Path> paths = Files.walk(contentDir)
-                                        .onClose(() -> {})  // swallow close exceptions
-                                        .filter(p -> {
-                                            try {
-                                                return Files.isRegularFile(p);
-                                            } catch (Exception e) {
-                                                return false;  // skip files we can't access
-                                            }
-                                        })) {
+                .onClose(() -> {
+                }) // swallow close exceptions
+                .filter(p -> {
+                    try {
+                        return Files.isRegularFile(p);
+                    } catch (Exception e) {
+                        return false; // skip files we can't access
+                    }
+                })) {
             paths.filter(p -> {
-                     String name = p.getFileName().toString();
-                     return name.endsWith(".adoc") || name.endsWith(".asciidoc");
-                 })
-                 .forEach(this::convertFile);
+                String name = p.getFileName().toString();
+                return name.endsWith(".adoc") || name.endsWith(".asciidoc");
+            })
+                    .forEach(this::convertFile);
         } catch (Exception e) {
             // Files.walk can throw on permission errors; ignore them
             if (e.getCause() instanceof java.nio.file.AccessDeniedException) {

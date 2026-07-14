@@ -1,21 +1,22 @@
 package io.quarkus.tools.migration;
 
+import java.lang.reflect.Method;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.regex.Pattern;
+
 import io.quarkus.qute.RawString;
 import io.quarkus.qute.TemplateExtension;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
-import java.time.LocalDateTime;
-import java.time.ZoneOffset;
-import java.time.format.DateTimeFormatter;
-import java.lang.reflect.Method;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.LinkedHashMap;
-import java.util.Map;
-import java.util.regex.Pattern;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Locale;
 
 @TemplateExtension
 public class JekyllFiltersExtension {
@@ -92,7 +93,7 @@ public class JekyllFiltersExtension {
     }
 
     private static boolean evaluateCondition(Object item, String prefix, String condition) {
-        String[] operators = {">=", "<=", "!=", "==", ">", "<", "contains"};
+        String[] operators = { ">=", "<=", "!=", "==", ">", "<", "contains" };
 
         for (String op : operators) {
             int idx = condition.indexOf(" " + op + " ");
@@ -117,7 +118,8 @@ public class JekyllFiltersExtension {
     }
 
     private static boolean compareValues(String left, String op, String right) {
-        if (left == null) return false;
+        if (left == null)
+            return false;
         int cmp = left.compareTo(right);
         return switch (op) {
             case "==" -> cmp == 0;
@@ -140,7 +142,7 @@ public class JekyllFiltersExtension {
         }
         // Try getter method (getX, isX, or plain x)
         Class<?> clazz = obj.getClass();
-        for (String prefix : new String[]{"get", "is", ""}) {
+        for (String prefix : new String[] { "get", "is", "" }) {
             String methodName = prefix.isEmpty() ? property
                     : prefix + Character.toUpperCase(property.charAt(0)) + property.substring(1);
             try {
@@ -246,7 +248,8 @@ public class JekyllFiltersExtension {
      * Usage in Qute: {=myString.escapeHtml}
      */
     static String escapeHtml(String str) {
-        if (str == null) return "";
+        if (str == null)
+            return "";
         return str.replace("&", "&amp;")
                 .replace("<", "&lt;")
                 .replace(">", "&gt;")
@@ -259,7 +262,8 @@ public class JekyllFiltersExtension {
      * Usage in Qute: {myString.capitalize}
      */
     static String capitalize(String str) {
-        if (str == null || str.isEmpty()) return str;
+        if (str == null || str.isEmpty())
+            return str;
         return Character.toUpperCase(str.charAt(0)) + str.substring(1);
     }
 
@@ -268,8 +272,10 @@ public class JekyllFiltersExtension {
      * Usage in Qute: {myString.truncate(280)}
      */
     static String truncate(String str, int length) {
-        if (str == null) return "";
-        if (str.length() <= length) return str;
+        if (str == null)
+            return "";
+        if (str.length() <= length)
+            return str;
         return str.substring(0, length) + "...";
     }
 
@@ -285,8 +291,10 @@ public class JekyllFiltersExtension {
         sorted.sort((a, b) -> {
             String va = extractProperty(a, property);
             String vb = extractProperty(b, property);
-            if (va == null) return vb == null ? 0 : 1;
-            if (vb == null) return -1;
+            if (va == null)
+                return vb == null ? 0 : 1;
+            if (vb == null)
+                return -1;
             return va.compareToIgnoreCase(vb);
         });
         return new JsonArray(sorted);
@@ -309,8 +317,10 @@ public class JekyllFiltersExtension {
         sorted.sort((a, b) -> {
             String va = extractProperty(a, property);
             String vb = extractProperty(b, property);
-            if (va == null) return vb == null ? 0 : 1;
-            if (vb == null) return -1;
+            if (va == null)
+                return vb == null ? 0 : 1;
+            if (vb == null)
+                return -1;
             return va.compareToIgnoreCase(vb);
         });
         return sorted;
@@ -357,14 +367,17 @@ public class JekyllFiltersExtension {
      */
     @SuppressWarnings("unchecked")
     static JsonArray mergeTypes(JsonObject index, String type) {
-        if (index == null || type == null || type.isEmpty()) return null;
+        if (index == null || type == null || type.isEmpty())
+            return null;
         JsonArray result = new JsonArray();
         for (String key : index.fieldNames()) {
             Object val = index.getValue(key);
             Map<String, Object> sourceMap = toMap(val);
-            if (sourceMap == null) continue;
+            if (sourceMap == null)
+                continue;
             Map<String, Object> typesMap = toMap(sourceMap.get("types"));
-            if (typesMap == null) continue;
+            if (typesMap == null)
+                continue;
             Object items = typesMap.get(type);
             if (items instanceof JsonArray arr) {
                 for (Object item : arr) {
@@ -376,7 +389,8 @@ public class JekyllFiltersExtension {
                 }
             }
         }
-        if (result.isEmpty()) return null;
+        if (result.isEmpty())
+            return null;
         List<Object> sorted = new ArrayList<>(result.getList());
         sorted.sort((a, b) -> {
             String ta = a instanceof JsonObject ja ? ja.getString("title", "") : "";
@@ -388,15 +402,19 @@ public class JekyllFiltersExtension {
 
     @SuppressWarnings("unchecked")
     private static Map<String, Object> toMap(Object obj) {
-        if (obj instanceof JsonObject jo) return jo.getMap();
-        if (obj instanceof Map) return (Map<String, Object>) obj;
+        if (obj instanceof JsonObject jo)
+            return jo.getMap();
+        if (obj instanceof Map)
+            return (Map<String, Object>) obj;
         return null;
     }
 
     @SuppressWarnings("unchecked")
     private static JsonObject toJsonObject(Object obj) {
-        if (obj instanceof JsonObject jo) return jo;
-        if (obj instanceof Map) return new JsonObject((Map<String, Object>) obj);
+        if (obj instanceof JsonObject jo)
+            return jo;
+        if (obj instanceof Map)
+            return new JsonObject((Map<String, Object>) obj);
         return new JsonObject().put("value", obj);
     }
 
@@ -406,7 +424,8 @@ public class JekyllFiltersExtension {
      * Usage in Qute: {=myString.markdownify}
      */
     static RawString markdownify(String str) {
-        if (str == null || str.isEmpty()) return new RawString("");
+        if (str == null || str.isEmpty())
+            return new RawString("");
         return new RawString(str);
     }
 
@@ -416,7 +435,8 @@ public class JekyllFiltersExtension {
      * Usage in Qute: {=myString.raw}
      */
     static RawString raw(String str) {
-        if (str == null) return new RawString("");
+        if (str == null)
+            return new RawString("");
         return new RawString(str);
     }
 

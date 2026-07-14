@@ -1,13 +1,13 @@
 package io.quarkus.tools;
 
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Nested;
-import org.junit.jupiter.api.Test;
-
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Test;
 
 class LiquidToQuteConverterTest {
 
@@ -553,9 +553,9 @@ class LiquidToQuteConverterTest {
     @Test
     void testAndOrInProseNotCorrupted() {
         String input = "<p>This is information or data and more text</p>\n" +
-                       "{% if a and b %}yes{% endif %}";
+                "{% if a and b %}yes{% endif %}";
         String expected = "<p>This is information or data and more text</p>\n" +
-                         "{#if a && b}yes{/if}";
+                "{#if a && b}yes{/if}";
         assertConverts(input, expected,
                 "and/or in prose text should not be converted, only inside conditionals");
     }
@@ -927,7 +927,7 @@ class LiquidToQuteConverterTest {
                 "{% else %}" +
                 "{% assign starts = false %}" +
                 "{% endif %}" +
-                "\n\n\n\n\n\n\n\n\n\n" +  // many lines between
+                "\n\n\n\n\n\n\n\n\n\n" + // many lines between
                 "<title>{{ page.title }}{% unless starts %} - Quarkus{% endunless %}</title>";
         String result = new LiquidToQuteConverter().convert(input);
         assertTrue(result.contains("{#let starts=page.title.startsWith('Quarkus -')}"),

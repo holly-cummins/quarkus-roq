@@ -12,8 +12,7 @@ import picocli.CommandLine;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Parameters;
 
-@Command(name = "asciidoc-link-to-xref", mixinStandardHelpOptions = true, version = "1.0",
-        description = "Converts AsciiDoc link: macros to xref: for cross-document references")
+@Command(name = "asciidoc-link-to-xref", mixinStandardHelpOptions = true, version = "1.0", description = "Converts AsciiDoc link: macros to xref: for cross-document references")
 public class AsciiDocLinkToXrefCommand implements Callable<Integer> {
 
     @Parameters(index = "0", description = "Content directory (e.g., content/)")

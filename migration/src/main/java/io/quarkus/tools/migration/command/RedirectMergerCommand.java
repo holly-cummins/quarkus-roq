@@ -19,26 +19,27 @@ import picocli.CommandLine.Parameters;
 
 /**
  * Merges standalone redirect files into their target files as aliases.
- * 
+ *
  * Jekyll/Roq redirect files (with newUrl/aliases frontmatter) often exist
  * as standalone pages. Before deleting the redirects directory, this command
  * extracts each redirect's source path and target URL, then adds the source
  * path as an alias to the target file.
- * 
+ *
  * Example:
- *   _redirects/guides/old-name/index.md with aliases: /guides/new-name
- *   → adds "aliases: /guides/old-name" to content/guides/new-name.adoc
+ * _redirects/guides/old-name/index.md with aliases: /guides/new-name
+ * → adds "aliases: /guides/old-name" to content/guides/new-name.adoc
  */
-@Command(name = "merge-redirects", mixinStandardHelpOptions = true, version = "1.0",
-        description = "Merge redirect files into target files as aliases")
+@Command(name = "merge-redirects", mixinStandardHelpOptions = true, version = "1.0", description = "Merge redirect files into target files as aliases")
 public class RedirectMergerCommand implements Callable<Integer> {
 
     @Parameters(index = "0", description = "Project directory (must contain content/)")
     private Path projectDir;
 
-    private static final Pattern ALIASES_LINE = Pattern.compile("^aliases:\\s*\\n((?:[ \\t]+-[ \\t]+[^\\n]+\\n)*)", Pattern.MULTILINE);
+    private static final Pattern ALIASES_LINE = Pattern.compile("^aliases:\\s*\\n((?:[ \\t]+-[ \\t]+[^\\n]+\\n)*)",
+            Pattern.MULTILINE);
     private static final Pattern NEWURL_LINE = Pattern.compile("^newUrl:[ \\t]*(.*)\\n", Pattern.MULTILINE);
-    private static final Pattern FRONTMATTER = Pattern.compile("^---\\s*\\n(.*?)^---\\s*\\n", Pattern.MULTILINE | Pattern.DOTALL);
+    private static final Pattern FRONTMATTER = Pattern.compile("^---\\s*\\n(.*?)^---\\s*\\n",
+            Pattern.MULTILINE | Pattern.DOTALL);
 
     public static void main(String... args) {
         int exitCode = new CommandLine(new RedirectMergerCommand()).execute(args);
@@ -59,10 +60,10 @@ public class RedirectMergerCommand implements Callable<Integer> {
 
         try (Stream<Path> paths = Files.walk(redirectsDir)) {
             for (Path redirectFile : paths.filter(Files::isRegularFile)
-                    .filter(p -> p.getFileName().toString().endsWith(".md") || 
-                                 p.getFileName().toString().endsWith(".html"))
+                    .filter(p -> p.getFileName().toString().endsWith(".md") ||
+                            p.getFileName().toString().endsWith(".html"))
                     .toList()) {
-                
+
                 if (mergeRedirect(contentDir, redirectsDir, redirectFile)) {
                     mergedCount++;
                 }
@@ -75,13 +76,13 @@ public class RedirectMergerCommand implements Callable<Integer> {
 
     private boolean mergeRedirect(Path contentDir, Path redirectsDir, Path redirectFile) throws IOException {
         String content = Files.readString(redirectFile);
-        
+
         // Extract frontmatter
         Matcher fmMatcher = FRONTMATTER.matcher(content);
         if (!fmMatcher.find()) {
             return false;
         }
-        
+
         String frontmatter = fmMatcher.group(1);
 
         // Extract target URL from either aliases: or newUrl:
@@ -110,7 +111,7 @@ public class RedirectMergerCommand implements Callable<Integer> {
         if (target == null || target.isEmpty()) {
             return false;
         }
-        
+
         // Calculate source path (where this redirect lives)
         Path relPath = redirectsDir.relativize(redirectFile);
         String sourcePath = "/" + relPath.toString()
@@ -183,19 +184,19 @@ public class RedirectMergerCommand implements Callable<Integer> {
         if (Files.exists(adocFile)) {
             return adocFile;
         }
-        
+
         // Try .md
         Path mdFile = contentDir.resolve(targetPath + ".md");
         if (Files.exists(mdFile)) {
             return mdFile;
         }
-        
+
         // Try .html
         Path htmlFile = contentDir.resolve(targetPath + ".html");
         if (Files.exists(htmlFile)) {
             return htmlFile;
         }
-        
+
         return null;
     }
 
@@ -212,7 +213,7 @@ public class RedirectMergerCommand implements Callable<Integer> {
 
     private void addAliasToFile(Path file, String alias) throws IOException {
         String content = Files.readString(file);
-        
+
         Matcher fmMatcher = FRONTMATTER.matcher(content);
         if (!fmMatcher.find()) {
             // No frontmatter, add it
@@ -220,9 +221,9 @@ public class RedirectMergerCommand implements Callable<Integer> {
             Files.writeString(file, content);
             return;
         }
-        
+
         String frontmatter = fmMatcher.group(1);
-        
+
         // Check if aliases already exist
         Matcher aliasesMatcher = ALIASES_LINE.matcher(frontmatter);
         if (aliasesMatcher.find()) {
@@ -240,7 +241,7 @@ public class RedirectMergerCommand implements Callable<Integer> {
             String updatedFrontmatter = "aliases:\n  - " + alias + "\n" + frontmatter;
             content = fmMatcher.replaceFirst("---\n" + Matcher.quoteReplacement(updatedFrontmatter) + "---\n");
         }
-        
+
         Files.writeString(file, content);
     }
 }

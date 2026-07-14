@@ -1,21 +1,20 @@
 package io.quarkus.tools;
 
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-
-import java.util.Properties;
-
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
-
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Properties;
+
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 class JekyllConfigConverterTest {
 
@@ -947,7 +946,7 @@ class JekyllConfigConverterTest {
         String latestGuides = Files.readString(
                 tempDir.resolve("config/application-only-latest-guides.properties"));
         assertTrue(latestGuides.contains(
-                        "site.ignored-files=versions/2.*/**,versions/3.*/**"),
+                "site.ignored-files=versions/2.*/**,versions/3.*/**"),
                 "Should have only-latest-guides profile file: " + latestGuides);
 
         assertFalse(Files.exists(tempDir.resolve("_noguides_config.yml")),

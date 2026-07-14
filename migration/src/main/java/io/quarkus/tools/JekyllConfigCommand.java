@@ -13,14 +13,14 @@ import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 import picocli.CommandLine.Parameters;
 
-@Command(name = "jekyll-config", mixinStandardHelpOptions = true, version = "1.0",
-        description = "Converts Jekyll _config.yml to Roq application.properties and data/siteConfig.yml")
+@Command(name = "jekyll-config", mixinStandardHelpOptions = true, version = "1.0", description = "Converts Jekyll _config.yml to Roq application.properties and data/siteConfig.yml")
 public class JekyllConfigCommand implements Callable<Integer> {
 
     @Parameters(index = "0", description = "Jekyll project directory")
     private Path projectDir;
 
-    @Option(names = {"--strict-properties"}, description = "Use THROW strategy for missing properties (requires all optional properties to be guarded with {#if} or .or(''))")
+    @Option(names = {
+            "--strict-properties" }, description = "Use THROW strategy for missing properties (requires all optional properties to be guarded with {#if} or .or(''))")
     private boolean strictProperties;
 
     private JekyllConfigConverter converter = new JekyllConfigConverter();

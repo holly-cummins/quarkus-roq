@@ -95,7 +95,7 @@ public class JekyllFrontMatterConverter {
      * Convert Jekyll permalink frontmatter to Roq aliases.
      *
      * @param pathPrefix prepended to the relative path for comparison — used for
-     *                   pre-move collection dirs where _foo/bar.md will become content/foo/bar.md
+     *        pre-move collection dirs where _foo/bar.md will become content/foo/bar.md
      */
     public void convertPermalinks(Path contentDir, String pathPrefix) throws IOException {
         for (Path file : findContentFiles(contentDir)) {
@@ -118,7 +118,8 @@ public class JekyllFrontMatterConverter {
             if (normalized.equals(effectivePath)) {
                 content = PERMALINK_LINE.matcher(content).replaceFirst("");
             } else {
-                content = PERMALINK_LINE.matcher(content).replaceFirst("link: " + Matcher.quoteReplacement(matcher.group(1)) + "\n");
+                content = PERMALINK_LINE.matcher(content)
+                        .replaceFirst("link: " + Matcher.quoteReplacement(matcher.group(1)) + "\n");
             }
 
             Files.writeString(file, content);
@@ -138,7 +139,8 @@ public class JekyllFrontMatterConverter {
             }
 
             String newUrlValue = matcher.group(1).trim();
-            content = NEWURL_LINE.matcher(content).replaceFirst("aliases:\n  - " + Matcher.quoteReplacement(newUrlValue) + "\n");
+            content = NEWURL_LINE.matcher(content)
+                    .replaceFirst("aliases:\n  - " + Matcher.quoteReplacement(newUrlValue) + "\n");
             Files.writeString(file, content);
         }
     }

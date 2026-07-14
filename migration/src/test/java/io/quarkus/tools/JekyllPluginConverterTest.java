@@ -1,12 +1,10 @@
 package io.quarkus.tools;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.List;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -88,23 +86,23 @@ class JekyllPluginConverterTest {
     void testCopySearchWcGeneratesStartupBean() throws IOException {
         Files.writeString(pluginsDir.resolve("copy-search-wc.rb"),
                 "require 'open-uri'\n" +
-                "module Jekyll\n" +
-                "  class CopySearchScript < Jekyll::Plugin\n" +
-                "    Jekyll::Hooks.register :site, :post_write do |site|\n" +
-                "      script_mode = site.config['search']['script-mode']\n" +
-                "    end\n" +
-                "  end\n" +
-                "end");
+                        "module Jekyll\n" +
+                        "  class CopySearchScript < Jekyll::Plugin\n" +
+                        "    Jekyll::Hooks.register :site, :post_write do |site|\n" +
+                        "      script_mode = site.config['search']['script-mode']\n" +
+                        "    end\n" +
+                        "  end\n" +
+                        "end");
 
         // Provide siteConfig.yml so the converter can read search config
         Path dataDir = projectDir.resolve("data");
         Files.createDirectories(dataDir);
         Files.writeString(dataDir.resolve("siteConfig.yml"),
                 "search:\n" +
-                "  scriptMode: \"cached\"\n" +
-                "  host: \"https://search.quarkus.io\"\n" +
-                "  scriptPath: \"/static/bundle/app.js\"\n" +
-                "  cachedScriptFile: \"assets/javascript/search-wc.js\"\n");
+                        "  scriptMode: \"cached\"\n" +
+                        "  host: \"https://search.quarkus.io\"\n" +
+                        "  scriptPath: \"/static/bundle/app.js\"\n" +
+                        "  cachedScriptFile: \"assets/javascript/search-wc.js\"\n");
 
         JekyllPluginConverter converter = new JekyllPluginConverter(projectDir);
         JekyllPluginConverter.Result result = converter.convert();
@@ -158,15 +156,15 @@ class JekyllPluginConverterTest {
     void testAsciidoctorExtensionFailsWithDescription() throws IOException {
         Files.writeString(pluginsDir.resolve("asciidoctor-extension.rb"),
                 "require 'asciidoctor/extensions'\n" +
-                "Extensions.register do\n" +
-                "  inline_macro do\n" +
-                "    named :tooltip\n" +
-                "  end\n" +
-                "end\n" +
-                "Extensions.register do\n" +
-                "  tree_processor do\n" +
-                "  end\n" +
-                "end");
+                        "Extensions.register do\n" +
+                        "  inline_macro do\n" +
+                        "    named :tooltip\n" +
+                        "  end\n" +
+                        "end\n" +
+                        "Extensions.register do\n" +
+                        "  tree_processor do\n" +
+                        "  end\n" +
+                        "end");
 
         JekyllPluginConverter converter = new JekyllPluginConverter(projectDir);
         JekyllPluginConverter.Result result = converter.convert();
@@ -251,10 +249,10 @@ class JekyllPluginConverterTest {
         Files.createDirectories(dataDir);
         Files.writeString(dataDir.resolve("siteConfig.yml"),
                 "search:\n" +
-                "  scriptMode: \"cached\"\n" +
-                "  host: \"https://search.quarkus.io\"\n" +
-                "  scriptPath: \"/static/bundle/app.js\"\n" +
-                "  cachedScriptFile: \"assets/javascript/search-wc.js\"\n");
+                        "  scriptMode: \"cached\"\n" +
+                        "  host: \"https://search.quarkus.io\"\n" +
+                        "  scriptPath: \"/static/bundle/app.js\"\n" +
+                        "  cachedScriptFile: \"assets/javascript/search-wc.js\"\n");
 
         // Provide hand-coded asciidoctor equivalent
         Files.writeString(srcDir.resolve("AsciidoctorExtension.java"),

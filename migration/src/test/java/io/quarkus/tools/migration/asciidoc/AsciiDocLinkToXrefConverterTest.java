@@ -52,19 +52,21 @@ public class AsciiDocLinkToXrefConverterTest {
 
     @Test
     public void testMixedLinks() {
-        String input = "This guide explains testing. More details in the link:getting-started-testing#quarkus-integration-test[Testing Guide].\n\n" +
-                       "See also:\n" +
-                       "- link:building-native-image for native builds\n" +
-                       "- link:building-native-image#build-modes[different build modes]\n" +
-                       "- External link: link:https://example.com[example]\n" +
-                       "- Another URL: link:http://test.com/path[test]";
+        String input = "This guide explains testing. More details in the link:getting-started-testing#quarkus-integration-test[Testing Guide].\n\n"
+                +
+                "See also:\n" +
+                "- link:building-native-image for native builds\n" +
+                "- link:building-native-image#build-modes[different build modes]\n" +
+                "- External link: link:https://example.com[example]\n" +
+                "- Another URL: link:http://test.com/path[test]";
 
-        String expected = "This guide explains testing. More details in the xref:getting-started-testing.adoc#quarkus-integration-test[Testing Guide].\n\n" +
-                          "See also:\n" +
-                          "- xref:building-native-image.adoc for native builds\n" +
-                          "- xref:building-native-image.adoc#build-modes[different build modes]\n" +
-                          "- External link: link:https://example.com[example]\n" +
-                          "- Another URL: link:http://test.com/path[test]";
+        String expected = "This guide explains testing. More details in the xref:getting-started-testing.adoc#quarkus-integration-test[Testing Guide].\n\n"
+                +
+                "See also:\n" +
+                "- xref:building-native-image.adoc for native builds\n" +
+                "- xref:building-native-image.adoc#build-modes[different build modes]\n" +
+                "- External link: link:https://example.com[example]\n" +
+                "- Another URL: link:http://test.com/path[test]";
 
         assertEquals(expected, converter.convertLinks(input));
     }
@@ -72,11 +74,13 @@ public class AsciiDocLinkToXrefConverterTest {
     @Test
     public void testRealWorldExample() {
         // This was the actual failing case from the migration
-        String input = "Producing a native executable can lead to a few issues, and so it's also a good idea to run some tests against the application running in the native file. " +
-                       "The reasoning is explained in the link:getting-started-testing#quarkus-integration-test[Testing Guide].";
+        String input = "Producing a native executable can lead to a few issues, and so it's also a good idea to run some tests against the application running in the native file. "
+                +
+                "The reasoning is explained in the link:getting-started-testing#quarkus-integration-test[Testing Guide].";
 
-        String expected = "Producing a native executable can lead to a few issues, and so it's also a good idea to run some tests against the application running in the native file. " +
-                          "The reasoning is explained in the xref:getting-started-testing.adoc#quarkus-integration-test[Testing Guide].";
+        String expected = "Producing a native executable can lead to a few issues, and so it's also a good idea to run some tests against the application running in the native file. "
+                +
+                "The reasoning is explained in the xref:getting-started-testing.adoc#quarkus-integration-test[Testing Guide].";
 
         assertEquals(expected, converter.convertLinks(input));
     }

@@ -3,8 +3,8 @@ package io.quarkus.tools.migration.asciidoc;
 import java.util.HashMap;
 import java.util.Map;
 
-import org.asciidoctor.ast.StructuralNode;
 import org.asciidoctor.ast.PhraseNode;
+import org.asciidoctor.ast.StructuralNode;
 import org.asciidoctor.extension.InlineMacroProcessor;
 import org.asciidoctor.extension.Name;
 

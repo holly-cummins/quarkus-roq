@@ -104,7 +104,7 @@ public class JekyllConfigConverter {
      * Create a siteConfig.yml file for template access to site properties.
      * This makes Jekyll's site.* properties available as cdi:siteConfig.* in Roq.
      * Replaces roq-it-jekyll lines 238-277.
-     * 
+     *
      * @param configYaml The content of _config.yml
      * @param cnameContent Optional CNAME file content (can be null)
      * @return YAML content for data/siteConfig.yml
@@ -118,15 +118,15 @@ public class JekyllConfigConverter {
      * Create a siteConfig.yml from a pre-parsed config.
      */
     private static final Set<String> KEYS_HANDLED_ELSEWHERE = Set.of(
-            "url",          // → application.properties site.url
-            "collections",  // → application.properties site.collections.*
-            "plugins",      // → application.properties (auto-author, etc.)
-            "defaults",     // → application.properties (collection layouts)
-            "description",  // → index page frontmatter
-            "autopages",    // → application.properties (auto-author config)
-            "title",        // → index page frontmatter / Roq site.title
-            "asciidoctor",  // → application.properties quarkus.asciidoc.attributes.*
-            "exclude"       // → application.properties site.ignored-files
+            "url", // → application.properties site.url
+            "collections", // → application.properties site.collections.*
+            "plugins", // → application.properties (auto-author, etc.)
+            "defaults", // → application.properties (collection layouts)
+            "description", // → index page frontmatter
+            "autopages", // → application.properties (auto-author config)
+            "title", // → index page frontmatter / Roq site.title
+            "asciidoctor", // → application.properties quarkus.asciidoc.attributes.*
+            "exclude" // → application.properties site.ignored-files
     );
 
     public String createSiteConfigYaml(JsonNode config, String cnameContent) throws IOException {
@@ -144,8 +144,8 @@ public class JekyllConfigConverter {
                 // Special case: camelCase hyphenated search keys for Qute compatibility
                 JsonNode search = config.get("search");
                 Map<String, Object> searchConfig = new LinkedHashMap<>();
-                search.fields().forEachRemaining(e ->
-                        copyIfPresent(search, searchConfig, e.getKey(), hyphenToCamelCase(e.getKey())));
+                search.fields()
+                        .forEachRemaining(e -> copyIfPresent(search, searchConfig, e.getKey(), hyphenToCamelCase(e.getKey())));
                 if (!searchConfig.isEmpty()) {
                     siteConfig.put("search", searchConfig);
                 }
@@ -162,22 +162,22 @@ public class JekyllConfigConverter {
      * Convert Jekyll config files from a project directory.
      * Reads _config.yml and CNAME, creates config/application.properties and data/siteConfig.yml.
      * Replaces roq-it-jekyll lines 61-62, 184-192, and 238-277.
-     * 
+     *
      * @param projectDir The Jekyll project directory
      * @throws IOException if file operations fail
      */
     public void convertProject(Path projectDir) throws IOException {
         Path configFile = projectDir.resolve("_config.yml");
         Path cnameFile = projectDir.resolve("CNAME");
-        
+
         if (!Files.exists(configFile)) {
             throw new IOException("_config.yml not found in " + projectDir + ". Is this a Jekyll project?");
         }
-        
+
         // Read input files
         String configYaml = Files.readString(configFile);
         String cnameContent = Files.exists(cnameFile) ? Files.readString(cnameFile) : null;
-        
+
         // Create config/application.properties
         Path configDir = projectDir.resolve("config");
         Files.createDirectories(configDir);
@@ -194,7 +194,7 @@ public class JekyllConfigConverter {
             }
             convertOverlayConfigs(projectDir, writer);
         }
-        
+
         // Create data/siteConfig.yml
         String siteConfigYaml = createSiteConfigYaml(config, cnameContent);
         Path dataDir = projectDir.resolve("data");
@@ -379,8 +379,7 @@ public class JekyllConfigConverter {
             }
         }
 
-        permalinks.forEach((name, linkTemplate) ->
-                properties.setProperty("site.collections." + name + ".link", linkTemplate));
+        permalinks.forEach((name, linkTemplate) -> properties.setProperty("site.collections." + name + ".link", linkTemplate));
     }
 
     private Map<String, String> getCollectionPermalinks(JsonNode config) {
@@ -628,7 +627,8 @@ public class JekyllConfigConverter {
                 try {
                     target.put(targetKey, objectMapper.convertValue(value, Object.class));
                 } catch (IllegalArgumentException e) {
-                    System.err.println("Warning: could not convert config value for key '" + sourceKey + "': " + e.getMessage());
+                    System.err
+                            .println("Warning: could not convert config value for key '" + sourceKey + "': " + e.getMessage());
                 }
             }
         }

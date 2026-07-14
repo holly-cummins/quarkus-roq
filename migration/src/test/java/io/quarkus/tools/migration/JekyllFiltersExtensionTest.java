@@ -1,20 +1,19 @@
 package io.quarkus.tools.migration;
 
-import java.time.LocalDateTime;
-import java.util.Map;
-
-import org.junit.jupiter.api.Test;
-
-import java.util.List;
-
-import io.quarkus.qute.RawString;
-import io.vertx.core.json.JsonArray;
-import io.vertx.core.json.JsonObject;
-
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Map;
+
+import org.junit.jupiter.api.Test;
+
+import io.quarkus.qute.RawString;
+import io.vertx.core.json.JsonArray;
+import io.vertx.core.json.JsonObject;
 
 class JekyllFiltersExtensionTest {
 

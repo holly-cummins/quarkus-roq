@@ -1,13 +1,13 @@
 package io.quarkus.tools;
 
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Nested;
-import org.junit.jupiter.api.Test;
-
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Test;
 
 class LiquidToQuteConverterTest {
 
@@ -1620,12 +1620,12 @@ class LiquidToQuteConverterTest {
     @Test
     void testMutableMapInitAfterFrontMatter() {
         String input = """
-haq                ---
-                layout: base
-                ---
-                {% assign active = false %}\
-                {#if cond}{% assign active = true %}{/if}\
-                {#if active}yes{/if}""";
+                                ---
+                                layout: base
+                                ---
+                                {% assign active = false %}\
+                                {#if cond}{% assign active = true %}{/if}\
+                                {#if active}yes{/if}""";
         String result = converter.convert(input);
         assertTrue(result.startsWith("---\nlayout: base\n---\n{#let _m=mut:map()}"),
                 "Mutable map init should come after front matter, not before: " + result);

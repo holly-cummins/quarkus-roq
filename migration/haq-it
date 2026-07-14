@@ -128,11 +128,13 @@ rm -f ${project_dir}/_layouts/extensions.html ${project_dir}/_layouts/extensions
 # TODO fix this
 rm -f ${project_dir}/_includes/templates/toc.html
 
-# Delete plugins that are already handled by the converter (filters/config) or need
-# manual migration (asciidoctor extensions). Keep only cname.rb and copy-search-wc.rb.
-rm -f ${project_dir}/_plugins/asciidoctor-extension.rb
-rm -f ${project_dir}/_plugins/regex_filter.rb
-rm -f ${project_dir}/_plugins/strings.rb
+# Delete all Jekyll plugins except cname.rb to avoid build failures.
+# The generic converter only handles cname.rb (GitHub Pages convention).
+# Site-specific plugins (filters, search scripts, AsciiDoc extensions) are either:
+# - Already handled by roq-it-jekyll (JekyllFiltersExtension.java, AsciiDoc extensions copied)
+# - Not applicable to Roq (custom Jekyll generators, hooks)
+# Delete them to prevent the converter from failing the build.
+find ${project_dir}/_plugins -type f -name "*.rb" ! -name "cname.rb" -delete 2>/dev/null || true
 
 # TODO: If guides had their own dedicated directory structure (guides/guide-name/index.adoc),
 # this static asset handling wouldn't be needed. Consider moving this to a dedicated guides

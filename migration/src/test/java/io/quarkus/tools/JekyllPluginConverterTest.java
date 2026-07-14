@@ -26,7 +26,7 @@ class JekyllPluginConverterTest {
         Files.createDirectories(srcDir);
     }
 
-    // --- HANDLED plugins: skip silently ---
+    // --- Generic GitHub Pages plugin (HANDLED) ---
 
     @Test
     void testCnamePluginIsHandled() throws IOException {
@@ -41,154 +41,98 @@ class JekyllPluginConverterTest {
         assertThat(result.failed()).isEmpty();
     }
 
+    // --- Unknown plugins fail by default (MANUAL) ---
+
     @Test
-    void testRegexFilterPluginIsHandled() throws IOException {
-        Files.writeString(pluginsDir.resolve("regex_filter.rb"),
-                "module Jekyll\n  module RegexFilter\n  end\nend");
+    void testUnknownPluginFailsByDefault() throws IOException {
+        Files.writeString(pluginsDir.resolve("custom-plugin.rb"),
+                "module Jekyll\n  module CustomFilter\n  end\nend");
 
         JekyllPluginConverter converter = new JekyllPluginConverter(projectDir);
         JekyllPluginConverter.Result result = converter.convert();
 
-        assertThat(result.handled()).containsExactly("regex_filter.rb");
-        assertThat(result.failed()).isEmpty();
+        assertThat(result.failed()).containsExactly("custom-plugin.rb");
+        assertThat(result.handled()).isEmpty();
+        assertThat(result.failureMessages().get("custom-plugin.rb"))
+                .contains("custom-plugin.rb")
+                .contains("CustomPlugin.java");
     }
 
     @Test
-    void testStringsPluginIsHandled() throws IOException {
-        Files.writeString(pluginsDir.resolve("strings.rb"),
-                "module Jekyll\n  module StringsFilter\n  end\nend");
+    void testMultipleUnknownPluginsFail() throws IOException {
+        Files.writeString(pluginsDir.resolve("plugin-a.rb"), "# plugin a");
+        Files.writeString(pluginsDir.resolve("plugin-b.rb"), "# plugin b");
+        Files.writeString(pluginsDir.resolve("plugin-c.rb"), "# plugin c");
 
         JekyllPluginConverter converter = new JekyllPluginConverter(projectDir);
         JekyllPluginConverter.Result result = converter.convert();
 
-        assertThat(result.handled()).containsExactly("strings.rb");
-        assertThat(result.failed()).isEmpty();
+        assertThat(result.failed()).containsExactlyInAnyOrder(
+                "plugin-a.rb", "plugin-b.rb", "plugin-c.rb");
+        assertThat(result.handled()).isEmpty();
     }
 
-    @Test
-    void testMultipleHandledPlugins() throws IOException {
-        Files.writeString(pluginsDir.resolve("cname.rb"), "# cname");
-        Files.writeString(pluginsDir.resolve("regex_filter.rb"), "# regex");
-        Files.writeString(pluginsDir.resolve("strings.rb"), "# strings");
-
-        JekyllPluginConverter converter = new JekyllPluginConverter(projectDir);
-        JekyllPluginConverter.Result result = converter.convert();
-
-        assertThat(result.handled()).containsExactlyInAnyOrder(
-                "cname.rb", "regex_filter.rb", "strings.rb");
-        assertThat(result.translated()).isEmpty();
-        assertThat(result.failed()).isEmpty();
-    }
-
-    // --- TRANSLATABLE plugins: generate Java ---
+    // --- Plugins with hand-coded equivalents are skipped ---
 
     @Test
-    void testCopySearchWcGeneratesStartupBean() throws IOException {
-        Files.writeString(pluginsDir.resolve("copy-search-wc.rb"),
-                "require 'open-uri'\n" +
-                        "module Jekyll\n" +
-                        "  class CopySearchScript < Jekyll::Plugin\n" +
-                        "    Jekyll::Hooks.register :site, :post_write do |site|\n" +
-                        "      script_mode = site.config['search']['script-mode']\n" +
-                        "    end\n" +
-                        "  end\n" +
-                        "end");
-
-        // Provide siteConfig.yml so the converter can read search config
-        Path dataDir = projectDir.resolve("data");
-        Files.createDirectories(dataDir);
-        Files.writeString(dataDir.resolve("siteConfig.yml"),
-                "search:\n" +
-                        "  scriptMode: \"cached\"\n" +
-                        "  host: \"https://search.quarkus.io\"\n" +
-                        "  scriptPath: \"/static/bundle/app.js\"\n" +
-                        "  cachedScriptFile: \"assets/javascript/search-wc.js\"\n");
-
-        JekyllPluginConverter converter = new JekyllPluginConverter(projectDir);
-        JekyllPluginConverter.Result result = converter.convert();
-
-        assertThat(result.translated()).containsExactly("copy-search-wc.rb");
-        assertThat(result.failed()).isEmpty();
-
-        Path generated = srcDir.resolve("SearchScriptDownloader.java");
-        assertThat(generated).exists();
-
-        String content = Files.readString(generated);
-        assertThat(content).contains("@Startup");
-        assertThat(content).contains("search.quarkus.io");
-        assertThat(content).contains("search-wc.js");
-        assertThat(content).contains("sourceMappingURL");
-        assertThat(content).contains("Files.exists(dest)");
-    }
-
-    // --- MANUAL plugins: fail unless equivalent exists ---
-
-    @Test
-    void testUnknownPluginFailsWithoutEquivalent() throws IOException {
-        Files.writeString(pluginsDir.resolve("custom-thing.rb"),
-                "module Jekyll\n  # something custom\nend");
-
-        JekyllPluginConverter converter = new JekyllPluginConverter(projectDir);
-        JekyllPluginConverter.Result result = converter.convert();
-
-        assertThat(result.failed()).containsExactly("custom-thing.rb");
-        assertThat(result.failureMessages().get("custom-thing.rb"))
-                .contains("custom-thing.rb");
-    }
-
-    @Test
-    void testUnknownPluginSkipsWhenEquivalentExists() throws IOException {
-        Files.writeString(pluginsDir.resolve("custom-thing.rb"),
-                "module Jekyll\n  # something custom\nend");
+    void testPluginSkipsWhenEquivalentExists() throws IOException {
+        Files.writeString(pluginsDir.resolve("my-filter.rb"),
+                "module Jekyll\n  module MyFilter\n  end\nend");
 
         // Hand-code the equivalent
-        Files.writeString(srcDir.resolve("CustomThing.java"),
-                "package io.quarkus.tools.migration;\npublic class CustomThing {}");
+        Files.writeString(srcDir.resolve("MyFilter.java"),
+                "package io.quarkus.tools.migration;\npublic class MyFilter {}");
 
         JekyllPluginConverter converter = new JekyllPluginConverter(projectDir);
         JekyllPluginConverter.Result result = converter.convert();
 
         assertThat(result.failed()).isEmpty();
-        assertThat(result.skipped()).containsExactly("custom-thing.rb");
+        assertThat(result.skipped()).containsExactly("my-filter.rb");
     }
 
     @Test
-    void testAsciidoctorExtensionFailsWithDescription() throws IOException {
-        Files.writeString(pluginsDir.resolve("asciidoctor-extension.rb"),
-                "require 'asciidoctor/extensions'\n" +
-                        "Extensions.register do\n" +
-                        "  inline_macro do\n" +
-                        "    named :tooltip\n" +
-                        "  end\n" +
-                        "end\n" +
-                        "Extensions.register do\n" +
-                        "  tree_processor do\n" +
-                        "  end\n" +
-                        "end");
+    void testMultiplePluginsWithEquivalents() throws IOException {
+        Files.writeString(pluginsDir.resolve("filter-a.rb"), "# filter a");
+        Files.writeString(pluginsDir.resolve("filter-b.rb"), "# filter b");
+        Files.writeString(pluginsDir.resolve("filter-c.rb"), "# filter c");
+
+        // Provide equivalents for some
+        Files.writeString(srcDir.resolve("FilterA.java"),
+                "package io.quarkus.tools.migration;\npublic class FilterA {}");
+        Files.writeString(srcDir.resolve("FilterC.java"),
+                "package io.quarkus.tools.migration;\npublic class FilterC {}");
 
         JekyllPluginConverter converter = new JekyllPluginConverter(projectDir);
         JekyllPluginConverter.Result result = converter.convert();
 
-        assertThat(result.failed()).containsExactly("asciidoctor-extension.rb");
-        String msg = result.failureMessages().get("asciidoctor-extension.rb");
-        assertThat(msg).contains("tooltip");
-        assertThat(msg).contains("AsciidoctorExtension.java");
+        assertThat(result.skipped()).containsExactlyInAnyOrder("filter-a.rb", "filter-c.rb");
+        assertThat(result.failed()).containsExactly("filter-b.rb");
     }
 
-    @Test
-    void testAsciidoctorExtensionSkipsWhenEquivalentExists() throws IOException {
-        Files.writeString(pluginsDir.resolve("asciidoctor-extension.rb"),
-                "require 'asciidoctor/extensions'\nExtensions.register do\nend");
+    // --- Ruby filename to Java class name conversion ---
 
-        // Hand-code the equivalent
-        Files.writeString(srcDir.resolve("AsciidoctorExtension.java"),
-                "package io.quarkus.tools.migration;\npublic class AsciidoctorExtension {}");
+    @Test
+    void testRubyFileNameToJavaClassConversion() throws IOException {
+        Files.writeString(pluginsDir.resolve("my-custom-filter.rb"), "# custom filter");
 
         JekyllPluginConverter converter = new JekyllPluginConverter(projectDir);
         JekyllPluginConverter.Result result = converter.convert();
 
-        assertThat(result.failed()).isEmpty();
-        assertThat(result.skipped()).containsExactly("asciidoctor-extension.rb");
+        assertThat(result.failed()).containsExactly("my-custom-filter.rb");
+        assertThat(result.failureMessages().get("my-custom-filter.rb"))
+                .contains("MyCustomFilter.java");
+    }
+
+    @Test
+    void testUnderscoreFileNameConversion() throws IOException {
+        Files.writeString(pluginsDir.resolve("some_long_plugin_name.rb"), "# plugin");
+
+        JekyllPluginConverter converter = new JekyllPluginConverter(projectDir);
+        JekyllPluginConverter.Result result = converter.convert();
+
+        assertThat(result.failed()).containsExactly("some_long_plugin_name.rb");
+        assertThat(result.failureMessages().get("some_long_plugin_name.rb"))
+                .contains("SomeLongPluginName.java");
     }
 
     // --- No plugins directory ---
@@ -223,6 +167,7 @@ class JekyllPluginConverterTest {
     void testNonRubyFilesIgnored() throws IOException {
         Files.writeString(pluginsDir.resolve("readme.md"), "# Plugins");
         Files.writeString(pluginsDir.resolve("helper.txt"), "notes");
+        Files.writeString(pluginsDir.resolve(".gitignore"), "*.tmp");
 
         JekyllPluginConverter converter = new JekyllPluginConverter(projectDir);
         JekyllPluginConverter.Result result = converter.convert();
@@ -232,39 +177,32 @@ class JekyllPluginConverterTest {
         assertThat(result.failed()).isEmpty();
     }
 
-    // --- Full quarkusio-style scenario ---
+    // --- Mixed scenario ---
 
     @Test
-    void testFullQuarkusioScenario() throws IOException {
+    void testMixedScenario() throws IOException {
+        // Generic GitHub Pages plugin (handled)
         Files.writeString(pluginsDir.resolve("cname.rb"), "# cname");
-        Files.writeString(pluginsDir.resolve("regex_filter.rb"), "# regex");
-        Files.writeString(pluginsDir.resolve("strings.rb"), "# strings");
-        Files.writeString(pluginsDir.resolve("copy-search-wc.rb"),
-                "require 'open-uri'\nmodule Jekyll\nend");
-        Files.writeString(pluginsDir.resolve("asciidoctor-extension.rb"),
-                "require 'asciidoctor/extensions'\nExtensions.register do\nend");
 
-        // Provide search config for copy-search-wc translation
-        Path dataDir = projectDir.resolve("data");
-        Files.createDirectories(dataDir);
-        Files.writeString(dataDir.resolve("siteConfig.yml"),
-                "search:\n" +
-                        "  scriptMode: \"cached\"\n" +
-                        "  host: \"https://search.quarkus.io\"\n" +
-                        "  scriptPath: \"/static/bundle/app.js\"\n" +
-                        "  cachedScriptFile: \"assets/javascript/search-wc.js\"\n");
+        // Unknown plugins (will fail)
+        Files.writeString(pluginsDir.resolve("custom-filter.rb"), "# custom filter");
+        Files.writeString(pluginsDir.resolve("search-plugin.rb"), "# search");
 
-        // Provide hand-coded asciidoctor equivalent
-        Files.writeString(srcDir.resolve("AsciidoctorExtension.java"),
-                "package io.quarkus.tools.migration;\npublic class AsciidoctorExtension {}");
+        // Unknown plugin with hand-coded equivalent (skipped)
+        Files.writeString(pluginsDir.resolve("extensions.rb"), "# extensions");
+        Files.writeString(srcDir.resolve("Extensions.java"),
+                "package io.quarkus.tools.migration;\npublic class Extensions {}");
+
+        // Non-ruby file (ignored)
+        Files.writeString(pluginsDir.resolve("notes.txt"), "notes");
 
         JekyllPluginConverter converter = new JekyllPluginConverter(projectDir);
         JekyllPluginConverter.Result result = converter.convert();
 
-        assertThat(result.handled()).containsExactlyInAnyOrder(
-                "cname.rb", "regex_filter.rb", "strings.rb");
-        assertThat(result.translated()).containsExactly("copy-search-wc.rb");
-        assertThat(result.skipped()).containsExactly("asciidoctor-extension.rb");
-        assertThat(result.failed()).isEmpty();
+        assertThat(result.handled()).containsExactly("cname.rb");
+        assertThat(result.translated()).isEmpty();
+        assertThat(result.skipped()).containsExactly("extensions.rb");
+        assertThat(result.failed()).containsExactlyInAnyOrder(
+                "custom-filter.rb", "search-plugin.rb");
     }
 }

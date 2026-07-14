@@ -69,8 +69,8 @@ if [ "$RESET_MODE" = "true" ]; then
   # Fix site size reduction for Roq output paths (fix/build-reduce-size-roq-paths)
   # find searched $STATICS_DIR (public/) but rm used $SITE_DIR/public/... — wrong path.
   # Fix: search $SITE_DIR directly so paths are correct for both Jekyll and Roq.
-  git cherry-pick 890c38d55c || git cherry-pick --abort || true
-  git cherry-pick 16984b092d24519f54ac888bc3a7574d3a915d64 || git cherry-pick --abort || true
+  git cherry-pick 545580f29bcb081f06cd7fb51219c9693fe87217 || git cherry-pick --abort || true
+  git cherry-pick 4dcc1df1bb9d403b4ed5da4b6773f28f86759eda || git cherry-pick --abort || true
 
 
   # Activate only-latest-guides profile for Roq CI builds (fix/build-roq-profile)
@@ -375,9 +375,8 @@ EOF
         echo "✓ Migration committed"
 
 
-# TODO temporary workaround pending https://github.com/quarkusio/quarkus/issues/55438
-git cherry-pick 446c50d009f82da9ae86cef16a74e3d4a659fb5e || git cherry-pick --abort || true
-git cherry-pick bf92c65aea457acb0102799f924dffe3bcf44488 || git cherry-pick --abort || true
+# TODO temporary workaround pending https://github.com/quarkusio/quarkus/issues/55438, which should be available in 3.38
+git cherry-pick 02036eda70c912c2ed306d9c50612a15e78ec73b || git cherry-pick --abort || true
 
         if [ "$PUSH_MODE" = "true" ]; then
             CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)

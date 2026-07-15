@@ -148,10 +148,9 @@ class LiquidToQuteConverterTest {
     @Test
     void testDefaultBeforeSplitStripsDefault() {
         String input = "{{post.author | default: \"\" | split: \",\"}}";
-        // default is stripped; .or('') added because .data.* on JsonObject returns
-        // Results$NotFound (not null) when key is missing, causing ClassCastException
-        String expected = "{=str:split(post.data.author.or(''), \",\").raw}";
-        assertConverts(input, expected, "default before split should be stripped; .data.* gets .or('')");
+        // default is stripped
+        String expected = "{=str:split(post.data.author, \",\").raw}";
+        assertConverts(input, expected, "default before split should be stripped; .data.* gets ");
     }
 
     @Test
@@ -415,7 +414,7 @@ class LiquidToQuteConverterTest {
         // post.author is custom frontmatter -> post.data.author
         // default is stripped; .or('') guards against Results$NotFound on JsonObject
         String input = "{{post.author | default: \"\" | split: \",\"}}";
-        String expected = "{=str:split(post.data.author.or(''), \",\").raw}";
+        String expected = "{=str:split(post.data.author, \",\").raw}";
         assertConverts(input, expected, "Real-world author pattern should convert correctly");
     }
 
@@ -520,7 +519,7 @@ class LiquidToQuteConverterTest {
                 {{author_key}}
                 {% endfor %}""";
         String expected = """
-                {#for author_key in str:splitTrimmed(post.data.author.or(''), ",").orEmpty}
+                {#for author_key in str:splitTrimmed(post.data.author, ",").orEmpty}
                 {=author_key.raw}
                 {/for}""";
         assertConverts(input, expected,
@@ -546,7 +545,7 @@ class LiquidToQuteConverterTest {
         String expected = """
                 <p class="byline">
                 By
-                {#for author_key in str:splitTrimmed(post.data.author.or(''), ",").orEmpty}
+                {#for author_key in str:splitTrimmed(post.data.author, ",").orEmpty}
                 {=author_key.raw}
                 {/for}""";
         assertConverts(input, expected,
@@ -573,7 +572,7 @@ class LiquidToQuteConverterTest {
 
         String expected = """
                       {!  Build multi-author list for this post  !}
-                      {#let authors_raw=str:split(post.data.author.or(''), ",")}
+                      {#let authors_raw=str:split(post.data.author, ",")}
                       {#let authors_clean=str:split("", "")}{/let}{/let}\
                 """;
 
@@ -642,19 +641,15 @@ class LiquidToQuteConverterTest {
     @Test
     void testDynamicBracketNotation() {
         String input = "{% assign author = site.data.authors[author_key] %}";
-        String expected = "{! TODO: Quarkus 3.39 fixes NotFound in .get() — remove .or('') to get: " +
-                "{#let author=cdi:authors.get(author_key)}{/let} !}\n" +
-                "{#let author=cdi:authors.get(author_key.or(''))}{/let}";
+        String expected = "{#let author=cdi:authors.get(author_key)}{/let}";
         assertConverts(input, expected,
-                "Dynamic bracket notation should be converted to .get() method call with .or('')");
+                "Dynamic bracket notation should be converted to .get() method call");
     }
 
     @Test
     void testDynamicBracketNotationInVariable() {
         String input = "{{ site.data.authors[key].name }}";
-        String expected = "{! TODO: Quarkus 3.39 fixes NotFound in .get() — remove .or('') to get: " +
-                "{=cdi:authors.get(key).name.raw} !}\n" +
-                "{=cdi:authors.get(key.or('')).name.raw}";
+        String expected = "{=cdi:authors.get(key).name.raw}";
         assertConverts(input, expected,
                 "Bracket notation followed by property access should convert correctly");
     }
@@ -662,21 +657,19 @@ class LiquidToQuteConverterTest {
     @Test
     void testGetWithPageDataArgument() {
         String input = "{% assign author = site.data.authors[post.author] %}";
-        String expected = "{#let author=cdi:authors.get(post.data.author.or(''))}{/let}";
+        String expected = "{#let author=cdi:authors.get(post.data.author)}{/let}";
         assertConverts(input, expected,
-                ".data.* property in .get() argument should get .or('') to avoid ClassCastException on NotFound");
+                ".data.* property in .get() argument");
     }
 
     @Test
     void testAssignBracketWithDefaultPreservesOr() {
         String input = "{% assign post_author = site.data.authors[post_author] | default: post_author %}" +
                 "{% if post_author %}x{% endif %}";
-        String expected = "{! TODO: Quarkus 3.39 fixes NotFound in .get() — remove .or('') to get: " +
-                "{#let post_author=cdi:authors.get(post_author).or(post_author)}{#if post_author}x{/if}{/let} !}\n" +
-                "{#let post_author=cdi:authors.get(post_author.or('')).or(post_author)}" +
+        String expected = "{#let post_author=cdi:authors.get(post_author).or(post_author)}" +
                 "{#if post_author}x{/if}{/let}";
         assertConverts(input, expected,
-                "Bracket access with default should preserve fallback as .or()");
+                "Bracket access with default should preserve fallback");
     }
 
     // --- Loop variable tests ---
@@ -1254,9 +1247,7 @@ class LiquidToQuteConverterTest {
     @Test
     void testSiteDataWithBracketAccessConvertsToeCdi() {
         assertConverts("{% if site.data.versioned[docversion_index].index %}yes{% endif %}",
-                "{! TODO: Quarkus 3.39 fixes NotFound in .get() — remove .or('') to get: " +
-                        "{#if cdi:versioned.get(docversion_index).index}yes{/if} !}\n" +
-                        "{#if cdi:versioned.get(docversion_index.or('')).index}yes{/if}",
+                "{#if cdi:versioned.get(docversion_index).index}yes{/if}",
                 "site.data.X[var] should convert to cdi:X.get(var)");
     }
 
@@ -1471,7 +1462,7 @@ class LiquidToQuteConverterTest {
         @Test
         void testTernaryWrapping() {
             assertConverts("{{post.author | default: \"\" | split: \",\"}}",
-                    "{str:split(post.data.author.or(''), \",\").raw}",
+                    "{str:split(post.data.author, \",\").raw}",
                     "Standard syntax should use namespace split with .or('') for .data.*");
         }
 

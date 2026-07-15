@@ -126,7 +126,7 @@ chmod +x ${project_dir}/serve.sh ${project_dir}/serve-noguides.sh ${project_dir}
 
 # Delete Jekyll includes too complex for auto-conversion (allejo/jekyll-toc: pure-Liquid
 # TOC generator using capture-concatenation, continue, slice, times, minus, etc.)
-# TODO fix this
+# TODO drop when https://github.com/quarkusio/quarkusio.github.io/pull/2850 merges
 rm -f ${project_dir}/_includes/templates/toc.html
 
 # Delete all Jekyll plugins except cname.rb to avoid build failures.

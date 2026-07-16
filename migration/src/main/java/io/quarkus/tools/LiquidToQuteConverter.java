@@ -126,10 +126,6 @@ public class LiquidToQuteConverter {
         // Make site.tags lenient (needed until  (https://github.com/quarkiverse/quarkus-roq/issues/964 is fixed in a release)
         content = makeSiteTagsLenient(content);
 
-        // Collapse tagsCount extraction pattern into .allTags
-        // Must run after makeSiteTagsLenient (which creates tagsCount and converts stats[0] to stats.name)
-        content = collapseTagsCountExtractionPattern(content);
-
         // Tags in frontmatter may be a YAML list or a comma-separated string.
         // .asStrings handles both; .orEmpty only works for lists.
         content = content.replace(".data.tags.orEmpty", ".data.tags.asStrings");
@@ -429,7 +425,8 @@ public class LiquidToQuteConverter {
                 { "join", "join" },
                 { "sort", "sort" },
                 { "reverse", "reverse" },
-                { "uniq", "distinct" },
+                // TODO: restore once Qute supports .distinct on List<String>
+                // { "uniq", "distinct" },
                 { "compact", "filterNotNull" },
                 { "strip", "trim()" },
                 { "lstrip", "trimStart" },
@@ -1617,6 +1614,15 @@ public class LiquidToQuteConverter {
                     if (varRef.matcher(withoutForRebinds).find()) {
                         mutableVars.add(var);
                     }
+                    // An {% include %} after the scope may reference the variable
+                    // in the included file (Liquid assign is global; Qute {#let} is
+                    // block-scoped). We can't inspect the included file, so
+                    // conservatively treat the variable as mutable.
+                    // Use withoutForRebinds: if the variable is rebound by a for-loop,
+                    // includes inside that loop use the loop var, not the assigned one.
+                    if (withoutForRebinds.contains("{#include")) {
+                        mutableVars.add(var);
+                    }
                 }
             }
         }
@@ -1643,11 +1649,25 @@ public class LiquidToQuteConverter {
             content = sb.toString();
         }
 
-        // Step 2: Replace standalone references to mutable vars with _m.read('VAR')
+        // Step 2: Replace references to mutable vars with _m.read('VAR')
+        // Only replace inside Qute expression blocks {= }, {# }, {! } to avoid
+        // matching variable names that appear as literal text in HTML (e.g. "/author/")
         for (String var : mutableVars) {
-            content = content.replaceAll(
-                    "(?<![.\\w'\"])" + Pattern.quote(var) + "\\b(?!['\"])",
-                    "_m.read('" + var + "')");
+            String qVar = Pattern.quote(var);
+            // First, convert bracket notation obj[VAR] to obj.get(_m.read('VAR'))
+            // (only inside Qute blocks — bracket notation in HTML like arr[0] is fine)
+            content = replaceInQuteBlocks(content, "\\[" + qVar + "\\]",
+                    ".get(_m.read('" + var + "'))");
+            // Then replace standalone references, but NOT in {#for VAR in} position
+            Pattern refPattern = Pattern.compile(
+                    "(\\{#for\\s+)" + qVar + "(\\s+in\\b)" + // group 1+2: for-loop declaration
+                            "|(?<![.\\w'\"])" + qVar + "\\b(?!['\"])"); // standalone reference
+            content = replaceInQuteBlocksWithMatcher(content, refPattern, ref -> {
+                if (ref.group(1) != null) {
+                    return ref.group(1) + var + ref.group(2);
+                }
+                return "_m.read('" + var + "')";
+            });
         }
 
         // Step 3: Wrap with mutable-map initialisation (after front matter if present)
@@ -1663,6 +1683,66 @@ public class LiquidToQuteConverter {
             conversionsApplied.add("Converted mutable assigns to mut:map()");
         }
         return content;
+    }
+
+    /**
+     * Replace pattern matches only inside Qute expression blocks ({= }, {# }, {! }, {/ }).
+     * Literal HTML text between blocks is left unchanged.
+     */
+    private String replaceInQuteBlocks(String content, String regex, String replacement) {
+        return replaceInQuteBlocksWithMatcher(content,
+                Pattern.compile(regex),
+                m -> Matcher.quoteReplacement(replacement).equals(replacement)
+                        ? replacement
+                        : replacement);
+    }
+
+    private String replaceInQuteBlocksWithMatcher(String content, Pattern pattern,
+            java.util.function.Function<Matcher, String> replacer) {
+        StringBuilder result = new StringBuilder();
+        int pos = 0;
+        while (pos < content.length()) {
+            int blockStart = content.indexOf('{', pos);
+            if (blockStart < 0) {
+                result.append(content, pos, content.length());
+                break;
+            }
+            // Append literal text before this block
+            result.append(content, pos, blockStart);
+            // Find end of Qute block (matching })
+            int blockEnd = findMatchingBrace(content, blockStart);
+            if (blockEnd < 0) {
+                result.append(content, blockStart, content.length());
+                break;
+            }
+            blockEnd++;
+            // Replace within this block
+            String block = content.substring(blockStart, blockEnd);
+            Matcher m = pattern.matcher(block);
+            StringBuilder blockResult = new StringBuilder();
+            while (m.find()) {
+                m.appendReplacement(blockResult, Matcher.quoteReplacement(replacer.apply(m)));
+            }
+            m.appendTail(blockResult);
+            result.append(blockResult);
+            pos = blockEnd;
+        }
+        return result.toString();
+    }
+
+    private int findMatchingBrace(String content, int openPos) {
+        int depth = 0;
+        for (int i = openPos; i < content.length(); i++) {
+            char c = content.charAt(i);
+            if (c == '{')
+                depth++;
+            else if (c == '}') {
+                depth--;
+                if (depth == 0)
+                    return i;
+            }
+        }
+        return -1;
     }
 
     private int nestingDepth(String content, int position) {
@@ -2228,28 +2308,50 @@ public class LiquidToQuteConverter {
 
     private String convertSiteDataProperties(String content) {
         // Jekyll site.* properties that aren't part of Roq's Site model come from _config.yml.
-        // These are migrated to data/siteConfig.yml and accessed via cdi:siteConfig.*
+        // Some are migrated to ConfigMappings (search.*), others to data/siteConfig.yml
         // Note: Using "siteConfig" instead of "site" to avoid conflict with Roq's built-in Site object
         String knownSiteProps = "url|title|description|image|imageExists|data|pages|allPages|collections|" +
                 "index|files|file|fileExists|page|normalPage|document|imagesDirUrl|pageContent|" +
                 "posts|tags|time";
 
-        // Match site.prop and optionally .sub-prop chains (YAML keys may contain hyphens)
+        // ConfigMapping sections that have their own CDI beans
+        String configMappingSections = "search";
+
+        // First, convert site.search.* to cdi:searchConfig.*
+        Pattern searchPattern = Pattern.compile("\\bsite\\.search\\.([a-zA-Z][a-zA-Z0-9_-]*)");
+        StringBuffer searchBuf = new StringBuffer();
+        Matcher searchMatcher = searchPattern.matcher(content);
+        boolean hasSearchConversion = false;
+        while (searchMatcher.find()) {
+            String propName = searchMatcher.group(1);
+            String camelCased = JekyllConfigConverter.hyphenToCamelCase(propName);
+            searchMatcher.appendReplacement(searchBuf, "cdi:searchConfig." + camelCased);
+            hasSearchConversion = true;
+        }
+        searchMatcher.appendTail(searchBuf);
+        content = searchBuf.toString();
+
+        // Then, convert other site.* properties to cdi:siteConfig.*
         Pattern pattern = Pattern.compile(
-                "\\bsite\\.((?!(?:" + knownSiteProps
+                "\\bsite\\.((?!(?:" + knownSiteProps + "|" + configMappingSections
                         + ")\\b)[a-zA-Z_][a-zA-Z0-9_]*(?:\\.[a-zA-Z][a-zA-Z0-9_]*(?:-[a-zA-Z][a-zA-Z0-9_]*)*)*)");
         StringBuffer sb = new StringBuffer();
         Matcher m = pattern.matcher(content);
+        boolean hasOtherConversion = false;
         while (m.find()) {
             String propChain = m.group(1);
             // CamelCase any hyphenated segments so Qute dot notation works
             String camelCased = camelCasePropertyChain(propChain);
             m.appendReplacement(sb, "cdi:siteConfig." + camelCased);
+            hasOtherConversion = true;
         }
         m.appendTail(sb);
         String result = sb.toString();
 
-        if (!result.equals(content)) {
+        if (hasSearchConversion) {
+            conversionsApplied.add("Converted site.search properties to ConfigMapping CDI references");
+        }
+        if (hasOtherConversion) {
             conversionsApplied.add("Converted site data properties to CDI references");
         }
 
@@ -2574,7 +2676,7 @@ public class LiquidToQuteConverter {
             // Liquid | sort on tag tuples sorted by first element; Roq TagCount needs explicit property
             body = body.replace("tagsCount.sort", "tagsCount.sort('name')");
 
-            // Step 3: Fix .first/.last and .get(0)/.get(1) on tag iteration variables.
+            // Step 3: Fix .first/.last on tag iteration variables.
             // Jekyll site.tags|sort returns [name, posts] tuples; Roq tagsCount returns TagCount(name, count).
             // The tagsCount result may be assigned to a let variable then iterated:
             //   {#let tag_words=...tagsCount...}{#for stats in tag_words...}
@@ -2586,8 +2688,6 @@ public class LiquidToQuteConverter {
                     String loopVar = forMatcher.group(1);
                     body = body.replace(loopVar + ".first", loopVar + ".name");
                     body = body.replace(loopVar + ".last", loopVar + ".count");
-                    body = body.replace(loopVar + ".get(0)", loopVar + ".name");
-                    body = body.replace(loopVar + ".get(1)", loopVar + ".count");
                 }
             }
             // Also handle direct iteration: {#for stats in ...tagsCount...}
@@ -2596,8 +2696,6 @@ public class LiquidToQuteConverter {
                 String loopVar = directForMatcher.group(1);
                 body = body.replace(loopVar + ".first", loopVar + ".name");
                 body = body.replace(loopVar + ".last", loopVar + ".count");
-                body = body.replace(loopVar + ".get(0)", loopVar + ".name");
-                body = body.replace(loopVar + ".get(1)", loopVar + ".count");
             }
 
             conversionsApplied.add("Converted site.tags to Roq tagging plugin API");

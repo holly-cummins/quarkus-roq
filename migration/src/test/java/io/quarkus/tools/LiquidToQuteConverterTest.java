@@ -1132,25 +1132,25 @@ class LiquidToQuteConverterTest {
     @Test
     void testSiteHyphenatedPropertyConvertsToCamelCase() {
         String input = "{=site.search.cached-script-file}";
-        String expected = "{=cdi:siteConfig.search.cachedScriptFile.raw}";
+        String expected = "{=cdi:searchConfig.cachedScriptFile.raw}";
         assertConverts(input, expected,
-                "Hyphenated site config keys should be camelCased for Qute dot notation");
+                "Hyphenated search config keys should convert to ConfigMapping with camelCase");
     }
 
     @Test
     void testSiteNestedHyphenatedChain() {
         String input = "{% assign x = site.search.script-mode %}";
         String result = converter.convert(input);
-        assertTrue(result.contains("cdi:siteConfig.search.scriptMode"),
-                "Nested hyphenated keys should be camelCased: " + result);
+        assertTrue(result.contains("cdi:searchConfig.scriptMode"),
+                "Nested hyphenated keys should convert to ConfigMapping with camelCase: " + result);
     }
 
     @Test
     void testSiteHyphenatedPropertyWithRelativeUrl() {
         String input = "{% assign search_script_src = site.search.cached-script-file | relative_url %}";
         String result = converter.convert(input);
-        assertTrue(result.contains("cdi:siteConfig.search.cachedScriptFile"),
-                "Hyphenated YAML key with relative_url filter should be camelCased: " + result);
+        assertTrue(result.contains("cdi:searchConfig.cachedScriptFile"),
+                "Hyphenated search config key with relative_url filter should convert to ConfigMapping: " + result);
         assertFalse(result.contains("cachedScriptCdi"),
                 "CamelCase should not bleed into cdi: prefix: " + result);
     }
@@ -1190,17 +1190,17 @@ class LiquidToQuteConverterTest {
     @Test
     void testSiteSearchConvertsToCdi() {
         String input = "{{site.search.host}}";
-        String expected = "{=cdi:siteConfig.search.host.raw}";
+        String expected = "{=cdi:searchConfig.host.raw}";
         assertConverts(input, expected,
-                "site.search properties should convert to CDI reference");
+                "site.search properties should convert to ConfigMapping CDI reference");
     }
 
     @Test
     void testSiteSearchScriptMode() {
         String input = "{% if site.search.script-mode == 'direct' %}...{% endif %}";
-        String expected = "{#if cdi:siteConfig.search.scriptMode == 'direct'}...{/if}";
+        String expected = "{#if cdi:searchConfig.scriptMode == 'direct'}...{/if}";
         assertConverts(input, expected,
-                "site.search.script-mode should convert to camelCase CDI reference");
+                "site.search.script-mode should convert to camelCase ConfigMapping CDI reference");
     }
 
     @Test
@@ -1573,6 +1573,20 @@ class LiquidToQuteConverterTest {
     }
 
     @Test
+    void testMutableAssignBeforeInclude() {
+        // Variable assigned inside a conditional, then an include appears after
+        // the scope. The include may reference the variable (Liquid assign is global)
+        // so the variable needs mutable treatment.
+        String input = "{% if mode %}{% assign search_script = host %}{% assign search_src = search_script %}{% endif %}" +
+                "{% include head-csp.html %}";
+        String result = converter.convert(input);
+        assertTrue(result.contains("_m.assign('search_script',"),
+                "Assign before include should use mutable map: " + result);
+        assertTrue(result.contains("_m.assign('search_src',"),
+                "Second assign before include should use mutable map: " + result);
+    }
+
+    @Test
     void testSingleAssignStaysAsLet() {
         // Single assign, used only within scope — no mutable treatment needed
         String input = "{% assign x = \"hello\" %}\n{=x}\nmore";
@@ -1618,6 +1632,34 @@ class LiquidToQuteConverterTest {
     }
 
     @Test
+    void testMutableVarInBracketNotationUsesGet() {
+        // Qute bracket notation doesn't support method calls inside [],
+        // so obj[mutableVar] must become obj.get(_m.read('mutableVar'))
+        String input = "{% assign key = nil %}" +
+                "{#if cond}{% assign key = name %}{/if}" +
+                "{=data[key]}";
+        String result = converter.convert(input);
+        assertTrue(result.contains("data.get(_m.read('key'))"),
+                "Bracket notation with mutable var should use .get(): " + result);
+        assertFalse(result.contains("data[_m.read"),
+                "Should NOT use bracket notation with _m.read(): " + result);
+    }
+
+    @Test
+    void testMutableVarReplacementDoesNotAffectHtmlText() {
+        // Variable names in HTML text (like "/author/" in a URL path) should not be
+        // replaced with _m.read() — only references inside Qute expressions should.
+        String input = "{% assign author = nil %}" +
+                "{#if cond}{% assign author = data %}{/if}" +
+                "<a href=\"/author/{=key}\">{=author.name}</a>";
+        String result = converter.convert(input);
+        assertTrue(result.contains("/author/"),
+                "Literal '/author/' in HTML should NOT be replaced: " + result);
+        assertTrue(result.contains("_m.read('author').name"),
+                "Variable ref inside Qute expression should be replaced: " + result);
+    }
+
+    @Test
     void testMutableMapInitAfterFrontMatter() {
         String input = """
                 ---
@@ -1648,6 +1690,23 @@ class LiquidToQuteConverterTest {
                 "Variable rebound as for-loop var should not use mutable map: " + result);
         assertFalse(result.contains("_m.read"),
                 "Variable rebound as for-loop var should not use mutable map: " + result);
+    }
+
+    @Test
+    void testForLoopRebindingWithIncludeInsideLoop() {
+        // An {%include%} inside a for-loop that rebinds a variable should NOT trigger
+        // mutable treatment — the include sees the loop var, not the earlier assign.
+        String input = "{% for raw in list %}" +
+                "{% assign key = raw | strip %}" +
+                "{% endfor %}" +
+                "{% for key in clean %}" +
+                "{% include share.html %}" +
+                "{% endfor %}";
+        String result = converter.convert(input);
+        assertFalse(result.contains("_m.assign"),
+                "Include inside rebound for-loop should not trigger mutable: " + result);
+        assertFalse(result.contains("_m.read"),
+                "Include inside rebound for-loop should not trigger mutable: " + result);
     }
 
     @Test

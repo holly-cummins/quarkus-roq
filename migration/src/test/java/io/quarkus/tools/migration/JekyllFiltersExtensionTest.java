@@ -263,17 +263,6 @@ class JekyllFiltersExtensionTest {
     }
 
     @Test
-    void testSortListOfStrings() {
-        List<?> input = List.of(
-                "quarkus", "alternative", "messaging");
-        List<?> result = JekyllFiltersExtension.sort(input);
-        assertEquals(3, result.size());
-        assertEquals("alternative", result.get(0));
-        assertEquals("messaging", result.get(1));
-        assertEquals("quarkus", result.get(2));
-    }
-
-    @Test
     void testSortListOfRecordsByProperty() {
         List<?> input = List.of(
                 new TagCount("quarkus", 5L),

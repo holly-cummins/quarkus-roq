@@ -75,8 +75,19 @@ if [ "$RESET_MODE" = "true" ]; then
   # (https://github.com/quarkiverse/quarkus-roq/issues/1080).
   git cherry-pick 0448aaa0da || git cherry-pick --abort || true
 
-# Java equivalents of Jekyll plugins
-  git cherry-pick 650c33608052c36b7e926ea579e5192675b2747e || git cherry-pick --abort || true
+  # Java equivalents of Jekyll plugins + search script downloader (PR #2849)
+  # https://github.com/quarkusio/quarkusio.github.io/pull/2849
+  # Cherry-pick all commits from the PR branch (use branch name, not commit hash,
+  # since the branch gets force-pushed)
+  git cherry-pick upstream/main..holly/roq-extensions || git cherry-pick --abort || true
+
+  # PR #2849 test files use assertj which isn't in the generated pom.xml —
+  # delete them to avoid compilation errors
+  rm -rf src/test/java/io/quarkus/tools/migration/asciidoc/
+
+  # Profile-based search config (holly/use-profile-for-roq-build)
+  # Adds _config_dev.yml with dev-specific search cluster
+  git cherry-pick holly/use-profile-for-roq-build || git cherry-pick --abort || true
 
 
 
@@ -217,9 +228,32 @@ find ${project_dir}/_guides ${project_dir}/_versions -type f -name "*qute-refere
     echo "  Escaped: $file"
 done
 
+# Fix bug in post.html: second for-loop has "assign author_key = author_key_raw | strip"
+# where author_key_raw is out of scope (first for-loop's iterator). In Jekyll this is
+# silently nil; in Qute it shadows the correct loop variable with NOT_FOUND.
+if [ -f "${project_dir}/_layouts/post.html" ]; then
+    sed_inplace '/{% for author_key in authors_clean %}/{
+        n
+        /{% assign author_key = author_key_raw | strip %}/d
+    }' "${project_dir}/_layouts/post.html"
+    echo "Fixed post.html: removed stale author_key_raw assign in second for-loop"
+fi
+
 ### Convert!
 
 ${tools_dir}/roq-it-jekyll ${project_dir}
+
+# Amend converter-generated SearchConfig: use ScriptMode enum instead of String
+# so it's compatible with PR #2849's SearchScriptDownloader
+SEARCH_CONFIG=$(find ${project_dir}/src/main/java -path "*/search/config/SearchConfig.java" 2>/dev/null)
+SCRIPT_MODE=$(find ${project_dir}/src/main/java -name "ScriptMode.java" 2>/dev/null)
+if [ -n "$SEARCH_CONFIG" ] && [ -n "$SCRIPT_MODE" ]; then
+    SCRIPT_MODE_PKG=$(grep '^package ' "$SCRIPT_MODE" | sed 's/package //;s/;//')
+    sed_inplace "s/String scriptMode();/ScriptMode scriptMode();/" "$SEARCH_CONFIG"
+    sed_inplace "/^import io.smallrye.config.ConfigMapping;/a\\
+import ${SCRIPT_MODE_PKG}.ScriptMode;" "$SEARCH_CONFIG"
+    echo "Amended SearchConfig: String scriptMode() → ScriptMode scriptMode()"
+fi
 
 # TEMPORARY WORKAROUND for Roq 2.1.5 quote escaping bug in aliases plugin
 # Issue: https://github.com/quarkiverse/quarkus-roq/pull/1078

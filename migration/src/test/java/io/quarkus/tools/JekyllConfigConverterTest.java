@@ -102,14 +102,9 @@ class JekyllConfigConverterTest {
         String siteConfigYaml = converter.createSiteConfigYaml(configYaml, null);
 
         assertNotNull(siteConfigYaml);
-        assertTrue(siteConfigYaml.contains("search:"));
-        assertTrue(siteConfigYaml.contains("scriptMode: \"defer\""));
-        assertTrue(siteConfigYaml.contains("host: \"https://search.example.com\""));
-        assertTrue(siteConfigYaml.contains("scriptPath: \"/search.js\""));
-        assertTrue(siteConfigYaml.contains("cachedScriptFile: \"search-cached.js\""));
-        assertTrue(siteConfigYaml.contains("initialTimeout: 1500"));
-        assertTrue(siteConfigYaml.contains("moreTimeout: 2500"));
-        assertTrue(siteConfigYaml.contains("minChars: 2"));
+        // search should NOT be in siteConfig - it goes to ConfigMapping instead
+        assertFalse(siteConfigYaml.contains("search:"),
+                "search config should be handled by ConfigMapping, not siteConfig.yml");
     }
 
     @Test
@@ -871,8 +866,9 @@ class JekyllConfigConverterTest {
         assertTrue(siteConfigYaml.contains("language: \"en\""));
         assertTrue(siteConfigYaml.contains("twitter_username: \"johndoe\""));
         assertTrue(siteConfigYaml.contains("github_username: \"johndoe\""));
-        assertTrue(siteConfigYaml.contains("search:"));
-        assertTrue(siteConfigYaml.contains("scriptMode: \"defer\""));
+        // search should NOT be in siteConfig - it goes to ConfigMapping instead
+        assertFalse(siteConfigYaml.contains("search:"),
+                "search config should be handled by ConfigMapping, not siteConfig.yml");
     }
 
     @Test
@@ -1015,10 +1011,17 @@ class JekyllConfigConverterTest {
         converter.convertProject(tempDir);
 
         String propsContent = Files.readString(tempDir.resolve("config/application.properties"));
-        assertFalse(propsContent.contains("site.search"),
-                "Search config has no ConfigMapping; should not appear in props: " + propsContent);
+        assertTrue(propsContent.contains("%dev.testsite.search.script-mode=direct"),
+                "Search config should be in application.properties with %dev prefix");
+        assertTrue(propsContent.contains("%dev.testsite.search.host=https://search-dev.example.com"),
+                "Search config should include host with %dev prefix");
         assertFalse(Files.exists(tempDir.resolve("_config_dev.yml")),
                 "Original overlay should be deleted");
+        // Verify ConfigMapping files were generated
+        assertTrue(Files.exists(tempDir.resolve("src/main/java/io/testsite/search/config/SearchConfig.java")),
+                "SearchConfig interface should be generated");
+        assertTrue(Files.exists(tempDir.resolve("src/main/java/io/testsite/search/config/SearchConfigProducer.java")),
+                "SearchConfigProducer should be generated");
     }
 
     @Test

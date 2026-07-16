@@ -309,19 +309,6 @@ public class JekyllFiltersExtension {
         return new JsonArray(reversed);
     }
 
-    static List<?> sort(List<?> list) {
-        if (list == null || list.isEmpty()) {
-            return List.of();
-        }
-        List<Object> sorted = new ArrayList<>(list);
-        sorted.sort((a, b) -> {
-            String va = a.toString();
-            String vb = b.toString();
-            return va.compareToIgnoreCase(vb);
-        });
-        return sorted;
-    }
-
     static List<?> sort(List<?> list, String property) {
         if (list == null || list.isEmpty()) {
             return List.of();
@@ -337,18 +324,6 @@ public class JekyllFiltersExtension {
             return va.compareToIgnoreCase(vb);
         });
         return sorted;
-    }
-
-    /**
-     * Jekyll's "uniq" filter: remove duplicates from a list.
-     * Preserves the first occurrence of each element.
-     * Usage in Qute: {myList.distinct}
-     */
-    static List<?> distinct(List<?> list) {
-        if (list == null || list.isEmpty()) {
-            return List.of();
-        }
-        return list.stream().distinct().toList();
     }
 
     private static String extractProperty(Object obj, String property) {

@@ -15,6 +15,9 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 
+import io.quarkus.qute.Engine;
+import io.quarkus.qute.Template;
+
 /**
  * Converts Jekyll _config.yml to Roq application.properties and data/siteConfig.yml.
  * Replaces the bash script logic from roq-it-jekyll lines 61-62, 184-192, and 238-277.
@@ -24,10 +27,14 @@ public class JekyllConfigConverter {
     private final YAMLMapper yamlMapper;
     private final ObjectMapper objectMapper;
     private boolean strictProperties;
+    private final Engine quteEngine;
 
     public JekyllConfigConverter() {
         this.yamlMapper = new YAMLMapper();
         this.objectMapper = new ObjectMapper();
+        this.quteEngine = Engine.builder()
+                .addDefaults()
+                .build();
     }
 
     public void setStrictProperties(boolean strictProperties) {
@@ -126,7 +133,8 @@ public class JekyllConfigConverter {
             "autopages", // → application.properties (auto-author config)
             "title", // → index page frontmatter / Roq site.title
             "asciidoctor", // → application.properties quarkus.asciidoc.attributes.*
-            "exclude" // → application.properties site.ignored-files
+            "exclude", // → application.properties site.ignored-files
+            "search" // → ConfigMapping + application.properties {project}.search.*
     );
 
     public String createSiteConfigYaml(JsonNode config, String cnameContent) throws IOException {
@@ -135,23 +143,12 @@ public class JekyllConfigConverter {
         // Add CNAME
         siteConfig.put("cname", cnameContent != null ? cnameContent.trim() : "");
 
-        // Copy all config keys except those handled by application.properties or index page
+        // Copy all config keys except those handled by application.properties or ConfigMappings
         config.fieldNames().forEachRemaining(key -> {
             if (KEYS_HANDLED_ELSEWHERE.contains(key)) {
                 return;
             }
-            if ("search".equals(key)) {
-                // Special case: camelCase hyphenated search keys for Qute compatibility
-                JsonNode search = config.get("search");
-                Map<String, Object> searchConfig = new LinkedHashMap<>();
-                search.fields()
-                        .forEachRemaining(e -> copyIfPresent(search, searchConfig, e.getKey(), hyphenToCamelCase(e.getKey())));
-                if (!searchConfig.isEmpty()) {
-                    siteConfig.put("search", searchConfig);
-                }
-            } else {
-                copyIfPresent(config, siteConfig, key);
-            }
+            copyIfPresent(config, siteConfig, key);
         });
 
         // Convert to YAML
@@ -185,6 +182,15 @@ public class JekyllConfigConverter {
 
         JsonNode config = yamlMapper.readTree(configYaml);
 
+        // Derive project name early — needed for ConfigMapping prefix
+        String projectName = deriveProjectName(projectDir, config);
+        // Use project-derived prefix for ConfigMapping properties to avoid
+        // clashing with the Roq framework's site.* ConfigMapping namespace
+        String configMappingPrefix = configMappingPrefix(projectName);
+
+        // Track config mappings from main config too
+        Map<String, JsonNode> configMappingsToGenerate = new LinkedHashMap<>();
+
         // Write properties manually — Properties.store() escapes colons in values,
         // which corrupts date format patterns like yyyy-MM-dd['T'HH:mm:ss][X]
         try (Writer writer = Files.newBufferedWriter(propsFile)) {
@@ -192,7 +198,25 @@ public class JekyllConfigConverter {
             for (String key : props.stringPropertyNames().stream().sorted().toList()) {
                 writer.write(key + "=" + props.getProperty(key) + "\n");
             }
-            convertOverlayConfigs(projectDir, writer);
+
+            // Handle search config from main _config.yml
+            if (config.has("search") && config.get("search").isObject()) {
+                JsonNode search = config.get("search");
+                List<String> searchProps = buildSiteConfigOverrides(
+                        objectMapper.createObjectNode().set("search", search), configMappingPrefix);
+                for (String line : searchProps) {
+                    writer.write(line + "\n");
+                }
+                configMappingsToGenerate.put("search", search);
+            }
+
+            convertOverlayConfigs(projectDir, writer, configMappingsToGenerate, configMappingPrefix);
+        }
+
+        // Generate ConfigMapping interfaces for all config sections
+        if (!configMappingsToGenerate.isEmpty()) {
+            generateConfigMappings(projectDir, projectName, configMappingPrefix, configMappingsToGenerate);
+            addJandexPluginToPom(projectDir);
         }
 
         // Create data/siteConfig.yml
@@ -497,7 +521,8 @@ public class JekyllConfigConverter {
         return ignored.isEmpty() ? null : ignored.toString();
     }
 
-    void convertOverlayConfigs(Path projectDir, Writer mainPropsWriter) throws IOException {
+    void convertOverlayConfigs(Path projectDir, Writer mainPropsWriter,
+            Map<String, JsonNode> configMappingsToGenerate, String configMappingPrefix) throws IOException {
         List<Path> overlays;
         try (Stream<Path> files = Files.list(projectDir)) {
             overlays = files
@@ -512,30 +537,64 @@ public class JekyllConfigConverter {
                     .toList();
         }
         Path configDir = projectDir.resolve("config");
+
         for (Path overlay : overlays) {
             JsonNode overlayConfig = yamlMapper.readTree(Files.readString(overlay));
             String profile = deriveProfileName(overlay.getFileName().toString());
 
-            String ignored = buildIgnoredFiles(overlayConfig);
+            // Build properties for all config values
+            List<String> propertyLines = buildSiteConfigOverrides(overlayConfig, configMappingPrefix);
 
-            if (ignored == null) {
+            // Also handle ignored-files from exclude
+            String ignored = buildIgnoredFiles(overlayConfig);
+            if (ignored != null) {
+                propertyLines.add("site.ignored-files=" + ignored);
+            }
+
+            if (propertyLines.isEmpty()) {
                 Files.delete(overlay);
                 continue;
             }
 
+            // Write properties with profile prefix if dev, otherwise to separate file
             if ("dev".equals(profile)) {
-                mainPropsWriter.write("%" + profile + ".site.ignored-files=" + ignored + "\n");
+                for (String line : propertyLines) {
+                    mainPropsWriter.write("%" + profile + "." + line + "\n");
+                }
             } else {
                 Path profileProps = configDir.resolve("application-" + profile + ".properties");
                 try (Writer writer = Files.newBufferedWriter(profileProps)) {
-                    writer.write("site.ignored-files=" + ignored + "\n");
+                    for (String line : propertyLines) {
+                        writer.write(line + "\n");
+                    }
                 }
             }
+
+            // Track config sections that need ConfigMappings (merge with main config sections)
+            overlayConfig.fieldNames().forEachRemaining(key -> {
+                if (!"exclude".equals(key) && overlayConfig.get(key).isObject()) {
+                    // Merge fields from both main and profile configs
+                    JsonNode existing = configMappingsToGenerate.get(key);
+                    if (existing != null && existing.isObject()) {
+                        // Merge the two objects - profile config adds to base config
+                        ((com.fasterxml.jackson.databind.node.ObjectNode) existing)
+                                .setAll((com.fasterxml.jackson.databind.node.ObjectNode) overlayConfig.get(key));
+                    } else {
+                        configMappingsToGenerate.put(key, overlayConfig.get(key));
+                    }
+                }
+            });
+
             Files.delete(overlay);
+            System.out.println("  [CONFIG] Converted and deleted: " + overlay.getFileName());
         }
     }
 
     List<String> buildSiteConfigOverrides(JsonNode config) {
+        return buildSiteConfigOverrides(config, "site");
+    }
+
+    List<String> buildSiteConfigOverrides(JsonNode config, String configMappingPrefix) {
         List<String> lines = new java.util.ArrayList<>();
         if (config == null) {
             return lines;
@@ -546,9 +605,12 @@ public class JekyllConfigConverter {
             }
             JsonNode value = config.get(key);
             if (value.isObject()) {
+                // Object sections use the configMappingPrefix to avoid clashing
+                // with the Roq framework's site.* ConfigMapping
                 value.fields().forEachRemaining(field -> {
                     if (field.getValue().isValueNode()) {
-                        lines.add("site." + key + "." + hyphenToCamelCase(field.getKey())
+                        // Keep kebab-case keys — SmallRye ConfigMapping expects them
+                        lines.add(configMappingPrefix + "." + key + "." + field.getKey()
                                 + "=" + field.getValue().asText());
                     }
                 });
@@ -675,5 +737,187 @@ public class JekyllConfigConverter {
             }
         }
         return sb.toString();
+    }
+
+    /**
+     * Generate ConfigMapping interfaces and CDI wrapper beans for config sections.
+     */
+    void generateConfigMappings(Path projectDir, String projectName, String configMappingPrefix,
+            Map<String, JsonNode> configSections)
+            throws IOException {
+
+        // Load Qute templates
+        Template configMappingTemplate = loadTemplate("ConfigMapping.java");
+        Template configBeanTemplate = loadTemplate("ConfigBean.java");
+
+        for (Map.Entry<String, JsonNode> entry : configSections.entrySet()) {
+            String sectionName = entry.getKey();
+            JsonNode sectionConfig = entry.getValue();
+
+            String packageName = projectName + "." + sectionName + ".config";
+            String packagePath = packageName.replace('.', '/');
+            Path javaDir = projectDir.resolve("src/main/java/" + packagePath);
+            Files.createDirectories(javaDir);
+
+            String interfaceName = capitalize(hyphenToCamelCase(sectionName)) + "Config";
+            String producerClassName = capitalize(hyphenToCamelCase(sectionName)) + "ConfigProducer";
+            String beanName = hyphenToCamelCase(sectionName) + "Config";
+
+            // Prepare properties for the template
+            List<Map<String, String>> properties = new java.util.ArrayList<>();
+            sectionConfig.fields().forEachRemaining(field -> {
+                String propertyName = hyphenToCamelCase(field.getKey());
+                String javaType = inferJavaType(field.getValue());
+                properties.add(Map.of(
+                        "javaType", javaType,
+                        "methodName", propertyName));
+            });
+
+            // Generate ConfigMapping interface with @TemplateData
+            String interfaceCode = configMappingTemplate
+                    .data("packageName", packageName)
+                    .data("configMappingPrefix", configMappingPrefix)
+                    .data("sectionName", sectionName)
+                    .data("interfaceName", interfaceName)
+                    .data("properties", properties)
+                    .render();
+
+            Files.writeString(javaDir.resolve(interfaceName + ".java"), interfaceCode);
+
+            // Generate CDI producer for template access
+            String producerCode = configBeanTemplate
+                    .data("packageName", packageName)
+                    .data("beanName", beanName)
+                    .data("className", producerClassName)
+                    .data("interfaceName", interfaceName)
+                    .render();
+
+            Files.writeString(javaDir.resolve(producerClassName + ".java"), producerCode);
+
+            System.out.println("  [CONFIG] Generated ConfigMapping: " + packageName + "." + interfaceName);
+            System.out.println("  [CONFIG] Generated CDI producer: " + packageName + "." + producerClassName);
+            System.out.println("  [CONFIG] Template access: {cdi:" + beanName + ".propertyName}");
+        }
+
+        // Generate beans.xml to enable CDI bean discovery for ConfigMapping classes.
+        // Only needed when we actually generated ConfigMapping classes.
+        // Quarkus normally uses Jandex to discover beans, but it doesn't automatically
+        // index application classes. beans.xml with bean-discovery-mode="all" tells
+        // CDI to discover all classes regardless of indexing.
+        if (!configSections.isEmpty()) {
+            Path metaInfDir = projectDir.resolve("src/main/resources/META-INF");
+            Files.createDirectories(metaInfDir);
+            Path beansXml = metaInfDir.resolve("beans.xml");
+            if (!Files.exists(beansXml)) {
+                String beansXmlContent = """
+                        <?xml version="1.0" encoding="UTF-8"?>
+                        <beans xmlns="https://jakarta.ee/xml/ns/jakartaee"
+                               xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                               xsi:schemaLocation="https://jakarta.ee/xml/ns/jakartaee https://jakarta.ee/xml/ns/jakartaee/beans_4_0.xsd"
+                               version="4.0"
+                               bean-discovery-mode="all">
+                        </beans>
+                        """;
+                Files.writeString(beansXml, beansXmlContent);
+                System.out.println("  [CONFIG] Generated META-INF/beans.xml for CDI discovery");
+            }
+        }
+    }
+
+    private Template loadTemplate(String templateName) throws IOException {
+        String templateContent = new String(
+                getClass().getResourceAsStream("/templates/" + templateName).readAllBytes());
+        return quteEngine.parse(templateContent);
+    }
+
+    private String inferJavaType(JsonNode value) {
+        if (value.isInt()) {
+            return "int";
+        } else if (value.isBoolean()) {
+            return "boolean";
+        } else if (value.isDouble() || value.isFloat()) {
+            return "double";
+        } else {
+            return "String";
+        }
+    }
+
+    private String capitalize(String str) {
+        if (str == null || str.isEmpty()) {
+            return str;
+        }
+        return Character.toUpperCase(str.charAt(0)) + str.substring(1);
+    }
+
+    void addJandexPluginToPom(Path projectDir) throws IOException {
+        Path pomFile = projectDir.resolve("pom.xml");
+        if (!Files.exists(pomFile)) {
+            System.err.println("Warning: pom.xml not found, cannot add Jandex plugin");
+            return;
+        }
+
+        String pomContent = Files.readString(pomFile);
+
+        // Check if jandex plugin already exists
+        if (pomContent.contains("jandex-maven-plugin")) {
+            return;
+        }
+
+        // Find the </plugins> closing tag and insert the jandex plugin before it
+        String jandexPlugin = """
+                        <plugin>
+                            <groupId>io.smallrye</groupId>
+                            <artifactId>jandex-maven-plugin</artifactId>
+                            <version>3.2.2</version>
+                            <executions>
+                                <execution>
+                                    <id>make-index</id>
+                                    <phase>process-classes</phase>
+                                    <goals>
+                                        <goal>jandex</goal>
+                                    </goals>
+                                </execution>
+                            </executions>
+                        </plugin>
+                """;
+
+        // Insert before </plugins>
+        pomContent = pomContent.replace("    </plugins>", jandexPlugin + "    </plugins>");
+        Files.writeString(pomFile, pomContent);
+        System.out.println("  [CONFIG] Added Jandex Maven plugin to pom.xml for @ConfigMapping discovery");
+    }
+
+    private String deriveProjectName(Path projectDir, JsonNode config) throws IOException {
+        // Try to use the site title from config
+        if (config != null && config.has("title")) {
+            String title = config.get("title").asText();
+            // Convert title to a valid package name
+            String packageName = title
+                    .toLowerCase()
+                    .replaceAll("[^a-z0-9]+", "")
+                    .replaceAll("^[0-9]+", ""); // Remove leading digits
+            if (!packageName.isEmpty()) {
+                // Avoid io.quarkus namespace to prevent conflicts with Quarkus core packages
+                String fullPackage = "quarkus".equals(packageName) ? "io.quarkusio" : "io." + packageName;
+                System.out.println("  [CONFIG] Using package name from site title '" + title + "': " + fullPackage);
+                return fullPackage;
+            }
+        }
+
+        // Fall back to directory name
+        String dirName = projectDir.toRealPath().getFileName().toString()
+                .toLowerCase()
+                .replaceAll("[^a-z0-9]+", "")
+                .replaceAll("^[0-9]+", ""); // Remove leading digits
+
+        String fullPackage = "quarkusio".equals(dirName) ? "io.quarkusio" : "io." + dirName;
+        System.out.println("  [CONFIG] Using package name from directory '" + projectDir.getFileName() + "': "
+                + fullPackage);
+        return dirName.isEmpty() ? "io.site" : fullPackage;
+    }
+
+    static String configMappingPrefix(String projectName) {
+        // Strip the leading "io." to get a short prefix like "quarkusio"
+        return projectName.startsWith("io.") ? projectName.substring(3) : projectName;
     }
 }

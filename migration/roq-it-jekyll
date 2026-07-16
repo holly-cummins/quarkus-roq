@@ -200,9 +200,12 @@ done
 # Convert frontmatter (permalinks → aliases, pagination → paginate)
 mvn -f ${tools_dir}/pom.xml -q exec:java -Dexec.mainClass="io.quarkus.tools.migration.jekyll.JekyllFrontMatterCommand" -Dexec.args="${project_dir}"
 
-# Convert Jekyll config to Roq (creates config/application.properties and data/siteConfig.yml)
+# Convert Jekyll config to Roq (creates config/application.properties, data/siteConfig.yml, and ConfigMapping classes)
 mvn -f ${tools_dir}/pom.xml -q exec:java -Dexec.mainClass="io.quarkus.tools.JekyllConfigCommand" -Dexec.args="${project_dir}"
 rm -rf ${project_dir}/_config.yml
+
+# Note: If ConfigMapping classes were generated, they'll be compiled automatically
+# as part of the Quarkus build (mvn package) below. No pre-compilation needed.
 
 # Add index pages for image directories so Roq serves them as attachments.
 # Without an index page, non-template files in content/ are orphaned and silently dropped.

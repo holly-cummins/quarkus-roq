@@ -326,6 +326,18 @@ public class JekyllFiltersExtension {
         return sorted;
     }
 
+    /**
+     * Jekyll's "uniq" filter: remove duplicates from a list.
+     * Preserves the first occurrence of each element.
+     * Usage in Qute: {myList.distinct}
+     */
+    static List<?> distinct(List<?> list) {
+        if (list == null || list.isEmpty()) {
+            return List.of();
+        }
+        return list.stream().distinct().toList();
+    }
+
     private static String extractProperty(Object obj, String property) {
         if (obj instanceof JsonObject json) {
             Object val = json.getValue(property);

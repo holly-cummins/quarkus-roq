@@ -2617,12 +2617,12 @@ public class LiquidToQuteConverter {
         //   {#for STATS in ...tagsCount...}{#let TAG_KEYS=TAG_KEYS.push(STATS.name...)}{/let}{/for}
         //   {#let TAG_WORDS=TAG_KEYS.distinct.sort}
         //   {#for TAG in TAG_WORDS...}
-        // Collapse to:
-        //   {#let TAG_WORDS=...allTags.distinct.sort}
-        //   {#for TAG in TAG_WORDS...}
+        // Collapse to (compatible with Roq 2.1.5+):
+        //   {#let TAG_WORDS=...tagsCount.sort('name')}
+        //   {#for STATS in TAG_WORDS...}
         //
         // This pattern extracts tag names from tagsCount by iterating and pushing stats.name.
-        // Since allTags already returns just the tag names, we can use it directly.
+        // We simplify by using tagsCount.sort('name') directly (tagsCount already deduplicates).
 
         String original = content;
 
@@ -2640,50 +2640,78 @@ public class LiquidToQuteConverter {
             }
 
             String initVar = m.group(1); // tag_keys
-            String loopVar = m.group(2); // stats
+            String loopVar = m.group(2); // stats (original loop var)
             String tagsCountExpr = m.group(3); // site.collections.get('posts').tagsCount.orEmpty
             String nameModifiers = m.group(4); // e.g., .toLowerCase
             String finalVar = m.group(5); // tag_words
             String distinct = m.group(6); // .distinct or null
             String sort = m.group(7); // .sort or null
 
-            // Extract the collection expression (everything before .tagsCount)
-            String collectionExpr = tagsCountExpr.replaceFirst("\\.tagsCount.*$", "");
+            // Extract the collection expression and remove .orEmpty if present
+            String collectionExpr = tagsCountExpr.replaceFirst("\\.orEmpty$", "");
 
-            // Build the replacement using .allTags
-            String replacement = "{#let " + finalVar + "=" + collectionExpr + ".allTags";
+            // Build the replacement using tagsCount
+            String replacement = "{#let " + finalVar + "=" + collectionExpr;
 
-            // Apply the same modifiers that were on stats.name to the allTags result
-            if (nameModifiers != null && !nameModifiers.isEmpty()) {
-                // The modifiers are per-element (e.g., .toLowerCase), so we need to map them
-                // For now, if it's just .toLowerCase, we can handle that with the tagging.lowercase config
-                // But the allTags already respects the lowercase config, so we might not need to apply it here
-                // For simplicity, let's document this limitation
-            }
-
+            // Add .distinct if it was in the original pattern
             if (distinct != null) {
                 replacement += distinct;
             }
+
+            // Add .sort('name') if sort was in the original pattern
             if (sort != null) {
-                replacement += sort;
+                replacement += ".sort('name')";
             }
+
             replacement += "}";
 
             content = content.substring(0, m.start()) + replacement + content.substring(m.end());
 
-            // Remove the now-unused {/let} for initVar
-            // It should be right after the finalVar let block
-            int afterReplacement = m.start() + replacement.length();
-            String afterContent = content.substring(afterReplacement);
-            Pattern closingLet = Pattern.compile("^\\s*\\{/let\\}");
-            Matcher closingMatcher = closingLet.matcher(afterContent);
-            if (closingMatcher.find()) {
-                content = content.substring(0, afterReplacement) + afterContent.substring(closingMatcher.end());
+            // Now we need to update the iteration loop to use stats.name instead of just tag
+            // Find the next {#for TAG in TAG_WORDS...} and update references
+            Pattern iterPattern = Pattern.compile("\\{#for (\\w+) in " + Pattern.quote(finalVar) + "\\.orEmpty\\}");
+            Matcher iterMatcher = iterPattern.matcher(content);
+            if (iterMatcher.find(m.start())) {
+                String iterVar = iterMatcher.group(1); // tag
+                int iterStart = iterMatcher.start();
+
+                // Find the matching {/for}
+                int iterBodyStart = iterMatcher.end();
+                int iterEnd = findMatchingEndFor(content, iterBodyStart);
+                String iterBody = content.substring(iterBodyStart, iterEnd);
+
+                // Replace references to the iter var with stats.name
+                // We use 'stats' as the new loop variable to match the original naming
+                String newIterBody = iterBody.replace("{=" + iterVar + ".", "{=" + loopVar + ".name.");
+                newIterBody = newIterBody.replace("{=" + iterVar + ".raw}", "{=" + loopVar + ".name.raw}");
+                newIterBody = newIterBody.replace("{=" + iterVar + "}", "{=" + loopVar + ".name}");
+
+                // Build new for loop with stats variable
+                String newForLoop = "{#for " + loopVar + " in " + finalVar + ".orEmpty}" +
+                        newIterBody + "{/for}";
+
+                // After the {/for}, we need to keep ONE {/let} and remove the other
+                String afterFor = content.substring(iterEnd + "{/for}".length());
+
+                // Remove the first {/let} (was for tag_words, but we'll add it back)
+                Pattern firstClosingLet = Pattern.compile("^\\s*\\{/let\\}");
+                Matcher firstMatcher = firstClosingLet.matcher(afterFor);
+                if (firstMatcher.find()) {
+                    afterFor = afterFor.substring(firstMatcher.end());
+                }
+
+                // Remove the second {/let} (was for tag_keys, no longer needed)
+                Matcher secondMatcher = firstClosingLet.matcher(afterFor);
+                if (secondMatcher.find()) {
+                    afterFor = afterFor.substring(secondMatcher.end());
+                }
+
+                content = content.substring(0, iterStart) + newForLoop + "{/let}" + afterFor;
             }
         }
 
         if (!content.equals(original)) {
-            conversionsApplied.add("Collapsed tagsCount extraction to allTags");
+            conversionsApplied.add("Collapsed tagsCount extraction to tagsCount.sort('name')");
         }
 
         return content;

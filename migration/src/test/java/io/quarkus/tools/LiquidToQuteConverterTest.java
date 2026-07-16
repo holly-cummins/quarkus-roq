@@ -1698,7 +1698,7 @@ class LiquidToQuteConverterTest {
     }
 
     @Test
-    void testSiteTagsWithBracketNotationConvertsToAllTags() {
+    void testSiteTagsWithBracketNotationConvertsToTagsCountSort() {
         // Pattern from quarkusio/quarkusio.github.io#2853 (deduplicate by downcasing)
         String input = "{% assign tag_keys = \"\" | split: \"\" %}" +
                 "{% for stats in site.tags %}" +
@@ -1709,19 +1709,17 @@ class LiquidToQuteConverterTest {
                 "<a href=\"/tag/{{ tag }}\">{{ tag }}</a>" +
                 "{% endfor %}";
         String result = converter.convert(input);
-        assertTrue(result.contains("allTags"),
-                "site.tags extraction pattern should convert to allTags: " + result);
-        assertFalse(result.contains("tagsCount"),
-                "tagsCount should be replaced by allTags in this pattern: " + result);
-        assertFalse(result.contains("stats.name"),
-                "stats.name should not appear (pattern collapsed to allTags): " + result);
+        assertTrue(result.contains("tagsCount.distinct.sort('name')"),
+                "site.tags extraction pattern should convert to tagsCount.distinct.sort('name'): " + result);
+        assertTrue(result.contains("stats.name"),
+                "Loop should iterate over stats and use stats.name: " + result);
         assertFalse(result.contains("stats.get(0)"),
                 "stats.get(0) should not appear (pattern collapsed): " + result);
         assertTrue(result.contains(".distinct"),
-                "uniq filter should convert to .distinct: " + result);
-        assertTrue(result.contains(".sort"),
-                "sort should be preserved: " + result);
+                ".distinct should be preserved from original pattern: " + result);
         assertFalse(result.contains(".push("),
                 "push pattern should not appear in result: " + result);
+        assertTrue(result.contains("{#for stats in tag_words.orEmpty}"),
+                "Loop should iterate over stats variable: " + result);
     }
 }

@@ -309,6 +309,19 @@ public class JekyllFiltersExtension {
         return new JsonArray(reversed);
     }
 
+    static List<?> sort(List<?> list) {
+        if (list == null || list.isEmpty()) {
+            return List.of();
+        }
+        List<Object> sorted = new ArrayList<>(list);
+        sorted.sort((a, b) -> {
+            String va = a.toString();
+            String vb = b.toString();
+            return va.compareToIgnoreCase(vb);
+        });
+        return sorted;
+    }
+
     static List<?> sort(List<?> list, String property) {
         if (list == null || list.isEmpty()) {
             return List.of();

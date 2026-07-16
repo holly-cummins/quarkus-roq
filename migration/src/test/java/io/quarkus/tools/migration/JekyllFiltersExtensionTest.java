@@ -1,19 +1,18 @@
 package io.quarkus.tools.migration;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertInstanceOf;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 
-import org.junit.jupiter.api.Test;
-
 import io.quarkus.qute.RawString;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
+import org.junit.jupiter.api.Test;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class JekyllFiltersExtensionTest {
 
@@ -260,6 +259,17 @@ class JekyllFiltersExtensionTest {
     }
 
     record TagCount(String name, Long count) {
+    }
+
+    @Test
+    void testSortListOfStrings() {
+        List<?> input = List.of(
+                "quarkus", "alternative", "messaging");
+        List<?> result = JekyllFiltersExtension.sort(input);
+        assertEquals(3, result.size());
+        assertEquals("alternative", result.get(0));
+        assertEquals("messaging", result.get(1));
+        assertEquals("quarkus", result.get(2));
     }
 
     @Test

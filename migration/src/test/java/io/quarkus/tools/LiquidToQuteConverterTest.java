@@ -1696,4 +1696,32 @@ class LiquidToQuteConverterTest {
         assertFalse(result.contains("tagCollection"),
                 "Should not use tagCollection without tagging frontmatter: " + result);
     }
+
+    @Test
+    void testSiteTagsWithBracketNotationConvertsToAllTags() {
+        // Pattern from quarkusio/quarkusio.github.io#2853 (deduplicate by downcasing)
+        String input = "{% assign tag_keys = \"\" | split: \"\" %}" +
+                "{% for stats in site.tags %}" +
+                "{% assign tag_keys = tag_keys | push: stats[0] | downcase %}" +
+                "{% endfor %}" +
+                "{% assign tag_words = tag_keys | uniq | sort %}" +
+                "{% for tag in tag_words %}" +
+                "<a href=\"/tag/{{ tag }}\">{{ tag }}</a>" +
+                "{% endfor %}";
+        String result = converter.convert(input);
+        assertTrue(result.contains("allTags"),
+                "site.tags extraction pattern should convert to allTags: " + result);
+        assertFalse(result.contains("tagsCount"),
+                "tagsCount should be replaced by allTags in this pattern: " + result);
+        assertFalse(result.contains("stats.name"),
+                "stats.name should not appear (pattern collapsed to allTags): " + result);
+        assertFalse(result.contains("stats.get(0)"),
+                "stats.get(0) should not appear (pattern collapsed): " + result);
+        assertTrue(result.contains(".distinct"),
+                "uniq filter should convert to .distinct: " + result);
+        assertTrue(result.contains(".sort"),
+                "sort should be preserved: " + result);
+        assertFalse(result.contains(".push("),
+                "push pattern should not appear in result: " + result);
+    }
 }

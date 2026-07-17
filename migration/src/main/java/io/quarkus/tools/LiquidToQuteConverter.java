@@ -125,6 +125,7 @@ public class LiquidToQuteConverter {
 
         // Make site.tags lenient (needed until  (https://github.com/quarkiverse/quarkus-roq/issues/964 is fixed in a release)
         content = makeSiteTagsLenient(content);
+        content = collapseTagsCountExtractionPattern(content);
 
         // Tags in frontmatter may be a YAML list or a comma-separated string.
         // .asStrings handles both; .orEmpty only works for lists.
@@ -2714,96 +2715,67 @@ public class LiquidToQuteConverter {
     }
 
     private String collapseTagsCountExtractionPattern(String content) {
-        // Detect the pattern from quarkusio/quarkusio.github.io#2853:
+        // Detect the push/uniq pattern from quarkusio/quarkusio.github.io#2853:
         //   {#let TAG_KEYS=str:split("", "")}
         //   {#for STATS in ...tagsCount...}{#let TAG_KEYS=TAG_KEYS.push(STATS.name...)}{/let}{/for}
-        //   {#let TAG_WORDS=TAG_KEYS.distinct.sort}
-        //   {#for TAG in TAG_WORDS...}
-        // Collapse to (compatible with Roq 2.1.5+):
-        //   {#let TAG_WORDS=...tagsCount.sort('name')}
+        //   {#let TAG_WORDS=TAG_KEYS | uniq.sort}
+        // Collapse to:
+        //   {#let TAG_WORDS=...tagsCount.distinct.sort('name')}
         //   {#for STATS in TAG_WORDS...}
-        //
-        // This pattern extracts tag names from tagsCount by iterating and pushing stats.name.
-        // We simplify by using tagsCount.sort('name') directly (tagsCount already deduplicates).
 
         String original = content;
 
         while (true) {
-            // Pattern: {#let X=str:split("", "")}{#for Y in ...tagsCount...}...X.push(Y.name...)...{/for}{#let Z=X.distinct.sort}
+            // Note: uniq→distinct filter mapping is disabled (Qute doesn't support .distinct
+            // on List<String>), so the intermediate form has "| uniq" (pipe syntax).
             Pattern pattern = Pattern.compile(
                     "\\{#let (\\w+)=str:split\\(\"\", \"\"\\)\\}" +
                             "\\s*\\{#for (\\w+) in ([^}]*tagsCount[^}]*)\\}" +
                             "\\{#let \\1=\\1\\.push\\(\\2\\.name([^}]*)\\)\\}\\{/let\\}\\{/for\\}" +
-                            "\\s*\\{#let (\\w+)=\\1(\\.distinct)?(\\.sort)?\\}");
+                            "\\s*\\{#let (\\w+)=\\1(?:\\.distinct| \\| uniq)?(?:\\.sort)?\\}");
 
             Matcher m = pattern.matcher(content);
             if (!m.find()) {
                 break;
             }
 
-            String initVar = m.group(1); // tag_keys
-            String loopVar = m.group(2); // stats (original loop var)
+            String loopVar = m.group(2); // stats
             String tagsCountExpr = m.group(3); // site.collections.get('posts').tagsCount.orEmpty
-            String nameModifiers = m.group(4); // e.g., .toLowerCase
             String finalVar = m.group(5); // tag_words
-            String distinct = m.group(6); // .distinct or null
-            String sort = m.group(7); // .sort or null
 
-            // Extract the collection expression and remove .orEmpty if present
             String collectionExpr = tagsCountExpr.replaceFirst("\\.orEmpty$", "");
 
-            // Build the replacement using tagsCount
-            String replacement = "{#let " + finalVar + "=" + collectionExpr;
-
-            // Add .distinct if it was in the original pattern
-            if (distinct != null) {
-                replacement += distinct;
-            }
-
-            // Add .sort('name') if sort was in the original pattern
-            if (sort != null) {
-                replacement += ".sort('name')";
-            }
-
-            replacement += "}";
+            String replacement = "{#let " + finalVar + "=" + collectionExpr + ".distinct.sort('name')}";
 
             content = content.substring(0, m.start()) + replacement + content.substring(m.end());
 
-            // Now we need to update the iteration loop to use stats.name instead of just tag
-            // Find the next {#for TAG in TAG_WORDS...} and update references
+            // Update the iteration loop: {#for TAG in TAG_WORDS...} → {#for STATS in TAG_WORDS...}
+            // and replace TAG references with STATS.name
             Pattern iterPattern = Pattern.compile("\\{#for (\\w+) in " + Pattern.quote(finalVar) + "\\.orEmpty\\}");
             Matcher iterMatcher = iterPattern.matcher(content);
             if (iterMatcher.find(m.start())) {
                 String iterVar = iterMatcher.group(1); // tag
                 int iterStart = iterMatcher.start();
 
-                // Find the matching {/for}
                 int iterBodyStart = iterMatcher.end();
                 int iterEnd = findMatchingEndFor(content, iterBodyStart);
                 String iterBody = content.substring(iterBodyStart, iterEnd);
 
-                // Replace references to the iter var with stats.name
-                // We use 'stats' as the new loop variable to match the original naming
                 String newIterBody = iterBody.replace("{=" + iterVar + ".", "{=" + loopVar + ".name.");
                 newIterBody = newIterBody.replace("{=" + iterVar + ".raw}", "{=" + loopVar + ".name.raw}");
                 newIterBody = newIterBody.replace("{=" + iterVar + "}", "{=" + loopVar + ".name}");
 
-                // Build new for loop with stats variable
                 String newForLoop = "{#for " + loopVar + " in " + finalVar + ".orEmpty}" +
                         newIterBody + "{/for}";
 
-                // After the {/for}, we need to keep ONE {/let} and remove the other
                 String afterFor = content.substring(iterEnd + "{/for}".length());
 
-                // Remove the first {/let} (was for tag_words, but we'll add it back)
-                Pattern firstClosingLet = Pattern.compile("^\\s*\\{/let\\}");
-                Matcher firstMatcher = firstClosingLet.matcher(afterFor);
+                Pattern closingLet = Pattern.compile("^\\s*\\{/let\\}");
+                Matcher firstMatcher = closingLet.matcher(afterFor);
                 if (firstMatcher.find()) {
                     afterFor = afterFor.substring(firstMatcher.end());
                 }
-
-                // Remove the second {/let} (was for tag_keys, no longer needed)
-                Matcher secondMatcher = firstClosingLet.matcher(afterFor);
+                Matcher secondMatcher = closingLet.matcher(afterFor);
                 if (secondMatcher.find()) {
                     afterFor = afterFor.substring(secondMatcher.end());
                 }

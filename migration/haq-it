@@ -380,7 +380,7 @@ fi
 
 # Disable blogSidebarTagsHaveNoDuplicates — case-insensitive tag dedup (e.g. "AI" vs "ai")
 # is pending a Roq release with fix-lowercase-tag-duplication.
-sed_inplace '/void blogSidebarTagsHaveNoDuplicates/i\    @org.junit.jupiter.api.Disabled("Pending Roq fix-lowercase-tag-duplication")' \
+sed_inplace 's/void blogSidebarTagsHaveNoDuplicates/@org.junit.jupiter.api.Disabled("Pending Roq fix-lowercase-tag-duplication") void blogSidebarTagsHaveNoDuplicates/' \
     "${project_dir}/src/test/java/io/quarkusio/TagTest.java"
 
 if [ "${RUN_TESTS}" = "true" ]; then

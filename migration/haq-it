@@ -54,7 +54,7 @@ if [ "$RESET_MODE" = "true" ]; then
 
   # Remove untracked files and directories
   git clean -fd
-  rm -rf target/
+  rm -rf target/ || true
   rm -rf _site/
 
   # Cherry-pick unmerged branch commits to validate conversion handles real changes.
@@ -68,12 +68,7 @@ if [ "$RESET_MODE" = "true" ]; then
 
   # --- Conversion fixes ---
 
-  # Remove layout-based canonical URL guard (PR #2833, fix/canonical-url-version-check)
-  # https://github.com/quarkusio/quarkusio.github.io/pull/2833
-  # replace_regex is a no-op on non-versioned URLs, so the if/else was unnecessary.
-  # Also fixes Roq migration: page.data.layout is null for collection-inherited layouts
-  # (https://github.com/quarkiverse/quarkus-roq/issues/1080).
-  git cherry-pick 0448aaa0da || git cherry-pick --abort || true
+  # PR #2833 (canonical URL guard): now merged to upstream/main, no cherry-pick needed.
 
   # Java equivalents of Jekyll plugins + search script downloader (PR #2849)
   # https://github.com/quarkusio/quarkusio.github.io/pull/2849
@@ -82,12 +77,11 @@ if [ "$RESET_MODE" = "true" ]; then
   git cherry-pick upstream/main..holly/roq-extensions || git cherry-pick --abort || true
 
   # PR #2849 test files use assertj which isn't in the generated pom.xml —
-  # delete them to avoid compilation errors
+  # delete them to avoid compilation errors (both old and new package paths)
   rm -rf src/test/java/io/quarkus/tools/migration/asciidoc/
+  rm -rf src/test/java/io/quarkusio/tools/migration/asciidoc/
 
-  # Profile-based search config (holly/use-profile-for-roq-build)
-  # Adds _config_dev.yml with dev-specific search cluster
-  git cherry-pick holly/use-profile-for-roq-build || git cherry-pick --abort || true
+  # Profile-based search config (holly/use-profile-for-roq-build): now merged as #2843.
 
 
 
@@ -320,6 +314,38 @@ sed_inplace '/<profiles>/a\
 ' ${project_dir}/pom.xml
 
 
+# TODO temporary workaround pending https://github.com/quarkusio/quarkus/pull/55452
+# (merged to main but not yet backported to 3.37.x/3.38.x)
+# Adds .or('') to template expressions that access optional guide attributes
+# (status, keywords, origin, all_categories) to prevent Qute NOT_FOUND rendering.
+# Applied as sed patches rather than cherry-pick so it works without --commit.
+echo "Applying .or('') workaround for Qute NOT_FOUND..."
+if [ -f "${project_dir}/templates/partials/index-doc-item.html" ]; then
+    sed_inplace "s/status\.escapeHtml/status.or('').escapeHtml/g" "${project_dir}/templates/partials/index-doc-item.html"
+    sed_inplace "s/keywords\.escapeHtml/keywords.or('').escapeHtml/g" "${project_dir}/templates/partials/index-doc-item.html"
+    sed_inplace "s/origin\.escapeHtml/origin.or('').escapeHtml/g" "${project_dir}/templates/partials/index-doc-item.html"
+fi
+if [ -f "${project_dir}/templates/partials/index-guides.html" ]; then
+    sed_inplace "s/guide\.keywords /guide.keywords.or('') /g" "${project_dir}/templates/partials/index-guides.html"
+    sed_inplace "s/guide\.origin /guide.origin.or('') /g" "${project_dir}/templates/partials/index-guides.html"
+fi
+if [ -f "${project_dir}/templates/partials/index-docs.html" ]; then
+    sed_inplace "s/texts\.all_categories\.raw/texts.all_categories.or('').raw/g" "${project_dir}/templates/partials/index-docs.html"
+    # In {#include} tag arguments: guide.summary status=guide.status etc.
+    sed_inplace "s/guide\.summary /guide.summary.or('') /g" "${project_dir}/templates/partials/index-docs.html"
+    sed_inplace "s/guide\.status$/guide.status.or('')/g" "${project_dir}/templates/partials/index-docs.html"
+    sed_inplace "s/guide\.keywords /guide.keywords.or('') /g" "${project_dir}/templates/partials/index-docs.html"
+    sed_inplace "s/guide\.categories /guide.categories.or('') /g" "${project_dir}/templates/partials/index-docs.html"
+    sed_inplace "s/guide\.origin /guide.origin.or('') /g" "${project_dir}/templates/partials/index-docs.html"
+fi
+if [ -f "${project_dir}/templates/layouts/base.html" ]; then
+    sed_inplace "s/\.concat(path)\.raw/.concat(path).or('').raw/g" "${project_dir}/templates/layouts/base.html"
+fi
+if [ -f "${project_dir}/templates/partials/head-csp.html" ]; then
+    sed_inplace "s/search_script\.raw/search_script.or('').raw/g" "${project_dir}/templates/partials/head-csp.html"
+fi
+echo "✓ Applied .or('') workaround"
+
 if [ "${RUN_TESTS}" = "true" ]; then
     # SSG build: render all pages like CI does (quarkus:run with BATCH=true)
     # This catches errors that dev mode misses since it renders every route.
@@ -399,10 +425,6 @@ EOF
 )"
 
         echo "✓ Migration committed"
-
-
-# TODO temporary workaround pending https://github.com/quarkusio/quarkus/issues/55438, which should be available in 3.38
-git cherry-pick 02036eda70c912c2ed306d9c50612a15e78ec73b || git cherry-pick --abort || true
 
         if [ "$PUSH_MODE" = "true" ]; then
             CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)

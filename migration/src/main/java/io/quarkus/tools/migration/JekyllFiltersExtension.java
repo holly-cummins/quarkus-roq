@@ -32,6 +32,178 @@ public class JekyllFiltersExtension {
     }
 
     /**
+     * Jekyll's "where" filter: select items from an array where a property matches a value.
+     * Usage in Qute: {myArray.where("key", "value")}
+     */
+    static JsonArray where(JsonArray array, String property, String value) {
+        JsonArray result = new JsonArray();
+        for (int i = 0; i < array.size(); i++) {
+            Object item = array.getValue(i);
+            if (item instanceof JsonObject obj) {
+                Object propValue = obj.getValue(property);
+                if (propValue != null && propValue.toString().equals(value)) {
+                    result.add(obj);
+                }
+            }
+        }
+        return result;
+    }
+
+    /**
+     * Get the first element of a JsonArray.
+     * Usage in Qute: {myArray.first}
+     */
+    static Object first(JsonArray array) {
+        if (array == null || array.isEmpty()) {
+            return null;
+        }
+        return array.getValue(0);
+    }
+
+    /**
+     * Get the last element of a JsonArray.
+     * Usage in Qute: {myArray.last}
+     */
+    static Object last(JsonArray array) {
+        if (array == null || array.isEmpty()) {
+            return null;
+        }
+        return array.getValue(array.size() - 1);
+    }
+
+    /**
+     * Get the size of a JsonArray.
+     * Usage in Qute: {myArray.size}
+     */
+    static int size(JsonArray array) {
+        return array == null ? 0 : array.size();
+    }
+
+    static JsonArray groupBy(JsonArray items, String property) {
+        if (items == null) {
+            return new JsonArray();
+        }
+        Map<String, JsonArray> groups = new LinkedHashMap<>();
+        for (int i = 0; i < items.size(); i++) {
+            Object item = items.getValue(i);
+            String key = "";
+            if (item instanceof JsonObject obj) {
+                Object val = obj.getValue(property);
+                if (val != null) {
+                    key = val.toString();
+                }
+            }
+            groups.computeIfAbsent(key, k -> new JsonArray()).add(item);
+        }
+        JsonArray result = new JsonArray();
+        for (var entry : groups.entrySet()) {
+            result.add(new JsonObject()
+                    .put("name", entry.getKey())
+                    .put("items", entry.getValue())
+                    .put("size", entry.getValue().size()));
+        }
+        return result;
+    }
+
+    // RFC 2822 §3.3 mandates English day/month names
+    private static final DateTimeFormatter RFC_822 = DateTimeFormatter
+            .ofPattern("EEE, dd MMM yyyy HH:mm:ss Z", Locale.ENGLISH);
+
+    /**
+     * RFC 822 date-time for LocalDateTime (assumes UTC).
+     * Roq's built-in rfc822 only works on ZonedDateTime; this bridges the gap
+     * for template globals like {now} which are LocalDateTime.
+     * Usage in Qute: {now.rfc822}
+     */
+    static String rfc822(LocalDateTime dateTime) {
+        return dateTime.atZone(ZoneOffset.UTC).format(RFC_822);
+    }
+
+    /**
+     * Jekyll's "xml_escape" / "escape" filter: escape HTML/XML special characters.
+     * Qute auto-escapes in .html templates but not in .xml/.txt files.
+     * Usage in Qute: {=myString.escapeHtml}
+     */
+    static String escapeHtml(String str) {
+        if (str == null)
+            return "";
+        return str.replace("&", "&amp;")
+                .replace("<", "&lt;")
+                .replace(">", "&gt;")
+                .replace("\"", "&quot;")
+                .replace("'", "&#39;");
+    }
+
+    /**
+     * Jekyll/Liquid's "capitalize" filter: uppercase the first character.
+     * Usage in Qute: {myString.capitalize}
+     */
+    static String capitalize(String str) {
+        if (str == null || str.isEmpty())
+            return str;
+        return Character.toUpperCase(str.charAt(0)) + str.substring(1);
+    }
+
+    /**
+     * Jekyll's "truncate" filter: truncate a string to a given number of characters.
+     * Usage in Qute: {myString.truncate(280)}
+     */
+    static String truncate(String str, int length) {
+        if (str == null)
+            return "";
+        if (str.length() <= length)
+            return str;
+        return str.substring(0, length) + "...";
+    }
+
+    /**
+     * Jekyll's "sort" filter: sort a list by a named property.
+     * Usage in Qute: {myList.sort('title')}
+     */
+    static List<?> sort(List<?> list, String property) {
+        if (list == null || list.isEmpty()) {
+            return List.of();
+        }
+        List<Object> sorted = new ArrayList<>(list);
+        sorted.sort((a, b) -> {
+            String va = extractProperty(a, property);
+            String vb = extractProperty(b, property);
+            if (va == null)
+                return vb == null ? 0 : 1;
+            if (vb == null)
+                return -1;
+            return va.compareToIgnoreCase(vb);
+        });
+        return sorted;
+    }
+
+    static JsonArray sort(JsonArray array, String property) {
+        if (array == null || array.isEmpty()) {
+            return new JsonArray();
+        }
+        List<Object> sorted = new ArrayList<>(array.getList());
+        sorted.sort((a, b) -> {
+            String va = extractProperty(a, property);
+            String vb = extractProperty(b, property);
+            if (va == null)
+                return vb == null ? 0 : 1;
+            if (vb == null)
+                return -1;
+            return va.compareToIgnoreCase(vb);
+        });
+        return new JsonArray(sorted);
+    }
+
+    static JsonArray reverse(JsonArray array) {
+        if (array == null || array.isEmpty()) {
+            return new JsonArray();
+        }
+        List<Object> reversed = new ArrayList<>(array.getList());
+        java.util.Collections.reverse(reversed);
+        return new JsonArray(reversed);
+    }
+
+    /**
      * Filter items where the given boolean property is falsy.
      * Converts the Liquid pattern: for item in list / unless item.prop / unless guard / assign / endunless / endunless / endfor
      * Usage in Qute: {list:whereNot(myList, 'upcoming')}
@@ -152,178 +324,6 @@ public class JekyllFiltersExtension {
             }
         }
         return null;
-    }
-
-    static JsonArray groupBy(JsonArray items, String property) {
-        if (items == null) {
-            return new JsonArray();
-        }
-        Map<String, JsonArray> groups = new LinkedHashMap<>();
-        for (int i = 0; i < items.size(); i++) {
-            Object item = items.getValue(i);
-            String key = "";
-            if (item instanceof JsonObject obj) {
-                Object val = obj.getValue(property);
-                if (val != null) {
-                    key = val.toString();
-                }
-            }
-            groups.computeIfAbsent(key, k -> new JsonArray()).add(item);
-        }
-        JsonArray result = new JsonArray();
-        for (var entry : groups.entrySet()) {
-            result.add(new JsonObject()
-                    .put("name", entry.getKey())
-                    .put("items", entry.getValue())
-                    .put("size", entry.getValue().size()));
-        }
-        return result;
-    }
-
-    /**
-     * Jekyll's "where" filter: select items from an array where a property matches a value.
-     * Usage in Qute: {myArray.where("key", "value")}
-     */
-    static JsonArray where(JsonArray array, String property, String value) {
-        JsonArray result = new JsonArray();
-        for (int i = 0; i < array.size(); i++) {
-            Object item = array.getValue(i);
-            if (item instanceof JsonObject obj) {
-                Object propValue = obj.getValue(property);
-                if (propValue != null && propValue.toString().equals(value)) {
-                    result.add(obj);
-                }
-            }
-        }
-        return result;
-    }
-
-    /**
-     * Get the first element of a JsonArray.
-     * Usage in Qute: {myArray.first}
-     */
-    static Object first(JsonArray array) {
-        if (array == null || array.isEmpty()) {
-            return null;
-        }
-        return array.getValue(0);
-    }
-
-    /**
-     * Get the last element of a JsonArray.
-     * Usage in Qute: {myArray.last}
-     */
-    static Object last(JsonArray array) {
-        if (array == null || array.isEmpty()) {
-            return null;
-        }
-        return array.getValue(array.size() - 1);
-    }
-
-    /**
-     * Get the size of a JsonArray.
-     * Usage in Qute: {myArray.size}
-     */
-    static int size(JsonArray array) {
-        return array == null ? 0 : array.size();
-    }
-
-    // RFC 2822 §3.3 mandates English day/month names
-    private static final DateTimeFormatter RFC_822 = DateTimeFormatter
-            .ofPattern("EEE, dd MMM yyyy HH:mm:ss Z", Locale.ENGLISH);
-
-    /**
-     * RFC 822 date-time for LocalDateTime (assumes UTC).
-     * Roq's built-in rfc822 only works on ZonedDateTime; this bridges the gap
-     * for template globals like {now} which are LocalDateTime.
-     * Usage in Qute: {now.rfc822}
-     */
-    static String rfc822(LocalDateTime dateTime) {
-        return dateTime.atZone(ZoneOffset.UTC).format(RFC_822);
-    }
-
-    /**
-     * Jekyll's "xml_escape" / "escape" filter: escape HTML/XML special characters.
-     * Qute auto-escapes in .html templates but not in .xml/.txt files.
-     * Usage in Qute: {=myString.escapeHtml}
-     */
-    static String escapeHtml(String str) {
-        if (str == null)
-            return "";
-        return str.replace("&", "&amp;")
-                .replace("<", "&lt;")
-                .replace(">", "&gt;")
-                .replace("\"", "&quot;")
-                .replace("'", "&#39;");
-    }
-
-    /**
-     * Jekyll/Liquid's "capitalize" filter: uppercase the first character.
-     * Usage in Qute: {myString.capitalize}
-     */
-    static String capitalize(String str) {
-        if (str == null || str.isEmpty())
-            return str;
-        return Character.toUpperCase(str.charAt(0)) + str.substring(1);
-    }
-
-    /**
-     * Jekyll's "truncate" filter: truncate a string to a given number of characters.
-     * Usage in Qute: {myString.truncate(280)}
-     */
-    static String truncate(String str, int length) {
-        if (str == null)
-            return "";
-        if (str.length() <= length)
-            return str;
-        return str.substring(0, length) + "...";
-    }
-
-    /**
-     * Jekyll's "sort" filter: sort a list by a named property.
-     * Usage in Qute: {myList.sort('title')}
-     */
-    static JsonArray sort(JsonArray array, String property) {
-        if (array == null || array.isEmpty()) {
-            return new JsonArray();
-        }
-        List<Object> sorted = new ArrayList<>(array.getList());
-        sorted.sort((a, b) -> {
-            String va = extractProperty(a, property);
-            String vb = extractProperty(b, property);
-            if (va == null)
-                return vb == null ? 0 : 1;
-            if (vb == null)
-                return -1;
-            return va.compareToIgnoreCase(vb);
-        });
-        return new JsonArray(sorted);
-    }
-
-    static JsonArray reverse(JsonArray array) {
-        if (array == null || array.isEmpty()) {
-            return new JsonArray();
-        }
-        List<Object> reversed = new ArrayList<>(array.getList());
-        java.util.Collections.reverse(reversed);
-        return new JsonArray(reversed);
-    }
-
-    static List<?> sort(List<?> list, String property) {
-        if (list == null || list.isEmpty()) {
-            return List.of();
-        }
-        List<Object> sorted = new ArrayList<>(list);
-        sorted.sort((a, b) -> {
-            String va = extractProperty(a, property);
-            String vb = extractProperty(b, property);
-            if (va == null)
-                return vb == null ? 0 : 1;
-            if (vb == null)
-                return -1;
-            return va.compareToIgnoreCase(vb);
-        });
-        return sorted;
     }
 
     private static String extractProperty(Object obj, String property) {

@@ -2688,6 +2688,8 @@ public class LiquidToQuteConverter {
                     String loopVar = forMatcher.group(1);
                     body = body.replace(loopVar + ".first", loopVar + ".name");
                     body = body.replace(loopVar + ".last", loopVar + ".count");
+                    body = body.replace(loopVar + ".get(0)", loopVar + ".name");
+                    body = body.replace(loopVar + ".get(1)", loopVar + ".count");
                 }
             }
             // Also handle direct iteration: {#for stats in ...tagsCount...}
@@ -2696,6 +2698,8 @@ public class LiquidToQuteConverter {
                 String loopVar = directForMatcher.group(1);
                 body = body.replace(loopVar + ".first", loopVar + ".name");
                 body = body.replace(loopVar + ".last", loopVar + ".count");
+                body = body.replace(loopVar + ".get(0)", loopVar + ".name");
+                body = body.replace(loopVar + ".get(1)", loopVar + ".count");
             }
 
             conversionsApplied.add("Converted site.tags to Roq tagging plugin API");

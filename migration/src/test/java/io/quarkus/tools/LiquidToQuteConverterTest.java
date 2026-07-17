@@ -1739,6 +1739,18 @@ class LiquidToQuteConverterTest {
     }
 
     @Test
+    void testSiteTagsArrayIndexingConvertsToNameAndCount() {
+        String input = "{% for stats in site.tags %}" +
+                "{% assign tag_keys = tag_keys | push: stats[0] | downcase %}" +
+                "{% endfor %}";
+        String result = converter.convert(input);
+        assertTrue(result.contains("stats.name"),
+                "stats.get(0) should convert to stats.name for tagsCount iteration: " + result);
+        assertFalse(result.contains("stats.get(0)"),
+                "stats.get(0) should not remain after tagsCount conversion: " + result);
+    }
+
+    @Test
     void testTagLayoutPagePostsConvertsToTagCollection() {
         String input = "---\nlayout: base\ntagging: posts\n---\n{% for post in page.posts %}{{ post.title }}{% endfor %}";
         String result = converter.convert(input);

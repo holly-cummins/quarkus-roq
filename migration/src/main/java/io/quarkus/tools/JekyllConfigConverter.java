@@ -217,6 +217,9 @@ public class JekyllConfigConverter {
         if (!configMappingsToGenerate.isEmpty()) {
             generateConfigMappings(projectDir, projectName, configMappingPrefix, configMappingsToGenerate);
             addJandexPluginToPom(projectDir);
+
+            Path metadataFile = projectDir.resolve("config/.migration-config-mappings");
+            Files.writeString(metadataFile, String.join("\n", configMappingsToGenerate.keySet()) + "\n");
         }
 
         // Create data/siteConfig.yml

@@ -18,6 +18,7 @@ public class LiquidToQuteConverter {
     private final List<String> conversionsApplied = new ArrayList<>();
     private final Map<String, String> splitDelimHoists = new HashMap<>();
     private boolean convertingPartials;
+    private List<String> configMappingSections = List.of("search");
 
     public LiquidToQuteConverter() {
         this(true);
@@ -30,6 +31,10 @@ public class LiquidToQuteConverter {
 
     void setConvertingPartials(boolean convertingPartials) {
         this.convertingPartials = convertingPartials;
+    }
+
+    public void setConfigMappingSections(List<String> sections) {
+        this.configMappingSections = sections;
     }
 
     public String convert(String content) {
@@ -2315,33 +2320,35 @@ public class LiquidToQuteConverter {
                 "index|files|file|fileExists|page|normalPage|document|imagesDirUrl|pageContent|" +
                 "posts|tags|time";
 
-        // ConfigMapping sections that have their own CDI beans
-        String configMappingSections = "search";
-
-        // First, convert site.search.* to cdi:searchConfig.*
-        Pattern searchPattern = Pattern.compile("\\bsite\\.search\\.([a-zA-Z][a-zA-Z0-9_-]*)");
-        StringBuffer searchBuf = new StringBuffer();
-        Matcher searchMatcher = searchPattern.matcher(content);
-        boolean hasSearchConversion = false;
-        while (searchMatcher.find()) {
-            String propName = searchMatcher.group(1);
-            String camelCased = JekyllConfigConverter.hyphenToCamelCase(propName);
-            searchMatcher.appendReplacement(searchBuf, "cdi:searchConfig." + camelCased);
-            hasSearchConversion = true;
+        // Convert site.<section>.* to cdi:<section>Config.* for each ConfigMapping section
+        for (String section : configMappingSections) {
+            Pattern sectionPattern = Pattern.compile("\\bsite\\." + Pattern.quote(section) + "\\.([a-zA-Z][a-zA-Z0-9_-]*)");
+            StringBuilder sectionBuf = new StringBuilder();
+            Matcher sectionMatcher = sectionPattern.matcher(content);
+            boolean hasSectionConversion = false;
+            while (sectionMatcher.find()) {
+                String propName = sectionMatcher.group(1);
+                String camelCased = JekyllConfigConverter.hyphenToCamelCase(propName);
+                sectionMatcher.appendReplacement(sectionBuf, "cdi:" + section + "Config." + camelCased);
+                hasSectionConversion = true;
+            }
+            sectionMatcher.appendTail(sectionBuf);
+            content = sectionBuf.toString();
+            if (hasSectionConversion) {
+                conversionsApplied.add("Converted site." + section + " properties to ConfigMapping CDI references");
+            }
         }
-        searchMatcher.appendTail(searchBuf);
-        content = searchBuf.toString();
 
-        // Then, convert other site.* properties to cdi:siteConfig.*
+        // Then, convert remaining site.* properties to cdi:siteConfig.*
+        String sectionExclusion = String.join("|", configMappingSections);
         Pattern pattern = Pattern.compile(
-                "\\bsite\\.((?!(?:" + knownSiteProps + "|" + configMappingSections
+                "\\bsite\\.((?!(?:" + knownSiteProps + "|" + sectionExclusion
                         + ")\\b)[a-zA-Z_][a-zA-Z0-9_]*(?:\\.[a-zA-Z][a-zA-Z0-9_]*(?:-[a-zA-Z][a-zA-Z0-9_]*)*)*)");
-        StringBuffer sb = new StringBuffer();
+        StringBuilder sb = new StringBuilder();
         Matcher m = pattern.matcher(content);
         boolean hasOtherConversion = false;
         while (m.find()) {
             String propChain = m.group(1);
-            // CamelCase any hyphenated segments so Qute dot notation works
             String camelCased = camelCasePropertyChain(propChain);
             m.appendReplacement(sb, "cdi:siteConfig." + camelCased);
             hasOtherConversion = true;
@@ -2349,9 +2356,6 @@ public class LiquidToQuteConverter {
         m.appendTail(sb);
         String result = sb.toString();
 
-        if (hasSearchConversion) {
-            conversionsApplied.add("Converted site.search properties to ConfigMapping CDI references");
-        }
         if (hasOtherConversion) {
             conversionsApplied.add("Converted site data properties to CDI references");
         }

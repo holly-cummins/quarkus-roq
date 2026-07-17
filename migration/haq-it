@@ -129,11 +129,6 @@ SERVE
 chmod +x ${project_dir}/serve.sh ${project_dir}/serve-noguides.sh ${project_dir}/serve-only-latest-guides.sh
 
 
-# Delete Jekyll includes too complex for auto-conversion (allejo/jekyll-toc: pure-Liquid
-# TOC generator using capture-concatenation, continue, slice, times, minus, etc.)
-# TODO drop when https://github.com/quarkusio/quarkusio.github.io/pull/2850 merges
-rm -f ${project_dir}/_includes/templates/toc.html
-
 # Delete all Jekyll plugins except cname.rb to avoid build failures.
 # The generic converter only handles cname.rb (GitHub Pages convention).
 # Site-specific plugins (filters, search scripts, AsciiDoc extensions) are either:

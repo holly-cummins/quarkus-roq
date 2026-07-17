@@ -431,8 +431,7 @@ public class LiquidToQuteConverter {
                 { "join", "join" },
                 { "sort", "sort" },
                 { "reverse", "reverse" },
-                // TODO: restore once Qute supports .distinct on List<String>
-                // { "uniq", "distinct" },
+                { "uniq", "distinct" },
                 { "compact", "filterNotNull" },
                 { "strip", "trim()" },
                 { "lstrip", "trimStart" },
@@ -2730,12 +2729,11 @@ public class LiquidToQuteConverter {
         String original = content;
 
         while (true) {
-            // Note: uniq→distinct filter mapping is disabled (Qute doesn't support .distinct
-            // on List<String>), so the intermediate form has "| uniq" (pipe syntax).
             Pattern pattern = Pattern.compile(
                     "\\{#let (\\w+)=str:split\\(\"\", \"\"\\)\\}" +
                             "\\s*\\{#for (\\w+) in ([^}]*tagsCount[^}]*)\\}" +
-                            "\\{#let \\1=\\1\\.push\\(\\2\\.name([^}]*)\\)\\}\\{/let\\}\\{/for\\}" +
+                            "\\s*\\{#let \\1=\\1\\.push\\(\\2\\.name([^}]*)\\)\\}" +
+                            "\\s*\\{/let\\}\\{/for\\}" +
                             "\\s*\\{#let (\\w+)=\\1(?:\\.distinct| \\| uniq)?(?:\\.sort)?\\}");
 
             Matcher m = pattern.matcher(content);
@@ -2774,14 +2772,13 @@ public class LiquidToQuteConverter {
 
                 String afterFor = content.substring(iterEnd + "{/for}".length());
 
-                Pattern closingLet = Pattern.compile("^\\s*\\{/let\\}");
-                Matcher firstMatcher = closingLet.matcher(afterFor);
-                if (firstMatcher.find()) {
-                    afterFor = afterFor.substring(firstMatcher.end());
-                }
-                Matcher secondMatcher = closingLet.matcher(afterFor);
-                if (secondMatcher.find()) {
-                    afterFor = afterFor.substring(secondMatcher.end());
+                // Remove 2 {/let} closers that matched the collapsed {#let} opens.
+                // They may not be adjacent — HTML like </div> can sit between them.
+                for (int i = 0; i < 2; i++) {
+                    int idx = afterFor.indexOf("{/let}");
+                    if (idx >= 0) {
+                        afterFor = afterFor.substring(0, idx) + afterFor.substring(idx + "{/let}".length());
+                    }
                 }
 
                 content = content.substring(0, iterStart) + newForLoop + "{/let}" + afterFor;

@@ -248,34 +248,6 @@ import ${SCRIPT_MODE_PKG}.ScriptMode;" "$SEARCH_CONFIG"
     echo "Amended SearchConfig: String scriptMode() → ScriptMode scriptMode()"
 fi
 
-# TEMPORARY WORKAROUND for Roq 2.1.5 quote escaping bug in aliases plugin
-# Issue: https://github.com/quarkiverse/quarkus-roq/pull/1078
-# The /publications redirect gets merged as an alias into newsletter.md, and when
-# Roq renders the alias redirect page with an absolute URL (because site.url is set),
-# the meta refresh tag has unbalanced quotes: content="0; url="https://..."
-# This causes RedirectTest.publicationsRedirectsToNewsletter to fail.
-#
-# Workaround: Remove the /publications alias from newsletter.md and create a static
-# redirect page instead, bypassing the aliases plugin entirely.
-#
-# TODO: Remove this workaround once https://github.com/quarkiverse/quarkus-roq/pull/1078
-# is merged and released (expected in Roq 2.1.6 or later).
-if [ -f "${project_dir}/content/newsletter.md" ]; then
-    sed_inplace '/^  - \/publications$/d' "${project_dir}/content/newsletter.md"
-    echo "WORKAROUND: Removed /publications alias from newsletter.md (Roq 2.1.5 quote bug)"
-fi
-# Create a static redirect page that bypasses the aliases plugin
-mkdir -p "${project_dir}/public/publications"
-cat > "${project_dir}/public/publications/index.html" << 'REDIRECT'
-<!doctype html>
-<html>
-<head>
-<meta http-equiv="refresh" content="0; url=/newsletter/">
-<link rel="canonical" href="/newsletter/" />
-</head>
-</html>
-REDIRECT
-echo "WORKAROUND: Created static /publications/ redirect page"
 
 
 # Move data/ back to _data/ and configure Roq to find it there
@@ -345,47 +317,6 @@ if [ -f "${project_dir}/templates/partials/head-csp.html" ]; then
 fi
 echo "✓ Applied .or('') workaround"
 
-# Fix blog-band tag sidebar: the converter produced broken Qute from PR #2853's
-# Liquid push/uniq/stats[0] pattern. Replace with the working tagsCount.sort('name')
-# pattern (same as tag-archive.html).
-if [ -f "${project_dir}/templates/partials/blog-band.html" ]; then
-    python3 -c "
-import re
-with open('${project_dir}/templates/partials/blog-band.html', 'r') as f:
-    content = f.read()
-old = '''    {#let tag_keys=str:split(\"\", \"\")}
-    {#for stats in site.collections.get('posts').tagsCount.orEmpty}
-     {#let tag_keys=tag_keys.push(stats.name.toLowerCase)}
-    {/let}{/for}
-    {#let tag_words=tag_keys | uniq.sort}
-    {#for tag in tag_words.orEmpty}
-     <a href=\"{=''}/blog/tag/{=tag.replace('.', '-').raw}\">{=tag.raw}</a></br>
-    {/for}
-  </div>
-</div>
-{/let}{/let}{/let}'''
-new = '''    {#let tag_words=site.collections.get('posts').tagsCount.sort('name')}
-    {#for stats in tag_words.orEmpty}
-    {#let tag=stats.name}
-    <a href=\"{=''}/blog/tag/{=tag.toLowerCase.replace('.', '-').raw}\">{=tag.toLowerCase.raw}</a></br>
-    {/let}{/for}
-  </div>
-</div>
-{/let}'''
-if old in content:
-    content = content.replace(old, new)
-    with open('${project_dir}/templates/partials/blog-band.html', 'w') as f:
-        f.write(content)
-    print('Fixed blog-band tag sidebar')
-else:
-    print('WARNING: blog-band tag sidebar pattern not found, skipping')
-"
-fi
-
-# Disable blogSidebarTagsHaveNoDuplicates — case-insensitive tag dedup (e.g. "AI" vs "ai")
-# is pending a Roq release with fix-lowercase-tag-duplication.
-sed_inplace 's/void blogSidebarTagsHaveNoDuplicates/@org.junit.jupiter.api.Disabled("Pending Roq fix-lowercase-tag-duplication") void blogSidebarTagsHaveNoDuplicates/' \
-    "${project_dir}/src/test/java/io/quarkusio/TagTest.java"
 
 if [ "${RUN_TESTS}" = "true" ]; then
     # SSG build: render all pages like CI does (quarkus:run with BATCH=true)

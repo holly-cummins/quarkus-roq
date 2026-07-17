@@ -204,8 +204,11 @@ mvn -f ${tools_dir}/pom.xml -q exec:java -Dexec.mainClass="io.quarkus.tools.migr
 mvn -f ${tools_dir}/pom.xml -q exec:java -Dexec.mainClass="io.quarkus.tools.JekyllConfigCommand" -Dexec.args="${project_dir}"
 rm -rf ${project_dir}/_config.yml
 
-# Note: If ConfigMapping classes were generated, they'll be compiled automatically
-# as part of the Quarkus build (mvn package) below. No pre-compilation needed.
+# Read discovered ConfigMapping sections (written by JekyllConfigConverter)
+CONFIG_MAPPINGS=""
+if [ -f "${project_dir}/config/.migration-config-mappings" ]; then
+    CONFIG_MAPPINGS="--config-mappings $(paste -sd, "${project_dir}/config/.migration-config-mappings")"
+fi
 
 # Add index pages for image directories so Roq serves them as attachments.
 # Without an index page, non-template files in content/ are orphaned and silently dropped.
@@ -229,8 +232,8 @@ done
 
 # Convert Liquid to Qute; this has the side effect of renaming directories to adjust the structure
 mkdir -p ${project_dir}/templates/partials
-mvn -f ${tools_dir}/pom.xml -q exec:java -Dexec.mainClass="io.quarkus.tools.LiquidToQuteCommand" -Dexec.args="${project_dir}/_includes ${project_dir}/templates/partials --partials"
-mvn -f ${tools_dir}/pom.xml -q exec:java -Dexec.mainClass="io.quarkus.tools.LiquidToQuteCommand" -Dexec.args="${project_dir}/_layouts ${project_dir}/templates/layouts"
+mvn -f ${tools_dir}/pom.xml -q exec:java -Dexec.mainClass="io.quarkus.tools.LiquidToQuteCommand" -Dexec.args="${project_dir}/_includes ${project_dir}/templates/partials --partials ${CONFIG_MAPPINGS}"
+mvn -f ${tools_dir}/pom.xml -q exec:java -Dexec.mainClass="io.quarkus.tools.LiquidToQuteCommand" -Dexec.args="${project_dir}/_layouts ${project_dir}/templates/layouts ${CONFIG_MAPPINGS}"
 
 # Now delete the old includes and layouts
 rm -rf ${project_dir}/_includes

@@ -64,13 +64,9 @@ rm -rf ${project_dir}/templates/
 
 rm -f ${project_dir}/application.properties
 
-# TODO make this generic
-sed_inplace 's#href="{{ '"'"'/assets/css/main.css'"'"' | relative_url }}?2021-07-29"#href="static/bundle/app.css"#g' ${project_dir}/_layouts/base.html
-#sed -i -e "@{{ '/assets/css/main.css' | relative_url }}?2021-07-29/@/static/bundle/app.css@" ${project_dir}/_layouts/base.html
-# TODO regular expressions are hard, sed is hard, previous regexp does not work
-# TODO need to strip local stylesheet references
-# TODO need to do this for all templates
-sed_inplace -e 's|<head>|<head>  {#bundle /}|g' ${project_dir}/_layouts/base.html
+# Replace /assets/css/ links with {#bundle /} tag using Java converter
+# Handles multiple CSS files, preserves non-assets CSS, fixes TBT regression
+mvn -f ${tools_dir}/pom.xml -q exec:java -Dexec.mainClass="io.quarkus.tools.JekyllLayoutCommand" -Dexec.args="${project_dir}/_layouts/base.html"
 
 
 ## Generate Roq project skeleton via roq create
@@ -238,6 +234,27 @@ mvn -f ${tools_dir}/pom.xml -q exec:java -Dexec.mainClass="io.quarkus.tools.Liqu
 # Now delete the old includes and layouts
 rm -rf ${project_dir}/_includes
 rm -rf ${project_dir}/_layouts
+
+# Copy static assets from _guides (CSS, etc.) that Liquid converter skipped
+# The converter only processes template files, so stylesheet/, images/, javascript/ get left behind
+if [ -d "${project_dir}/_guides" ]; then
+    # Copy stylesheet directory
+    if [ -d "${project_dir}/_guides/stylesheet" ]; then
+        mkdir -p ${project_dir}/content/guides/stylesheet
+        cp -r ${project_dir}/_guides/stylesheet/* ${project_dir}/content/guides/stylesheet/
+        echo "Copied _guides/stylesheet/ → content/guides/stylesheet/"
+    fi
+fi
+
+# Add index.html to stylesheet directories so files are served as attachments
+# This runs after copying to handle all stylesheet dirs (guides and versions)
+find ${project_dir}/content -type d -name 'stylesheet' | while read -r css_dir; do
+    if [ ! -f "${css_dir}/index.html" ]; then
+        # Extract the path relative to content/ (e.g., "guides" or "versions/3.33/guides")
+        rel_path=$(echo "${css_dir}" | sed "s|${project_dir}/content/||" | sed 's|/stylesheet$||')
+        printf '%s\n' '---' "link: /${rel_path}/stylesheet/" '---' '<html><body></body></html>' > "${css_dir}/index.html"
+    fi
+done
 
 # Copy Jekyll filter extensions ONLY if they don't already exist
 # This prevents overwriting user's custom Java code during re-runs or iterative migrations.

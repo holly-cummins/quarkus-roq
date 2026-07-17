@@ -23,13 +23,19 @@ import io.vertx.core.json.JsonObject;
 @TemplateExtension
 public class JekyllFiltersExtension {
 
-    // Null-safe get — prevents NPE when key is null (e.g. from ?? operator)
+    /**
+     * Null-safe get for JsonObject. Prevents NPE when key is null (e.g. from ?? operator).
+     */
     static Object get(JsonObject obj, String key) {
         if (obj == null || key == null || key.isEmpty())
             return null;
         return obj.getValue(key);
     }
 
+    /**
+     * Jekyll's "where" filter: select items from an array where a property matches a value.
+     * Usage in Qute: {myArray.where("key", "value")}
+     */
     static JsonArray where(JsonArray array, String property, String value) {
         JsonArray result = new JsonArray();
         for (int i = 0; i < array.size(); i++) {
@@ -43,18 +49,34 @@ public class JekyllFiltersExtension {
         return result;
     }
 
+    /**
+     * Get the first element of a JsonArray.
+     * Usage in Qute: {myArray.first}
+     */
     static Object first(JsonArray array) {
         return array == null || array.isEmpty() ? null : array.getValue(0);
     }
 
+    /**
+     * Get the last element of a JsonArray.
+     * Usage in Qute: {myArray.last}
+     */
     static Object last(JsonArray array) {
         return array == null || array.isEmpty() ? null : array.getValue(array.size() - 1);
     }
 
+    /**
+     * Get the size of a JsonArray.
+     * Usage in Qute: {myArray.size}
+     */
     static int size(JsonArray array) {
         return array == null ? 0 : array.size();
     }
 
+    /**
+     * Jekyll's "group_by" filter: group items by a property value.
+     * Usage in Qute: {myArray.groupBy("type")}
+     */
     static JsonArray groupBy(JsonArray items, String property) {
         if (items == null)
             return new JsonArray();
@@ -82,12 +104,21 @@ public class JekyllFiltersExtension {
     private static final DateTimeFormatter RFC_822 = DateTimeFormatter
             .ofPattern("EEE, dd MMM yyyy HH:mm:ss Z", Locale.ENGLISH);
 
-    // Bridges LocalDateTime → RFC 822; Roq's built-in rfc822 only handles ZonedDateTime
+    /**
+     * RFC 822 date-time for LocalDateTime (assumes UTC).
+     * Roq's built-in rfc822 only works on ZonedDateTime; this bridges the gap
+     * for template globals like {now} which are LocalDateTime.
+     * Usage in Qute: {now.rfc822}
+     */
     static String rfc822(LocalDateTime dateTime) {
         return dateTime.atZone(ZoneOffset.UTC).format(RFC_822);
     }
 
-    // Qute auto-escapes in .html but not in .xml/.txt
+    /**
+     * Jekyll's "xml_escape" / "escape" filter: escape HTML/XML special characters.
+     * Qute auto-escapes in .html templates but not in .xml/.txt files.
+     * Usage in Qute: {=myString.escapeHtml}
+     */
     static String escapeHtml(String str) {
         if (str == null)
             return "";
@@ -98,12 +129,20 @@ public class JekyllFiltersExtension {
                 .replace("'", "&#39;");
     }
 
+    /**
+     * Jekyll/Liquid's "capitalize" filter: uppercase the first character.
+     * Usage in Qute: {myString.capitalize}
+     */
     static String capitalize(String str) {
         if (str == null || str.isEmpty())
             return str;
         return Character.toUpperCase(str.charAt(0)) + str.substring(1);
     }
 
+    /**
+     * Jekyll's "truncate" filter: truncate a string to a given number of characters.
+     * Usage in Qute: {myString.truncate(280)}
+     */
     static String truncate(String str, int length) {
         if (str == null)
             return "";
@@ -112,6 +151,10 @@ public class JekyllFiltersExtension {
         return str.substring(0, length) + "...";
     }
 
+    /**
+     * Jekyll's "sort" filter: sort a list by a named property.
+     * Usage in Qute: {myList.sort('title')}
+     */
     static List<?> sort(List<?> list, String property) {
         if (list == null || list.isEmpty())
             return List.of();
@@ -120,6 +163,7 @@ public class JekyllFiltersExtension {
         return sorted;
     }
 
+    /** Jekyll's "sort" filter for JsonArray. */
     static JsonArray sort(JsonArray array, String property) {
         if (array == null || array.isEmpty())
             return new JsonArray();
@@ -128,6 +172,7 @@ public class JekyllFiltersExtension {
         return new JsonArray(sorted);
     }
 
+    /** Jekyll's "reverse" filter for JsonArray. */
     static JsonArray reverse(JsonArray array) {
         if (array == null || array.isEmpty())
             return new JsonArray();
@@ -136,7 +181,11 @@ public class JekyllFiltersExtension {
         return new JsonArray(reversed);
     }
 
-    // Selects items where a boolean property is falsy (bridges Liquid's unless pattern)
+    /**
+     * Filter items where the given boolean property is falsy.
+     * Bridges Liquid's unless pattern.
+     * Usage in Qute: {list:whereNot(myList, 'upcoming')}
+     */
     @TemplateExtension(namespace = "list")
     static List<Object> whereNot(Iterable<?> items, String property) {
         List<Object> result = new ArrayList<>();
@@ -263,13 +312,22 @@ public class JekyllFiltersExtension {
         };
     }
 
+    /**
+     * Jekyll's "push" filter: append an element to a list and return the new list.
+     * Usage in Qute: {myList.push(item)}
+     */
     static List<Object> push(List<?> list, Object item) {
         List<Object> result = new ArrayList<>(list);
         result.add(item);
         return result;
     }
 
-    // Replaces Liquid's push-accumulation pattern (broken in Qute because {#let} is block-scoped)
+    /**
+     * Merge all items of a given type from all sources in a data index JsonObject.
+     * Replaces the broken Jekyll push-accumulation pattern that doesn't work in Qute
+     * ({#let} is block-scoped so push results are discarded in loops).
+     * Usage in Qute: {index.mergeTypes('tutorial')}
+     */
     @SuppressWarnings("unchecked")
     static JsonArray mergeTypes(JsonObject index, String type) {
         if (index == null || type == null || type.isEmpty())
@@ -318,12 +376,22 @@ public class JekyllFiltersExtension {
         return new JsonObject().put("value", obj);
     }
 
+    /**
+     * Jekyll's "markdownify" filter: convert Markdown text to HTML.
+     * Returns a RawString to bypass Qute's auto-escaping.
+     * Usage in Qute: {=myString.markdownify}
+     */
     static RawString markdownify(String str) {
         if (str == null || str.isEmpty())
             return new RawString("");
         return new RawString(str);
     }
 
+    /**
+     * Output a string without HTML escaping.
+     * Qute auto-escapes HTML in .html templates; this bypasses that for trusted content.
+     * Usage in Qute: {=myString.raw}
+     */
     static RawString raw(String str) {
         if (str == null)
             return new RawString("");
@@ -341,7 +409,10 @@ public class JekyllFiltersExtension {
     public static class MutableMap {
         private final Map<String, Object> data = new HashMap<>();
 
-        // Returns empty RawString so {=_m.assign(...)} produces no visible output
+        /**
+         * Store a value under the given key (mirrors Liquid's assign).
+         * Returns an empty RawString so {=_m.assign(...)} produces no visible output.
+         */
         public RawString assign(String key, Object value) {
             data.put(key, value);
             return new RawString("");
@@ -352,7 +423,12 @@ public class JekyllFiltersExtension {
         }
     }
 
-    // Namespace form handles null base objects (instance extensions can't dispatch on null)
+    /**
+     * Split a string by delimiter, returning an iterable list.
+     * Uses namespace form so it can handle null base objects (instance extensions can't
+     * dispatch on null). Also returns List instead of String[] for Qute iteration.
+     * Usage in Qute: {str:split(myString, ",")}
+     */
     @TemplateExtension(namespace = "str")
     static List<String> split(String str, String delimiter) {
         if (str == null || str.isEmpty())
@@ -360,6 +436,10 @@ public class JekyllFiltersExtension {
         return Arrays.asList(str.split(Pattern.quote(delimiter)));
     }
 
+    /**
+     * Like split but returns RawStrings to prevent Qute auto-escaping of HTML content.
+     * Usage in Qute: {str:splitRaw(myString, ",")}
+     */
     @TemplateExtension(namespace = "str")
     static List<RawString> splitRaw(String str, String delimiter) {
         if (str == null || str.isEmpty())
@@ -369,7 +449,12 @@ public class JekyllFiltersExtension {
                 .toList();
     }
 
-    // Replaces Liquid split+trim+push loop (broken in Qute due to block-scoped {#let})
+    /**
+     * Split, trim each element, and filter out empty strings.
+     * Replaces the Liquid pattern: assign clean = "" | split: "" / for x in raw / push trimmed / endfor
+     * That pattern doesn't work in Qute because {#let} is block-scoped (push results are discarded).
+     * Usage in Qute: {str:splitTrimmed(myString, ",")}
+     */
     @TemplateExtension(namespace = "str")
     static List<String> splitTrimmed(String str, String delimiter) {
         if (str == null || str.isEmpty())

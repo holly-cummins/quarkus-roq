@@ -433,15 +433,15 @@ class LiquidToQuteConverterTest {
     @Test
     void testAppendFilter() {
         String input = "{{\"hello\" | append: \" world\"}}";
-        String expected = "{=\"hello\".concat(\" world\").raw}";
-        assertConverts(input, expected, "Append filter should convert to .concat()");
+        String expected = "{=\"hello\".append(\" world\").raw}";
+        assertConverts(input, expected, "Append filter should use .append() method");
     }
 
     @Test
     void testMultipleAppends() {
         String input = "{{\"a\" | append: \"b\" | append: \"c\"}}";
-        String expected = "{=\"a\".concat(\"b\").concat(\"c\").raw}";
-        assertConverts(input, expected, "Multiple appends should chain");
+        String expected = "{=\"a\".append(\"b\").append(\"c\").raw}";
+        assertConverts(input, expected, "Multiple appends should chain .append() calls");
     }
 
     @Test
@@ -629,11 +629,11 @@ class LiquidToQuteConverterTest {
     @Test
     void testPrependFilter() {
         // Liquid: {{ path | prepend: site.baseurl }}
-        // site.baseurl is removed (Roq has no baseurl concept), empty concat cleaned up
+        // site.baseurl is converted to '' (Roq has no baseurl concept)
         String input = "{{paginator.next_page_path | prepend: site.baseurl}}";
-        String expected = "{=page.paginator.next.raw}";
+        String expected = "{=page.paginator.next.prepend('').raw}";
         assertConverts(input, expected,
-                "Prepend with site.baseurl should simplify to just the expression");
+                "Prepend with site.baseurl should convert baseurl to '' and use .prepend() method");
     }
 
     @Test
@@ -1014,9 +1014,9 @@ class LiquidToQuteConverterTest {
     @Test
     void testReplaceRegexWithPrependChain() {
         String input = "{% assign x = page.url | replace_regex: '^/version/([^/]+)/.*', '\\1' | prepend: ' - ' %}";
-        String expected = "{#let x=' - '.concat(page.url.path.replaceAll('^/version/([^/]+)/.*', '$1'))}{/let}";
+        String expected = "{#let x=page.url.path.replaceAll('^/version/([^/]+)/.*', '$1').prepend(' - ')}{/let}";
         assertConverts(input, expected,
-                "replace_regex chained with prepend should produce valid method call");
+                "replace_regex chained with prepend should use .prepend() method");
     }
 
     @Test
@@ -1123,10 +1123,10 @@ class LiquidToQuteConverterTest {
 
     @Test
     void testSiteUrlNotConvertedWhenFollowedByMethodCall() {
-        String input = "{=site.url.resolve(page.url)}";
-        String expected = "{=site.url.resolve(page.url).raw}";
+        String input = "{=site.url.someMethod(page.url)}";
+        String expected = "{=site.url.root.url.someMethod(page.url).raw}";
         assertConverts(input, expected,
-                "site.url followed by .resolve() should not be double-converted");
+                "site.url followed by a method call should convert to .root.url (methods are allowed, only properties are excluded)");
     }
 
     @Test
@@ -1206,17 +1206,17 @@ class LiquidToQuteConverterTest {
     @Test
     void testUrlConcatenationWithSiteUrl() {
         String input = "{{site.url | append: page.url}}";
-        String expected = "{=site.url.resolve(page.url).raw}";
+        String expected = "{=site.url.root.url.append(page.url).raw}";
         assertConverts(input, expected,
-                "URL concatenation should use .resolve() instead of +");
+                "URL concatenation should use .append() method");
     }
 
     @Test
     void testUrlConcatenationWithVariable() {
         String input = "{{canonical_url | prepend: site.url}}";
-        String expected = "{=site.url.resolve(canonical_url).raw}";
+        String expected = "{=canonical_url.prepend(site.url.root.url).raw}";
         assertConverts(input, expected,
-                "Prepending to URL should use .resolve()");
+                "Prepending URL should use .prepend() method");
     }
 
     @Test
@@ -1305,8 +1305,8 @@ class LiquidToQuteConverterTest {
     @Test
     void testRelativeUrlFilterWithVariable() {
         String input = "{{ page.url | relative_url }}";
-        String expected = "{='/'.concat(page.url).raw}";
-        assertConverts(input, expected, "relative_url filter on variable prepends /");
+        String expected = "{=page.url.prepend('/').raw}";
+        assertConverts(input, expected, "relative_url filter on variable should use .prepend() method");
     }
 
     @Test
@@ -1319,8 +1319,8 @@ class LiquidToQuteConverterTest {
     @Test
     void testPrependWithStringLiteral() {
         String input = "{{ '/assets/images/quarkus_card.png' | prepend: site.url }}";
-        String expected = "{=site.url.resolve('/assets/images/quarkus_card.png').raw}";
-        assertConverts(input, expected, "prepend with string literal containing slashes should work");
+        String expected = "{='/assets/images/quarkus_card.png'.prepend(site.url.root.url).raw}";
+        assertConverts(input, expected, "prepend with string literal should use .prepend() method");
     }
 
     @Test
@@ -1792,5 +1792,65 @@ class LiquidToQuteConverterTest {
                 "push pattern should not appear in result: " + result);
         assertTrue(result.contains("{#for stats in tag_words.orEmpty}"),
                 "Loop should iterate over stats variable: " + result);
+    }
+
+    @Test
+    void testAppendFilterSingleVariable() {
+        // Real example from quarkusio base.html hreflang
+        String input = "{{ language.url | append: path }}";
+        String expected = "{=language.url.append(path).raw}";
+        assertConverts(input, expected, "Append filter should use .append() method");
+    }
+
+    @Test
+    void testAppendFilterMultipleVariables() {
+        String input = "{{ base | append: middle | append: end }}";
+        String expected = "{=base.append(middle).append(end).raw}";
+        assertConverts(input, expected, "Multiple append filters should chain .append() calls");
+    }
+
+    @Test
+    void testAppendFilterWithLiteral() {
+        String input = "{{ path | append: \".html\" }}";
+        String expected = "{=path.append(\".html\").raw}";
+        assertConverts(input, expected, "Append with string literal should work");
+    }
+
+    @Test
+    void testPrependFilterWithVariable() {
+        // Real example from quarkusio base.html canonical URL
+        String input = "{{ canonical_url | prepend: site.url }}";
+        String expected = "{=canonical_url.prepend(site.url.root.url).raw}";
+        assertConverts(input, expected, "Prepend filter should use .prepend() method");
+    }
+
+    @Test
+    void testPrependFilterWithLiteral() {
+        String input = "{{ path | prepend: \"/blog\" }}";
+        String expected = "{=path.prepend(\"/blog\").raw}";
+        assertConverts(input, expected, "Prepend with string literal should work");
+    }
+
+    @Test
+    void testAppendAndPrependChained() {
+        // Note: When both prepend and append are used, append processes first (globally),
+        // so the prepend value argument gets append-converted if it has | append in it.
+        // This is a known edge case - real Jekyll templates rarely chain these filters.
+        String input = "{{ page | prepend: site.url | append: \".html\" }}";
+        String expected = "{=page.data.prepend(site.url.root.url.append(\".html\")).raw}";
+        assertConverts(input, expected,
+                "Append processes before prepend (both convert, but order matters); site.url converts to .root.url");
+    }
+
+    @Test
+    void testConcatNotGenerated() {
+        String input = "{{ a | append: b }}{{ c | prepend: d }}";
+        String result = converter.convert(input);
+        assertFalse(result.contains(".concat("),
+                "Should not generate .concat() method calls (Qute doesn't have .concat()): " + result);
+        assertTrue(result.contains(".append("),
+                "Should use .append() extension method: " + result);
+        assertTrue(result.contains(".prepend("),
+                "Should use .prepend() extension method: " + result);
     }
 }

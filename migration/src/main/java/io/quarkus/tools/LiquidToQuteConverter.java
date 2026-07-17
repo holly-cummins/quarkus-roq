@@ -271,14 +271,14 @@ public class LiquidToQuteConverter {
         content = content.replaceAll(
                 "'(/[^']*)'\\s*\\|\\s*relative_url", "'$1'");
         content = content.replaceAll(
-                "([a-zA-Z_][a-zA-Z0-9_.\\-]*)\\s*\\|\\s*relative_url", "'/'.concat($1)");
+                "([a-zA-Z_][a-zA-Z0-9_.\\-]*)\\s*\\|\\s*relative_url", "$1.prepend('/')");
         content = content.replaceAll("\\s*\\|\\s*absolute_url", "");
         return content;
     }
 
     private String convertConcatenationFilters(String content) {
-        // Append filter: "text" | append: variable | append: "more" -> "text".concat(variable).concat("more")
-        // Uses .concat() instead of + because Qute's {#let} doesn't support the + operator.
+        // Append filter: "text" | append: variable -> "text".append(variable)
+        // Uses Jekyll filters extension method append() for string concatenation
         Pattern appendPattern = Pattern.compile("([^|{]+?)((?:\\s*\\|\\s*append:\\s*[^|}%]+)+)");
         Matcher appendMatcher = appendPattern.matcher(content);
         StringBuilder appendSb = new StringBuilder();
@@ -292,7 +292,8 @@ public class LiquidToQuteConverter {
             StringBuilder concatenation = new StringBuilder(base);
 
             while (appendValueMatcher.find()) {
-                concatenation.append(".concat(").append(appendValueMatcher.group(1).trim()).append(")");
+                // Generate: base.append(value) instead of base.concat(value)
+                concatenation.append(".append(").append(appendValueMatcher.group(1).trim()).append(")");
             }
 
             String remaining = appends.replaceAll("\\|\\s*append:\\s*[^|]+", "").trim();
@@ -309,7 +310,7 @@ public class LiquidToQuteConverter {
 
         String result = appendSb.toString();
         if (!result.equals(content)) {
-            conversionsApplied.add("Converted append filter to .concat()");
+            conversionsApplied.add("Converted append filter to .append() method");
             content = result;
         }
 
@@ -373,8 +374,9 @@ public class LiquidToQuteConverter {
             }
 
             String base = content.substring(baseStart, baseEnd);
-            content = content.substring(0, baseStart) + value + ".concat(" + base + ")" + content.substring(m.end());
-            conversionsApplied.add("Converted prepend filter to .concat()");
+            // Generate: base.prepend(value) instead of value.concat(base)
+            content = content.substring(0, baseStart) + base + ".prepend(" + value + ")" + content.substring(m.end());
+            conversionsApplied.add("Converted prepend filter to .prepend() method");
         }
 
         return content;
@@ -2534,8 +2536,11 @@ public class LiquidToQuteConverter {
 
     private String convertStandaloneSiteUrl(String content) {
         String original = content;
-        // Match site.url NOT followed by a dot (method call / property access)
-        content = content.replaceAll("\\bsite\\.url\\b(?!\\.)", "site.url.root.url");
+        // Match site.url NOT followed by a property access (but allow method calls like .append())
+        // Negative lookahead: (?!\.[a-zA-Z_]++(?!\()) means NOT followed by .identifier (unless it's a method call)
+        // This converts: site.url → site.url.root.url, site.url.append() → site.url.root.url.append()
+        // But NOT: site.url.someProperty → stays as site.url.someProperty
+        content = content.replaceAll("\\bsite\\.url\\b(?!\\.[a-zA-Z_]++(?!\\())", "site.url.root.url");
         if (!content.equals(original)) {
             conversionsApplied.add("Converted standalone site.url to site.url.root.url (Jekyll site.url is a base URL string)");
         }

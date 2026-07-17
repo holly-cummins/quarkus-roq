@@ -346,6 +346,43 @@ if [ -f "${project_dir}/templates/partials/head-csp.html" ]; then
 fi
 echo "✓ Applied .or('') workaround"
 
+# Fix blog-band tag sidebar: the converter produced broken Qute from PR #2853's
+# Liquid push/uniq/stats[0] pattern. Replace with the working tagsCount.sort('name')
+# pattern (same as tag-archive.html).
+if [ -f "${project_dir}/templates/partials/blog-band.html" ]; then
+    python3 -c "
+import re
+with open('${project_dir}/templates/partials/blog-band.html', 'r') as f:
+    content = f.read()
+old = '''    {#let tag_keys=str:split(\"\", \"\")}
+    {#for stats in site.collections.get('posts').tagsCount.orEmpty}
+     {#let tag_keys=tag_keys.push(stats.name.toLowerCase)}
+    {/let}{/for}
+    {#let tag_words=tag_keys | uniq.sort}
+    {#for tag in tag_words.orEmpty}
+     <a href=\"{=''}/blog/tag/{=tag.replace('.', '-').raw}\">{=tag.raw}</a></br>
+    {/for}
+  </div>
+</div>
+{/let}{/let}{/let}'''
+new = '''    {#let tag_words=site.collections.get('posts').tagsCount.sort('name')}
+    {#for stats in tag_words.orEmpty}
+    {#let tag=stats.name}
+    <a href=\"{=''}/blog/tag/{=tag.toLowerCase.replace('.', '-').raw}\">{=tag.toLowerCase.raw}</a></br>
+    {/let}{/for}
+  </div>
+</div>
+{/let}'''
+if old in content:
+    content = content.replace(old, new)
+    with open('${project_dir}/templates/partials/blog-band.html', 'w') as f:
+        f.write(content)
+    print('Fixed blog-band tag sidebar')
+else:
+    print('WARNING: blog-band tag sidebar pattern not found, skipping')
+"
+fi
+
 if [ "${RUN_TESTS}" = "true" ]; then
     # SSG build: render all pages like CI does (quarkus:run with BATCH=true)
     # This catches errors that dev mode misses since it renders every route.

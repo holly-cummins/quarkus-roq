@@ -93,9 +93,9 @@ rm -rf ${roq_tmp}
     -Dextensions="io.quarkiverse.roq:quarkus-roq-plugin-aliases:${ROQ_VERSION}")
 
 
-# Remove Jekyll-specific files
-rm ${project_dir}/Gemfile
-rm ${project_dir}/Gemfile.lock
+# Remove Jekyll-specific files (if they exist)
+rm -f ${project_dir}/Gemfile
+rm -f ${project_dir}/Gemfile.lock
 
 # Roq content lives in content
 mkdir -p ${project_dir}/content
@@ -174,8 +174,45 @@ fi
 mkdir ${project_dir}/public
 mv ${project_dir}/assets ${project_dir}/public
 
-# TODO do this more flexibly, with a search, since this is specific to quarkusio
-mv ${project_dir}/newsletter ${project_dir}/public
+# Move any remaining top-level directories to public/ (e.g., newsletter, downloads, archive).
+# These are typically static asset directories that Jekyll served directly.
+# Excludes: Jekyll reserved dirs, Roq dirs, build artifacts, and config files.
+# Safety check: warns if directory contains markdown/AsciiDoc files (might be content, not static assets).
+JEKYLL_RESERVED="_posts _data _layouts _includes _sass _site _plugins .jekyll-cache .bundle vendor"
+ROQ_DIRS="content templates web public data config src target .git .github .idea .vscode node_modules"
+CONFIG_FILES="Gemfile Gemfile.lock _config.yml pom.xml package.json"
+
+for dir in ${project_dir}/*/; do
+    [ -d "$dir" ] || continue
+    dirname=$(basename "$dir")
+
+    # Skip if in reserved lists
+    if echo " $JEKYLL_RESERVED $ROQ_DIRS " | grep -q " $dirname "; then
+        continue
+    fi
+
+    # Skip if it's a config file pattern (though we're checking dirs, be safe)
+    skip=false
+    for pattern in $CONFIG_FILES; do
+        if [[ "$dirname" == $pattern* ]]; then
+            skip=true
+            break
+        fi
+    done
+    [ "$skip" = true ] && continue
+
+    # Safety check: warn if directory contains markdown/AsciiDoc files with frontmatter
+    # (might be content that should go to content/, not static assets for public/)
+    if find "$dir" -maxdepth 2 -type f \( -name "*.md" -o -name "*.adoc" \) -exec grep -l "^---$" {} \; 2>/dev/null | head -1 | grep -q .; then
+        echo "WARNING: $dirname contains markdown/AsciiDoc files with frontmatter - might be content, not static assets"
+        echo "  Skipping automatic move. Review manually and move to content/ or public/ as appropriate."
+        continue
+    fi
+
+    # Move to public/ - this catches newsletter, downloads, archives, etc.
+    echo "Moving custom static directory: $dirname → public/$dirname"
+    mv "$dir" "${project_dir}/public/$dirname"
+done
 
 # Roq's static file handler silently renames files with parentheses
 # (e.g. content(1) → content-1) during the build, but does not update

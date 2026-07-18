@@ -177,18 +177,29 @@ mv ${project_dir}/assets ${project_dir}/public
 
 # Move any remaining top-level directories to public/ (e.g., newsletter, downloads, archive).
 # These are typically static asset directories that Jekyll served directly.
-# Excludes: Jekyll reserved dirs, Roq dirs, build artifacts, and config files.
+# Excludes: Jekyll reserved dirs (any starting with _), Roq dirs, build artifacts, and config files.
 # Safety check: warns if directory contains markdown/AsciiDoc files (might be content, not static assets).
-JEKYLL_RESERVED="_posts _data _layouts _includes _sass _site _plugins .jekyll-cache .bundle vendor"
 ROQ_DIRS="content templates web public data config src target .git .github .idea .vscode node_modules"
+BUILD_TOOLS="jekyll-container working-groups contributors tools"
 CONFIG_FILES="Gemfile Gemfile.lock _config.yml pom.xml package.json"
 
 for dir in ${project_dir}/*/; do
     [ -d "$dir" ] || continue
     dirname=$(basename "$dir")
 
-    # Skip if in reserved lists
-    if echo " $JEKYLL_RESERVED $ROQ_DIRS " | grep -q " $dirname "; then
+    # Skip any directory starting with underscore (Jekyll convention)
+    # This includes _layouts, _includes, _guides, _versions, _redirects, _generated-doc, etc.
+    if [[ "$dirname" == _* ]]; then
+        continue
+    fi
+
+    # Skip if in Roq directories list
+    if echo " $ROQ_DIRS " | grep -q " $dirname "; then
+        continue
+    fi
+
+    # Skip if in build tools list (JBang scripts, Docker configs, etc.)
+    if echo " $BUILD_TOOLS " | grep -q " $dirname "; then
         continue
     fi
 
@@ -202,10 +213,10 @@ for dir in ${project_dir}/*/; do
     done
     [ "$skip" = true ] && continue
 
-    # Safety check: warn if directory contains markdown/AsciiDoc files with frontmatter
+    # Safety check: skip if directory contains ANY markdown/AsciiDoc files
     # (might be content that should go to content/, not static assets for public/)
-    if find "$dir" -maxdepth 2 -type f \( -name "*.md" -o -name "*.adoc" \) -exec grep -l "^---$" {} \; 2>/dev/null | head -1 | grep -q .; then
-        echo "WARNING: $dirname contains markdown/AsciiDoc files with frontmatter - might be content, not static assets"
+    if find "$dir" -type f \( -name "*.md" -o -name "*.adoc" \) 2>/dev/null | head -1 | grep -q .; then
+        echo "WARNING: $dirname contains markdown/AsciiDoc files - might be content, not static assets"
         echo "  Skipping automatic move. Review manually and move to content/ or public/ as appropriate."
         continue
     fi

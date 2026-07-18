@@ -332,7 +332,7 @@ class LiquidToQuteConverterTest {
     @Test
     void testInclude() {
         String input = "{% include \"header.html\" %}";
-        String expected = "{#include partials/header.html /}";
+        String expected = "{#include partials/header.html _unisolated /}";
         assertConverts(input, expected, "Include should convert with partials/ prefix");
     }
 
@@ -1057,7 +1057,7 @@ class LiquidToQuteConverterTest {
     @Test
     void testIncludeWithLeadingSlashStripped() {
         String input = "{% include /templates/secondary-page-title-band.html %}";
-        String expected = "{#include partials/templates/secondary-page-title-band.html /}";
+        String expected = "{#include partials/templates/secondary-page-title-band.html _unisolated /}";
         assertConverts(input, expected,
                 "Leading slash in include path should be stripped to avoid double-slash in partials/ prefix");
     }
@@ -1065,7 +1065,7 @@ class LiquidToQuteConverterTest {
     @Test
     void testIncludePathWithPageNotMangled() {
         String input = "{% include share-page.html title=post.title url=post.url %}";
-        String expected = "{#include partials/share-page.html title=post.title url=post.url /}";
+        String expected = "{#include partials/share-page.html title=post.title url=post.url _unisolated /}";
         assertConverts(input, expected,
                 "Include paths containing '-page.' should not be treated as page field access");
     }

@@ -218,6 +218,10 @@ fi
 
 ${tools_dir}/roq-it-jekyll ${project_dir}
 
+# Restore project groupId/artifactId — roq create generates placeholder values
+sed_inplace 's|<groupId>io.acme</groupId>|<groupId>io.quarkusio</groupId>|' ${project_dir}/pom.xml
+sed_inplace 's|<artifactId>roq-create-[^<]*</artifactId>|<artifactId>quarkusio-website</artifactId>|' ${project_dir}/pom.xml
+
 # Amend converter-generated SearchConfig: use ScriptMode enum instead of String
 # so it's compatible with PR #2849's SearchScriptDownloader
 SEARCH_CONFIG=$(find ${project_dir}/src/main/java -path "*/search/config/SearchConfig.java" 2>/dev/null)

@@ -104,6 +104,11 @@ mkdir -p ${project_dir}/content
 mv ${project_dir}/*md ${project_dir}/content/
 mv ${project_dir}/*.adoc ${project_dir}/content/ 2>/dev/null || true
 
+# Move project files back to root (not site content)
+for f in README.md CONTRIBUTING.md CLAUDE.md LICENSE.md; do
+    [ -f "${project_dir}/content/$f" ] && mv "${project_dir}/content/$f" "${project_dir}/$f"
+done
+
 
 mkdir -p ${project_dir}/templates
 

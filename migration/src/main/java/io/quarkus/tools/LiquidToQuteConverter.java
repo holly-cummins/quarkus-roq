@@ -2724,17 +2724,23 @@ public class LiquidToQuteConverter {
     }
 
     private String collapseTagsCountExtractionPattern(String content) {
-        // Detect the push/uniq pattern from quarkusio/quarkusio.github.io#2853:
-        //   {#let TAG_KEYS=str:split("", "")}
-        //   {#for STATS in ...tagsCount...}{#let TAG_KEYS=TAG_KEYS.push(STATS.name...)}{/let}{/for}
-        //   {#let TAG_WORDS=TAG_KEYS | uniq.sort}
-        // Collapse to:
-        //   {#let TAG_WORDS=...tagsCount.distinct.sort('name')}
-        //   {#for STATS in TAG_WORDS...}
+        // Detect the push/uniq pattern and collapse to tagsCount.distinct.sort('name').
+        // Two forms exist in the wild:
+        //   Form A (single-step push):
+        //     {#let TAG_KEYS=str:split("", "")}
+        //     {#for STATS in ...tagsCount...}{#let TAG_KEYS=TAG_KEYS.push(STATS.name...)}{/let}{/for}
+        //     {#let TAG_WORDS=TAG_KEYS.distinct.sort}
+        //   Form B (two-step push via intermediate variable):
+        //     {#let TAG_KEYS=str:split("", "")}
+        //     {#for STATS in ...tagsCount...}
+        //       {#let TEMP=STATS.name...}{#let TAG_KEYS=TAG_KEYS.push(TEMP)}{/let}{/let}
+        //     {/for}
+        //     {#let TAG_WORDS=TAG_KEYS.distinct.sort}
 
         String original = content;
 
         while (true) {
+            // Form A: direct push of STATS.name
             Pattern pattern = Pattern.compile(
                     "\\{#let (\\w+)=str:split\\(\"\", \"\"\\)\\}" +
                             "\\s*\\{#for (\\w+) in ([^}]*tagsCount[^}]*)\\}" +
@@ -2742,14 +2748,29 @@ public class LiquidToQuteConverter {
                             "\\s*\\{/let\\}\\{/for\\}" +
                             "\\s*\\{#let (\\w+)=\\1(?:\\.distinct| \\| uniq)?(?:\\.sort)?\\}");
 
+            // Form B: intermediate {#let TEMP=STATS.name...}{#let ACCUM=ACCUM.push(TEMP)}
+            Pattern patternB = Pattern.compile(
+                    "\\{#let (\\w+)=str:split\\(\"\", \"\"\\)\\}" +
+                            "\\s*\\{#for (\\w+) in ([^}]*tagsCount[^}]*)\\}" +
+                            "\\s*\\{#let (\\w+)=\\2\\.name([^}]*)\\}" +
+                            "\\s*\\{#let \\1=\\1\\.push\\(\\4\\)\\}" +
+                            "\\s*\\{/let\\}\\{/let\\}\\{/for\\}" +
+                            "\\s*\\{#let (\\w+)=\\1(?:\\.distinct| \\| uniq)?(?:\\.sort)?\\}");
+
             Matcher m = pattern.matcher(content);
+            Matcher mB = patternB.matcher(content);
+            boolean isFormB = false;
             if (!m.find()) {
-                break;
+                if (!mB.find()) {
+                    break;
+                }
+                m = mB;
+                isFormB = true;
             }
 
             String loopVar = m.group(2); // stats
             String tagsCountExpr = m.group(3); // site.collections.get('posts').tagsCount.orEmpty
-            String finalVar = m.group(5); // tag_words
+            String finalVar = isFormB ? m.group(6) : m.group(5); // tag_words
 
             String collectionExpr = tagsCountExpr.replaceFirst("\\.orEmpty$", "");
 
@@ -2778,9 +2799,10 @@ public class LiquidToQuteConverter {
 
                 String afterFor = content.substring(iterEnd + "{/for}".length());
 
-                // Remove 2 {/let} closers that matched the collapsed {#let} opens.
-                // They may not be adjacent — HTML like </div> can sit between them.
-                for (int i = 0; i < 2; i++) {
+                // Remove {/let} closers that matched the collapsed {#let} opens.
+                // Form A has 2 (init + final), Form B has 3 (init + intermediate + final).
+                int letsToRemove = isFormB ? 3 : 2;
+                for (int i = 0; i < letsToRemove; i++) {
                     int idx = afterFor.indexOf("{/let}");
                     if (idx >= 0) {
                         afterFor = afterFor.substring(0, idx) + afterFor.substring(idx + "{/let}".length());

@@ -321,9 +321,9 @@ if [ "${RUN_TESTS}" = "true" ]; then
 
     # Kill anything already on port 8090 — be emphatic to avoid stale servers
     # from prior runs returning cached error pages
-    lsof -ti:8090 | xargs kill -9 2>/dev/null || true
+    { lsof -ti:8090 || fuser 8090/tcp 2>/dev/null; } 2>/dev/null | xargs kill -9 2>/dev/null || true
     sleep 2
-    lsof -ti:8090 | xargs kill -9 2>/dev/null || true
+    { lsof -ti:8090 || fuser 8090/tcp 2>/dev/null; } 2>/dev/null | xargs kill -9 2>/dev/null || true
     sleep 1
 
     # Start dev server in background on port 8090

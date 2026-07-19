@@ -1799,6 +1799,27 @@ class LiquidToQuteConverterTest {
     }
 
     @Test
+    void testSiteTagsExtractionCollapseWithIntermediateVariable() {
+        // Two-step push pattern: intermediate assign for downcase, then push
+        String input = "{% assign tag_keys = \"\" | split: \"\" %}" +
+                "{% for stats in site.tags %}" +
+                "{% assign tag_lower = stats[0] | downcase %}" +
+                "{% assign tag_keys = tag_keys | push: tag_lower %}" +
+                "{% endfor %}" +
+                "{% assign tag_words = tag_keys | uniq | sort %}" +
+                "{% for tag in tag_words %}" +
+                "<a href=\"/tag/{{ tag }}\">{{ tag }}</a>" +
+                "{% endfor %}";
+        String result = converter.convert(input);
+        assertTrue(result.contains("tagsCount.distinct.sort('name')"),
+                "Two-step push pattern should collapse to tagsCount.distinct.sort('name'): " + result);
+        assertFalse(result.contains(".push("),
+                "push pattern should not appear in result: " + result);
+        assertFalse(result.contains("tag_keys"),
+                "Intermediate accumulator should be eliminated: " + result);
+    }
+
+    @Test
     void testAppendFilterSingleVariable() {
         // Real example from quarkusio base.html hreflang
         String input = "{{ language.url | append: path }}";

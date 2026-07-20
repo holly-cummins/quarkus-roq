@@ -97,6 +97,7 @@ rm -rf ${roq_tmp}
 rm -f ${project_dir}/Gemfile
 rm -f ${project_dir}/Gemfile.lock
 rm -rf ${project_dir}/jekyll-container
+rm -rf ${project_dir}/.jekyll-cache
 
 # Roq content lives in content
 mkdir -p ${project_dir}/content

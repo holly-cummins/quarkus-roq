@@ -172,7 +172,7 @@ if [ -n "$LIQUID_IN_CSS" ]; then
 fi
 
 ## Assets maps to public/assets in roq
-mkdir ${project_dir}/public
+mkdir -p ${project_dir}/public
 mv ${project_dir}/assets ${project_dir}/public
 
 # Move any remaining top-level directories to public/ (e.g., newsletter, downloads, archive).

@@ -39,9 +39,10 @@ export project_dir=$1
 export tools_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 export tmp_dir=~/tmp
 
-if [ "$RESET_MODE" = "true" ]; then
 (
   cd ${project_dir}
+
+if [ "$RESET_MODE" = "true" ]; then
 
   # Fetch latest from all remotes before resetting
   git fetch origin
@@ -57,14 +58,7 @@ if [ "$RESET_MODE" = "true" ]; then
   rm -rf target/ || true
   rm -rf _site/
 
-  # Cherry-pick unmerged branch commits to validate conversion handles real changes.
-  # Merged PRs (now in upstream/main): ci-flexible-site-dir (#2740),
-  # data-search-api-server cleanup, security-test (#2787), guide-icons (#2800),
-  # duplicate-title (#2803), strings-filter (#2812), asciidoc-extensions (#2808),
-  # regex-filter (#2809).
-
-  # --- CI infrastructure ---
-
+fi
 
   # --- Conversion fixes ---
 
@@ -81,7 +75,6 @@ if [ "$RESET_MODE" = "true" ]; then
 
 )
 
-fi
 
 if [ ! -d "${project_dir}/_layouts" ]; then
     echo "ERROR: No _layouts/ found in ${project_dir} — project appears already converted."
@@ -276,7 +269,7 @@ sed_inplace '/<profiles>/a\
 
 
 # TODO temporary workaround pending https://github.com/quarkusio/quarkus/pull/55452
-# (merged to main but not yet backported to 3.37.x/3.38.x)
+# (merged to main but not yet backported to 3.37.x/3.39.x)
 # Adds .or('') to template expressions that access optional guide attributes
 # (status, keywords, origin, all_categories) to prevent Qute NOT_FOUND rendering.
 # Applied as sed patches rather than cherry-pick so it works without --commit.

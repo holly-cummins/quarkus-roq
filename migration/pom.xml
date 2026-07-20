@@ -55,25 +55,6 @@
             <version>2.22.1</version>
         </dependency>
 
-        <!-- AsciidoctorJ for asciidoc extension Java implementations -->
-        <dependency>
-            <groupId>org.asciidoctor</groupId>
-            <artifactId>asciidoctorj</artifactId>
-            <version>3.0.1</version>
-        </dependency>
-
-        <!-- Qute + Vert.x for compiling JekyllFiltersExtension (copied into converted sites) -->
-        <dependency>
-            <groupId>io.quarkus</groupId>
-            <artifactId>quarkus-qute</artifactId>
-            <version>3.35.1</version>
-        </dependency>
-        <dependency>
-            <groupId>io.vertx</groupId>
-            <artifactId>vertx-core</artifactId>
-            <version>4.5.13</version>
-        </dependency>
-
         <!-- Testing -->
         <dependency>
             <groupId>org.junit.jupiter</groupId>

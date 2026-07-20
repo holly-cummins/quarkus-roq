@@ -24,6 +24,12 @@ import io.quarkus.qute.Template;
  */
 public class JekyllConfigConverter {
 
+    public static final String COLLECTIONS = "collections";
+    public static final String DEFAULT_COLLECTION_NAME = "posts";
+    public static final String APPLICATION_PROPERTIES = "application.properties";
+    public static final String CONFIG_DIR = "config";
+    public static final String DATA_DIR = "data";
+    public static final String SITE_CONFIG_FILE = "siteConfig.yml";
     private final YAMLMapper yamlMapper;
     private final ObjectMapper objectMapper;
     private boolean strictProperties;
@@ -176,9 +182,9 @@ public class JekyllConfigConverter {
         String cnameContent = Files.exists(cnameFile) ? Files.readString(cnameFile) : null;
 
         // Create config/application.properties
-        Path configDir = projectDir.resolve("config");
+        Path configDir = projectDir.resolve(CONFIG_DIR);
         Files.createDirectories(configDir);
-        Path propsFile = configDir.resolve("application.properties");
+        Path propsFile = configDir.resolve(APPLICATION_PROPERTIES);
 
         JsonNode config = yamlMapper.readTree(configYaml);
 
@@ -224,9 +230,9 @@ public class JekyllConfigConverter {
 
         // Create data/siteConfig.yml
         String siteConfigYaml = createSiteConfigYaml(config, cnameContent);
-        Path dataDir = projectDir.resolve("data");
+        Path dataDir = projectDir.resolve(DATA_DIR);
         Files.createDirectories(dataDir);
-        Path siteConfigFile = dataDir.resolve("siteConfig.yml");
+        Path siteConfigFile = dataDir.resolve(SITE_CONFIG_FILE);
         Files.writeString(siteConfigFile, siteConfigYaml);
 
         // Move Jekyll collection directories (_<name>) to Roq content/<name>
@@ -247,16 +253,16 @@ public class JekyllConfigConverter {
     }
 
     void moveCollectionDirectories(Path projectDir, JsonNode config) throws IOException {
-        if (!config.has("collections")) {
+        if (!config.has(COLLECTIONS)) {
             return;
         }
-        JsonNode collections = config.get("collections");
+        JsonNode collections = config.get(COLLECTIONS);
         if (!collections.isObject()) {
             return;
         }
         Path contentDir = projectDir.resolve("content");
         collections.fieldNames().forEachRemaining(name -> {
-            if ("posts".equals(name)) {
+            if (DEFAULT_COLLECTION_NAME.equals(name)) {
                 return;
             }
             Path source = projectDir.resolve("_" + name);
@@ -401,12 +407,12 @@ public class JekyllConfigConverter {
     private void addCollectionProperties(JsonNode config, Properties properties) {
         Map<String, String> permalinks = getCollectionPermalinks(config);
 
-        if (config != null && config.has("collections")) {
-            JsonNode collections = config.get("collections");
+        if (config != null && config.has(COLLECTIONS)) {
+            JsonNode collections = config.get(COLLECTIONS);
             if (collections.isObject()) {
                 collections.fields().forEachRemaining(entry -> {
                     String name = entry.getKey();
-                    if ("posts".equals(name)) {
+                    if (DEFAULT_COLLECTION_NAME.equals(name)) {
                         return;
                     }
                     JsonNode collectionConfig = entry.getValue();
@@ -470,10 +476,10 @@ public class JekyllConfigConverter {
     private static final Set<String> SKIP_ESCAPE_COLLECTIONS = Set.of("redirects");
 
     private void addEscapedPages(JsonNode config, Properties properties) {
-        if (config == null || !config.has("collections")) {
+        if (config == null || !config.has(COLLECTIONS)) {
             return;
         }
-        JsonNode collections = config.get("collections");
+        JsonNode collections = config.get(COLLECTIONS);
         if (!collections.isObject()) {
             return;
         }

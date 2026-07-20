@@ -96,6 +96,7 @@ rm -rf ${roq_tmp}
 # Remove Jekyll-specific files (if they exist)
 rm -f ${project_dir}/Gemfile
 rm -f ${project_dir}/Gemfile.lock
+rm -f ${project_dir}/jekyll-container
 
 # Roq content lives in content
 mkdir -p ${project_dir}/content

@@ -214,10 +214,12 @@ fi
 
 ### Convert!
 
-${tools_dir}/roq-it-jekyll ${project_dir}
+# Skip the SSG build inside roq-it-jekyll — we run it below after amending SearchConfig
+SKIP_SSG=true ${tools_dir}/roq-it-jekyll ${project_dir}
 
 # Amend converter-generated SearchConfig: use ScriptMode enum instead of String
-# so it's compatible with PR #2849's SearchScriptDownloader
+# so it's compatible with PR #2849's SearchScriptDownloader.
+# Must happen before the SSG build so SearchScriptDownloader compiles.
 SEARCH_CONFIG=$(find ${project_dir}/src/main/java -path "*/search/config/SearchConfig.java" 2>/dev/null)
 SCRIPT_MODE=$(find ${project_dir}/src/main/java -name "ScriptMode.java" 2>/dev/null)
 if [ -n "$SEARCH_CONFIG" ] && [ -n "$SCRIPT_MODE" ]; then
@@ -227,6 +229,14 @@ if [ -n "$SEARCH_CONFIG" ] && [ -n "$SCRIPT_MODE" ]; then
 import ${SCRIPT_MODE_PKG}.ScriptMode;" "$SEARCH_CONFIG"
     echo "Amended SearchConfig: String scriptMode() → ScriptMode scriptMode()"
 fi
+
+# Run SSG build now that SearchConfig types are correct.
+# SearchScriptDownloader downloads search-wc.js to public/ during this build.
+echo "Generating static site..."
+(
+    cd ${project_dir}
+    QUARKUS_ROQ_GENERATOR_BATCH=true mvn -B package quarkus:run -DskipTests 2>&1
+) || echo "WARNING: SSG build failed (may need a profile to exclude conflicting pages)"
 
 
 

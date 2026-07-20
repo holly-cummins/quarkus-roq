@@ -72,15 +72,34 @@ mvn -f ${tools_dir}/pom.xml -q exec:java -Dexec.mainClass="io.quarkus.tools.Jeky
 ## Generate Roq project skeleton via roq create
 mkdir -p ${tmp_dir}
 
+# Derive artifact ID from Jekyll config title/name
+# Extract title from _config.yml and convert to kebab-case for artifact ID
+if [ -f "${project_dir}/_config.yml" ]; then
+    # Try to get title or name from config
+    artifact_id=$(grep -E "^(title|name):" "${project_dir}/_config.yml" | head -1 | sed 's/^[^:]*: *//' | sed 's/["'\'']//g' | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/-/g' | sed 's/--*/-/g' | sed 's/^-//; s/-$//')
+
+    # Fallback to directory name if no title found
+    if [ -z "$artifact_id" ]; then
+        artifact_id=$(basename "${project_dir}" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/-/g')
+    fi
+else
+    # No config file, use directory name
+    artifact_id=$(basename "${project_dir}" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/-/g')
+fi
+
 # Generate pom.xml via jbang + roq create in a temp directory
+# Use roq-create-$$ for temp dir (unique per process), but use artifact_id for the actual project name
 roq_tmp="${tmp_dir}/roq-create-$$"
 rm -rf ${roq_tmp}
 # Use local jar for 999-SNAPSHOT to avoid downloading from Maven Central
 if [ "${ROQ_VERSION}" = "999-SNAPSHOT" ] && [ -f "${tools_dir}/../roq-cli/target/quarkus-roq-cli-999-SNAPSHOT-runner.jar" ]; then
-    (cd ${tmp_dir} && jbang "${tools_dir}/../roq-cli/target/quarkus-roq-cli-999-SNAPSHOT-runner.jar" create "roq-create-$$" --no-code -x theme:base --roq-version ${ROQ_VERSION})
+    (cd ${tmp_dir} && jbang "${tools_dir}/../roq-cli/target/quarkus-roq-cli-999-SNAPSHOT-runner.jar" create "${artifact_id}" --no-code -x theme:base --roq-version ${ROQ_VERSION})
 else
-    (cd ${tmp_dir} && jbang roq@quarkiverse/quarkus-roq create "roq-create-$$" --no-code -x theme:base --roq-version ${ROQ_VERSION})
+    (cd ${tmp_dir} && jbang roq@quarkiverse/quarkus-roq create "${artifact_id}" --no-code -x theme:base --roq-version ${ROQ_VERSION})
 fi
+
+# Move the created project to our temp location and extract pom.xml
+mv "${tmp_dir}/${artifact_id}" ${roq_tmp}
 cp ${roq_tmp}/pom.xml ${project_dir}/pom.xml
 rm -rf ${roq_tmp}
 

@@ -5,6 +5,8 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.util.List;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -16,6 +18,7 @@ class LiquidToQuteConverterTest {
     @BeforeEach
     void setUp() {
         converter = new LiquidToQuteConverter();
+        converter.setConfigMappingSections(List.of("arbitrary"));
     }
 
     private void assertConverts(String input, String expected, String message) {
@@ -1131,26 +1134,26 @@ class LiquidToQuteConverterTest {
 
     @Test
     void testSiteHyphenatedPropertyConvertsToCamelCase() {
-        String input = "{=site.search.cached-script-file}";
-        String expected = "{=cdi:searchConfig.cachedScriptFile.raw}";
+        String input = "{=site.arbitrary.cached-script-file}";
+        String expected = "{=cdi:arbitraryConfig.cachedScriptFile.raw}";
         assertConverts(input, expected,
-                "Hyphenated search config keys should convert to ConfigMapping with camelCase");
+                "Hyphenated arbitrary config keys should convert to ConfigMapping with camelCase");
     }
 
     @Test
     void testSiteNestedHyphenatedChain() {
-        String input = "{% assign x = site.search.script-mode %}";
+        String input = "{% assign x = site.arbitrary.script-mode %}";
         String result = converter.convert(input);
-        assertTrue(result.contains("cdi:searchConfig.scriptMode"),
+        assertTrue(result.contains("cdi:arbitraryConfig.scriptMode"),
                 "Nested hyphenated keys should convert to ConfigMapping with camelCase: " + result);
     }
 
     @Test
     void testSiteHyphenatedPropertyWithRelativeUrl() {
-        String input = "{% assign search_script_src = site.search.cached-script-file | relative_url %}";
+        String input = "{% assign arbitrary_script_src = site.arbitrary.cached-script-file | relative_url %}";
         String result = converter.convert(input);
-        assertTrue(result.contains("cdi:searchConfig.cachedScriptFile"),
-                "Hyphenated search config key with relative_url filter should convert to ConfigMapping: " + result);
+        assertTrue(result.contains("cdi:arbitraryConfig.cachedScriptFile"),
+                "Hyphenated arbitrary config key with relative_url filter should convert to ConfigMapping: " + result);
         assertFalse(result.contains("cachedScriptCdi"),
                 "CamelCase should not bleed into cdi: prefix: " + result);
     }
@@ -1181,26 +1184,26 @@ class LiquidToQuteConverterTest {
 
     @Test
     void testCustomFieldInConditional() {
-        String input = "{% if page.search_wc %}...{% endif %}";
-        String expected = "{#if page.data.search_wc}...{/if}";
+        String input = "{% if page.arbitrary_wc %}...{% endif %}";
+        String expected = "{#if page.data.arbitrary_wc}...{/if}";
         assertConverts(input, expected,
                 "Custom fields in conditionals should not get ?? (breaks JsonObject key lookup)");
     }
 
     @Test
-    void testSiteSearchConvertsToCdi() {
-        String input = "{{site.search.host}}";
-        String expected = "{=cdi:searchConfig.host.raw}";
+    void testSitearbitraryConvertsToCdi() {
+        String input = "{{site.arbitrary.host}}";
+        String expected = "{=cdi:arbitraryConfig.host.raw}";
         assertConverts(input, expected,
-                "site.search properties should convert to ConfigMapping CDI reference");
+                "site.arbitrary properties should convert to ConfigMapping CDI reference");
     }
 
     @Test
-    void testSiteSearchScriptMode() {
-        String input = "{% if site.search.script-mode == 'direct' %}...{% endif %}";
-        String expected = "{#if cdi:searchConfig.scriptMode == 'direct'}...{/if}";
+    void testSitearbitraryScriptMode() {
+        String input = "{% if site.arbitrary.script-mode == 'direct' %}...{% endif %}";
+        String expected = "{#if cdi:arbitraryConfig.scriptMode == 'direct'}...{/if}";
         assertConverts(input, expected,
-                "site.search.script-mode should convert to camelCase ConfigMapping CDI reference");
+                "site.arbitrary.script-mode should convert to camelCase ConfigMapping CDI reference");
     }
 
     @Test
@@ -1577,12 +1580,13 @@ class LiquidToQuteConverterTest {
         // Variable assigned inside a conditional, then an include appears after
         // the scope. The include may reference the variable (Liquid assign is global)
         // so the variable needs mutable treatment.
-        String input = "{% if mode %}{% assign search_script = host %}{% assign search_src = search_script %}{% endif %}" +
+        String input = "{% if mode %}{% assign arbitrary_script = host %}{% assign arbitrary_src = arbitrary_script %}{% endif %}"
+                +
                 "{% include head-csp.html %}";
         String result = converter.convert(input);
-        assertTrue(result.contains("_m.assign('search_script',"),
+        assertTrue(result.contains("_m.assign('arbitrary_script',"),
                 "Assign before include should use mutable map: " + result);
-        assertTrue(result.contains("_m.assign('search_src',"),
+        assertTrue(result.contains("_m.assign('arbitrary_src',"),
                 "Second assign before include should use mutable map: " + result);
     }
 

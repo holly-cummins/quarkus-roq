@@ -18,7 +18,8 @@ public class LiquidToQuteConverter {
     private final List<String> conversionsApplied = new ArrayList<>();
     private final Map<String, String> splitDelimHoists = new HashMap<>();
     private boolean convertingPartials;
-    private List<String> configMappingSections = List.of("search");
+    // Config that should be references from application.properties, not the data folder
+    private List<String> configMappingSections = List.of();
 
     public LiquidToQuteConverter() {
         this(true);

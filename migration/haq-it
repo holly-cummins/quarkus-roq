@@ -76,18 +76,8 @@ if [ "$RESET_MODE" = "true" ]; then
   # since the branch gets force-pushed)
   git cherry-pick upstream/main..holly/roq-extensions || git cherry-pick --abort || true
 
-  # Fix RedirectTest regex for Roq 2.1.6 single-quoted redirect URLs (PR #2855)
-  # https://github.com/quarkusio/quarkusio.github.io/pull/2855
-  git cherry-pick 724195f44a3edada92d90a8e5146af9c6b2777f7 || git cherry-pick --abort || true
-
-  # PR #2849 test files use assertj which isn't in the generated pom.xml —
-  # delete them to avoid compilation errors (both old and new package paths)
-  rm -rf src/test/java/io/quarkus/tools/migration/asciidoc/
-  rm -rf src/test/java/io/quarkusio/tools/migration/asciidoc/
 
   # Profile-based search config (holly/use-profile-for-roq-build): now merged as #2843.
-
-
 
 )
 

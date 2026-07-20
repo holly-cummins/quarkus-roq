@@ -464,7 +464,7 @@ if [ "${LIVE_MODE}" = "true" ]; then
         cd ${project_dir}
         mvn quarkus:dev
     )
-else
+elif [ "${SKIP_SSG}" != "true" ]; then
     echo "Generating static site..."
     (
         cd ${project_dir}

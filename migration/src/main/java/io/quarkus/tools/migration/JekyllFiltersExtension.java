@@ -27,8 +27,9 @@ public class JekyllFiltersExtension {
      * Null-safe get for JsonObject. Prevents NPE when key is null (e.g. from ?? operator).
      */
     static Object get(JsonObject obj, String key) {
-        if (obj == null || key == null || key.isEmpty())
+        if (obj == null || key == null || key.isEmpty()) {
             return null;
+        }
         return obj.getValue(key);
     }
 
@@ -42,8 +43,9 @@ public class JekyllFiltersExtension {
             Object item = array.getValue(i);
             if (item instanceof JsonObject obj) {
                 Object propValue = obj.getValue(property);
-                if (propValue != null && propValue.toString().equals(value))
+                if (propValue != null && propValue.toString().equals(value)) {
                     result.add(obj);
+                }
             }
         }
         return result;
@@ -78,16 +80,18 @@ public class JekyllFiltersExtension {
      * Usage in Qute: {myArray.groupBy("type")}
      */
     static JsonArray groupBy(JsonArray items, String property) {
-        if (items == null)
+        if (items == null) {
             return new JsonArray();
+        }
         Map<String, JsonArray> groups = new LinkedHashMap<>();
         for (int i = 0; i < items.size(); i++) {
             Object item = items.getValue(i);
             String key = "";
             if (item instanceof JsonObject obj) {
                 Object val = obj.getValue(property);
-                if (val != null)
+                if (val != null) {
                     key = val.toString();
+                }
             }
             groups.computeIfAbsent(key, k -> new JsonArray()).add(item);
         }
@@ -120,8 +124,9 @@ public class JekyllFiltersExtension {
      * Usage in Qute: {=myString.escapeHtml}
      */
     static String escapeHtml(String str) {
-        if (str == null)
+        if (str == null) {
             return "";
+        }
         return str.replace("&", "&amp;")
                 .replace("<", "&lt;")
                 .replace(">", "&gt;")
@@ -134,8 +139,9 @@ public class JekyllFiltersExtension {
      * Usage in Qute: {myString.capitalize}
      */
     static String capitalize(String str) {
-        if (str == null || str.isEmpty())
+        if (str == null || str.isEmpty()) {
             return str;
+        }
         return Character.toUpperCase(str.charAt(0)) + str.substring(1);
     }
 
@@ -144,10 +150,12 @@ public class JekyllFiltersExtension {
      * Usage in Qute: {myString.truncate(280)}
      */
     static String truncate(String str, int length) {
-        if (str == null)
+        if (str == null) {
             return "";
-        if (str.length() <= length)
+        }
+        if (str.length() <= length) {
             return str;
+        }
         return str.substring(0, length) + "...";
     }
 
@@ -156,8 +164,9 @@ public class JekyllFiltersExtension {
      * Usage in Qute: {myList.sort('title')}
      */
     static List<?> sort(List<?> list, String property) {
-        if (list == null || list.isEmpty())
+        if (list == null || list.isEmpty()) {
             return List.of();
+        }
         List<Object> sorted = new ArrayList<>(list);
         sorted.sort(propertyComparator(property));
         return sorted;
@@ -165,8 +174,9 @@ public class JekyllFiltersExtension {
 
     /** Jekyll's "sort" filter for JsonArray. */
     static JsonArray sort(JsonArray array, String property) {
-        if (array == null || array.isEmpty())
+        if (array == null || array.isEmpty()) {
             return new JsonArray();
+        }
         List<Object> sorted = new ArrayList<>(array.getList());
         sorted.sort(propertyComparator(property));
         return new JsonArray(sorted);
@@ -174,8 +184,9 @@ public class JekyllFiltersExtension {
 
     /** Jekyll's "reverse" filter for JsonArray. */
     static JsonArray reverse(JsonArray array) {
-        if (array == null || array.isEmpty())
+        if (array == null || array.isEmpty()) {
             return new JsonArray();
+        }
         List<Object> reversed = new ArrayList<>(array.getList());
         Collections.reverse(reversed);
         return new JsonArray(reversed);
@@ -189,13 +200,15 @@ public class JekyllFiltersExtension {
     @TemplateExtension(namespace = "list")
     static List<Object> whereNot(Iterable<?> items, String property) {
         List<Object> result = new ArrayList<>();
-        if (items == null)
+        if (items == null) {
             return result;
+        }
         for (Object item : items) {
             try {
                 Object value = getProperty(item, property);
-                if (value == null || Boolean.FALSE.equals(value) || "false".equals(value.toString()))
+                if (value == null || Boolean.FALSE.equals(value) || "false".equals(value.toString())) {
                     result.add(item);
+                }
             } catch (Exception e) {
                 result.add(item);
             }
@@ -205,16 +218,18 @@ public class JekyllFiltersExtension {
 
     @TemplateExtension(namespace = "list")
     static Object whereExp(Iterable<?> items, String loopVar, Object conditionsObj) {
-        if (items == null)
+        if (items == null) {
             return new ArrayList<>();
+        }
 
         List<String> conditions;
         if (conditionsObj instanceof String s) {
             conditions = List.of(s);
         } else if (conditionsObj instanceof Iterable<?> iter) {
             conditions = new ArrayList<>();
-            for (Object o : iter)
+            for (Object o : iter) {
                 conditions.add(o.toString());
+            }
         } else {
             conditions = List.of(conditionsObj.toString());
         }
@@ -231,8 +246,9 @@ public class JekyllFiltersExtension {
                     break;
                 }
             }
-            if (matches)
+            if (matches) {
                 result.add(item);
+            }
         }
         return isJsonArray ? new JsonArray(result) : result;
     }
@@ -257,8 +273,9 @@ public class JekyllFiltersExtension {
     }
 
     private static boolean compareValues(String left, String op, String right) {
-        if (left == null)
+        if (left == null) {
             return false;
+        }
         int cmp = left.compareTo(right);
         return switch (op) {
             case "==" -> cmp == 0;
@@ -293,10 +310,12 @@ public class JekyllFiltersExtension {
 
     private static String extractProperty(Object obj, String property) {
         Object val = getProperty(obj, property);
-        if (val != null)
+        if (val != null) {
             return val.toString();
-        if (obj != null && !(obj instanceof JsonObject) && !(obj instanceof Map))
+        }
+        if (obj != null && !(obj instanceof JsonObject) && !(obj instanceof Map)) {
             return obj.toString();
+        }
         return null;
     }
 
@@ -304,23 +323,27 @@ public class JekyllFiltersExtension {
         return (a, b) -> {
             String va = extractProperty(a, property);
             String vb = extractProperty(b, property);
-            if (va == null)
+            if (va == null) {
                 return vb == null ? 0 : 1;
-            if (vb == null)
+            }
+            if (vb == null) {
                 return -1;
+            }
             return va.compareToIgnoreCase(vb);
         };
     }
 
     static <T> List<T> distinct(List<T> list) {
-        if (list == null || list.isEmpty())
+        if (list == null || list.isEmpty()) {
             return List.of();
+        }
         return list.stream().distinct().toList();
     }
 
     static JsonArray distinct(JsonArray array) {
-        if (array == null || array.isEmpty())
+        if (array == null || array.isEmpty()) {
             return new JsonArray();
+        }
         List<Object> seen = new ArrayList<>();
         for (int i = 0; i < array.size(); i++) {
             Object val = array.getValue(i);
@@ -349,27 +372,33 @@ public class JekyllFiltersExtension {
      */
     @SuppressWarnings("unchecked")
     static JsonArray mergeTypes(JsonObject index, String type) {
-        if (index == null || type == null || type.isEmpty())
+        if (index == null || type == null || type.isEmpty()) {
             return null;
+        }
         JsonArray result = new JsonArray();
         for (String key : index.fieldNames()) {
             Map<String, Object> sourceMap = toMap(index.getValue(key));
-            if (sourceMap == null)
+            if (sourceMap == null) {
                 continue;
+            }
             Map<String, Object> typesMap = toMap(sourceMap.get("types"));
-            if (typesMap == null)
+            if (typesMap == null) {
                 continue;
+            }
             Object items = typesMap.get(type);
             if (items instanceof JsonArray arr) {
-                for (Object item : arr)
+                for (Object item : arr) {
                     result.add(toJsonObject(item));
+                }
             } else if (items instanceof List<?> list) {
-                for (Object item : list)
+                for (Object item : list) {
                     result.add(toJsonObject(item));
+                }
             }
         }
-        if (result.isEmpty())
+        if (result.isEmpty()) {
             return null;
+        }
         List<Object> sorted = new ArrayList<>(result.getList());
         sorted.sort(Comparator.comparing(
                 o -> o instanceof JsonObject jo ? jo.getString("title", "") : "",
@@ -401,8 +430,9 @@ public class JekyllFiltersExtension {
      * Usage in Qute: {=myString.markdownify}
      */
     static RawString markdownify(String str) {
-        if (str == null || str.isEmpty())
+        if (str == null || str.isEmpty()) {
             return new RawString("");
+        }
         return new RawString(str);
     }
 
@@ -412,8 +442,9 @@ public class JekyllFiltersExtension {
      * Usage in Qute: {=myString.raw}
      */
     static RawString raw(String str) {
-        if (str == null)
+        if (str == null) {
             return new RawString("");
+        }
         return new RawString(str);
     }
 
@@ -450,8 +481,9 @@ public class JekyllFiltersExtension {
      */
     @TemplateExtension(namespace = "str")
     static List<String> split(String str, String delimiter) {
-        if (str == null || str.isEmpty())
+        if (str == null || str.isEmpty()) {
             return List.of();
+        }
         return Arrays.asList(str.split(Pattern.quote(delimiter)));
     }
 
@@ -461,8 +493,9 @@ public class JekyllFiltersExtension {
      */
     @TemplateExtension(namespace = "str")
     static List<RawString> splitRaw(String str, String delimiter) {
-        if (str == null || str.isEmpty())
+        if (str == null || str.isEmpty()) {
             return List.of();
+        }
         return Arrays.stream(str.split(Pattern.quote(delimiter)))
                 .map(RawString::new)
                 .toList();
@@ -476,13 +509,15 @@ public class JekyllFiltersExtension {
      */
     @TemplateExtension(namespace = "str")
     static List<String> splitTrimmed(String str, String delimiter) {
-        if (str == null || str.isEmpty())
+        if (str == null || str.isEmpty()) {
             return List.of();
+        }
         List<String> result = new ArrayList<>();
         for (String s : str.split(Pattern.quote(delimiter))) {
             String trimmed = s.trim();
-            if (!trimmed.isEmpty())
+            if (!trimmed.isEmpty()) {
                 result.add(trimmed);
+            }
         }
         return result;
     }

@@ -13,14 +13,12 @@ sed_inplace() {
 }
 
 # Parse options
-export LIVE_MODE=false
 export RESET_MODE=false
 export RUN_TESTS=false
 export COMMIT_MODE=false
 export PUSH_MODE=false
 while [[ "$1" == --* ]]; do
   case "$1" in
-    --live) LIVE_MODE=true; shift ;;
     --reset) RESET_MODE=true; shift ;;
     --run-tests) RUN_TESTS=true; shift ;;
     --commit) COMMIT_MODE=true; shift ;;

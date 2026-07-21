@@ -159,10 +159,16 @@ public class JekyllFiltersExtension {
         return str.substring(0, length) + "...";
     }
 
-    /**
-     * Jekyll's "sort" filter: sort a list by a named property.
-     * Usage in Qute: {myList.sort('title')}
-     */
+    @SuppressWarnings("unchecked")
+    static <T extends Comparable<T>> List<T> sort(List<T> list) {
+        if (list == null || list.isEmpty()) {
+            return List.of();
+        }
+        List<T> sorted = new ArrayList<>(list);
+        Collections.sort(sorted);
+        return sorted;
+    }
+
     static List<?> sort(List<?> list, String property) {
         if (list == null || list.isEmpty()) {
             return List.of();

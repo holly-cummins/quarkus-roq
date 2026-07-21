@@ -200,11 +200,15 @@ if [ -f "${project_dir}/_layouts/post.html" ]; then
     echo "Fixed post.html: removed stale author_key_raw assign in second for-loop"
 fi
 
+# Fix enum comparison BEFORE conversion so the converter produces correct Qute.
+# Liquid `| equals: 'direct'` converts to `.equals('direct')`, but scriptMode is a Java enum
+# and Enum.equals() is final — comparing enum to String is always false.
+# Adding `.name | downcase` converts to `.name.toLowerCase.equals('direct')` which works.
+sed_inplace "s/site\.search\.script-mode | equals: 'direct'/site.search.script-mode.name | downcase | equals: 'direct'/" ${project_dir}/_layouts/base.html
+
 ### Convert!
 
 ${tools_dir}/roq-it-jekyll ${project_dir}
-
-
 
 # Move data/ back to _data/ and configure Roq to find it there
 # This makes the migration less disruptive, and less likely to have merge conflicts with what the working group sync does

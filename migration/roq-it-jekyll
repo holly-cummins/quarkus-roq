@@ -231,6 +231,23 @@ mkdir -p ${project_dir}/templates/partials
 mvn -f ${tools_dir}/pom.xml -q exec:java -Dexec.mainClass="io.quarkus.tools.LiquidToQuteCommand" -Dexec.args="${project_dir}/_includes ${project_dir}/templates/partials --partials ${CONFIG_MAPPINGS}"
 mvn -f ${tools_dir}/pom.xml -q exec:java -Dexec.mainClass="io.quarkus.tools.LiquidToQuteCommand" -Dexec.args="${project_dir}/_layouts ${project_dir}/templates/layouts ${CONFIG_MAPPINGS}"
 
+# Fail loudly if any Liquid loop-control tag survived conversion. Qute has no
+# {% break %}/{% continue %}: the converter translates the known pre-loop {% break %}
+# guard, but any other occurrence would ship as a broken template. Mirror the SCSS
+# Liquid guard above and stop the migration so a human handles it.
+echo "Checking for unconverted Liquid loop-control tags in templates..."
+LEFTOVER_LOOP_TAGS=$(grep -rlE '\{%[[:space:]]*(break|continue)[[:space:]]*%\}' ${project_dir}/templates 2>/dev/null || true)
+if [ -n "$LEFTOVER_LOOP_TAGS" ]; then
+    echo "ERROR: Found unconverted Liquid {% break %}/{% continue %} in converted templates:"
+    echo "$LEFTOVER_LOOP_TAGS" | while read -r file; do
+        echo "  $file"
+        grep -nE '\{%[[:space:]]*(break|continue)[[:space:]]*%\}' "$file" | head -3 | sed 's/^/    /'
+    done
+    echo "Qute has no break/continue tag. Fix the source template (e.g. wrap the loop body in"
+    echo "{% if %}) or extend convertBreakContinue in LiquidToQuteConverter.java."
+    exit 1
+fi
+
 # Now delete the old includes and layouts
 rm -rf ${project_dir}/_includes
 rm -rf ${project_dir}/_layouts

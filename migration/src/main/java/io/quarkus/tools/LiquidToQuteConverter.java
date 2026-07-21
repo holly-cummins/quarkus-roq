@@ -59,6 +59,11 @@ public class LiquidToQuteConverter {
         content = convertFilters(content);
         content = convertLoops(content);
         content = convertConditionals(content);
+        // Handle the pre-loop {% break %} early-return guard now that {% unless %} and
+        // {% for %} are already Qute {#if}/{#for}. Must run before the assign-scoping
+        // passes (convertMutableAssigns/convertAssignments) so their scope analysis
+        // accounts for the {#if} wrapper this inserts.
+        content = convertBreakContinue(content);
         content = convertPaginator(content);
         content = convertIncludes(content);
         content = convertIncludeParamAccess(content);
@@ -1168,6 +1173,55 @@ public class LiquidToQuteConverter {
         }
 
         return content;
+    }
+
+    /**
+     * Convert the one {% break %} idiom used in this site: a pre-loop early-return guard.
+     * Jekyll's {% unless VAR %}{% break %}{% endunless %} placed before a {% for %} loop has,
+     * by this point in the pipeline, already become {#if !VAR}{% break %}{/if}. Qute has no
+     * break tag, so translate it to a faithful early return — gate the rest of the template on
+     * the positive condition:
+     * {#if !VAR}{% break %}{/if} &lt;rest to EOF&gt; -> {#if VAR}&lt;rest to EOF&gt;{/if}
+     *
+     * Only the narrow, unambiguous case is handled: a single-variable negated guard that is NOT
+     * inside a {#for}. A {% break %} inside a loop, or one with a compound condition, is left
+     * untouched (Qute cannot express an in-loop break, and inverting a compound condition risks
+     * silent logic errors). Any leftover is caught loudly by the break/continue guard in
+     * roq-it-jekyll rather than shipped as broken output.
+     */
+    private String convertBreakContinue(String content) {
+        Pattern guard = Pattern.compile(
+                "\\{#if\\s+!\\s*([a-zA-Z_][a-zA-Z0-9_.]*)\\s*\\}\\{%\\s*break\\s*%\\}\\{/if\\}");
+        boolean changed = false;
+        while (true) {
+            Matcher m = guard.matcher(content);
+            if (!m.find()) {
+                break;
+            }
+            String before = content.substring(0, m.start());
+            // Only a pre-loop guard qualifies: the break must not sit inside an open {#for}.
+            if (countLiteral(before, "{#for") != countLiteral(before, "{/for}")) {
+                break;
+            }
+            String positiveCond = m.group(1);
+            String rest = content.substring(m.end());
+            content = before + "{#if " + positiveCond + "}" + rest + "{/if}";
+            changed = true;
+        }
+        if (changed) {
+            conversionsApplied.add("Converted pre-loop {% break %} guard to early-return {#if}");
+        }
+        return content;
+    }
+
+    private static int countLiteral(String haystack, String needle) {
+        int count = 0;
+        int idx = 0;
+        while ((idx = haystack.indexOf(needle, idx)) != -1) {
+            count++;
+            idx += needle.length();
+        }
+        return count;
     }
 
     private int findMatchingEndFor(String content, int startPos) {

@@ -87,6 +87,9 @@ else
     artifact_id=$(basename "${project_dir}" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/-/g')
 fi
 
+# add -website to the name, since otherwise the pom can end up with the name of the product, which is confusing and potentially conflict-causing
+artifact_id=${artifact_id}-website
+
 # Generate pom.xml via jbang + roq create in a temp directory
 # Use roq-create-$$ for temp dir (unique per process), but use artifact_id for the actual project name
 roq_tmp="${tmp_dir}/roq-create-$$"

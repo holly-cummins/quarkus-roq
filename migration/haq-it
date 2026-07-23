@@ -265,39 +265,6 @@ sed_inplace '/<profiles>/a\
 ' ${project_dir}/pom.xml
 
 
-# TODO temporary workaround pending https://github.com/quarkusio/quarkus/pull/55452
-# (merged to main but not yet backported to 3.37.x/3.39.x)
-# Adds .or('') to template expressions that access optional guide attributes
-# (status, keywords, origin, all_categories) to prevent Qute NOT_FOUND rendering.
-# Applied as sed patches rather than cherry-pick so it works without --commit.
-echo "Applying .or('') workaround for Qute NOT_FOUND..."
-if [ -f "${project_dir}/templates/partials/index-doc-item.html" ]; then
-    sed_inplace "s/status\.escapeHtml/status.or('').escapeHtml/g" "${project_dir}/templates/partials/index-doc-item.html"
-    sed_inplace "s/keywords\.escapeHtml/keywords.or('').escapeHtml/g" "${project_dir}/templates/partials/index-doc-item.html"
-    sed_inplace "s/origin\.escapeHtml/origin.or('').escapeHtml/g" "${project_dir}/templates/partials/index-doc-item.html"
-fi
-if [ -f "${project_dir}/templates/partials/index-guides.html" ]; then
-    sed_inplace "s/guide\.keywords /guide.keywords.or('') /g" "${project_dir}/templates/partials/index-guides.html"
-    sed_inplace "s/guide\.origin /guide.origin.or('') /g" "${project_dir}/templates/partials/index-guides.html"
-fi
-if [ -f "${project_dir}/templates/partials/index-docs.html" ]; then
-    sed_inplace "s/texts\.all_categories\.raw/texts.all_categories.or('').raw/g" "${project_dir}/templates/partials/index-docs.html"
-    # In {#include} tag arguments: guide.summary status=guide.status etc.
-    sed_inplace "s/guide\.summary /guide.summary.or('') /g" "${project_dir}/templates/partials/index-docs.html"
-    sed_inplace "s/guide\.status$/guide.status.or('')/g" "${project_dir}/templates/partials/index-docs.html"
-    sed_inplace "s/guide\.keywords /guide.keywords.or('') /g" "${project_dir}/templates/partials/index-docs.html"
-    sed_inplace "s/guide\.categories /guide.categories.or('') /g" "${project_dir}/templates/partials/index-docs.html"
-    sed_inplace "s/guide\.origin /guide.origin.or('') /g" "${project_dir}/templates/partials/index-docs.html"
-fi
-if [ -f "${project_dir}/templates/layouts/base.html" ]; then
-    sed_inplace "s/\.concat(path)\.raw/.concat(path).or('').raw/g" "${project_dir}/templates/layouts/base.html"
-fi
-if [ -f "${project_dir}/templates/partials/head-csp.html" ]; then
-    sed_inplace "s/search_script\.raw/search_script.or('').raw/g" "${project_dir}/templates/partials/head-csp.html"
-fi
-echo "✓ Applied .or('') workaround"
-
-
 if [ "${RUN_TESTS}" = "true" ]; then
     # SSG build: render all pages like CI does (quarkus:run with BATCH=true)
     # This catches errors that dev mode misses since it renders every route.

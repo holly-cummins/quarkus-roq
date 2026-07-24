@@ -58,18 +58,6 @@ if [ "$RESET_MODE" = "true" ]; then
 
 fi
 
-  # --- Conversion fixes ---
-
-  # PR #2833 (canonical URL guard): now merged to upstream/main, no cherry-pick needed.
-
-  # Java equivalents of Jekyll plugins + search script downloader (PR #2849)
-  # https://github.com/quarkusio/quarkusio.github.io/pull/2849
-  # Cherry-pick all commits from the PR branch (use branch name, not commit hash,
-  # since the branch gets force-pushed)
-  git cherry-pick upstream/main..holly/roq-extensions || git cherry-pick --abort || true
-
-  # Profile-based search config (holly/use-profile-for-roq-build): now merged as #2843.
-
 )
 
 
@@ -325,8 +313,6 @@ Automated migration using roq-it-jekyll and haq-it scripts:
 - Converted AsciiDoc link: to xref: for cross-references
 - Moved directories (_guides → content/guides, etc.)
 - Updated asset paths and static file handling
-- Copied AsciidoctorJ extensions
-- Applied cherry-picked fixes from unmerged branches
 
 EOF
 )"

@@ -33,6 +33,27 @@ class LiquidToQuteConverterTest {
     }
 
     @Test
+    void testPreLoopBreakGuardBecomesEarlyReturn() {
+        // The guides-nav includes open with a pre-loop guard:
+        //   {% unless cat_data %}{% break %}{% endunless %}
+        // Qute has no {% break %} tag, so this must convert to a faithful early return:
+        // gate the rest of the template on the positive condition, {#if cat_data}...{/if}.
+        String input = String.join("\n",
+                "{% assign cat_data = site.data.foo.bar %}",
+                "{% unless cat_data %}{% break %}{% endunless %}",
+                "<nav>",
+                "{% for cat in cat_data %}{{ cat.title }}{% endfor %}",
+                "</nav>");
+        String result = converter.convert(input);
+        assertFalse(result.contains("{%"),
+                "No raw Liquid tag (including {% break %}) should survive conversion: " + result);
+        assertTrue(result.contains("{#if cat_data}"),
+                "Break guard should become a positive early-return {#if cat_data}: " + result);
+        assertTrue(result.indexOf("{#if cat_data}") < result.indexOf("<nav>"),
+                "Early-return {#if} should wrap the body that follows the guard: " + result);
+    }
+
+    @Test
     void testTernaryWithMethodCall() {
         String input = "{=post.data.author ?: \"\".split(\",\")}";
         String expected = "{=post.data.author.or(\"\").split(\",\").raw}";

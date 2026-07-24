@@ -832,36 +832,17 @@ public class LiquidToQuteConverter {
         // We find each {#for VAR in ...} and replace forloop.* references with VAR_* in the loop body.
         content = replaceLoopVariables(content);
 
-        // Handle limit and offset: wrap loop body with a count guard
-        // since Roq collections don't have .limit()/.skip() methods.
-        // {#for x in list limit: N} → {#for x in list}{#if x_count <= N}...{/if}{/for}
+        // Handle limit and offset (numeric or variable)
         Pattern limitPattern = Pattern.compile("\\{#for\\s+(\\w+)\\s+in\\s+([^}]+?)\\s+limit:\\s*(\\w+)(?:\\s+offset:\\s*(\\w+))?\\s*\\}");
         Matcher limitMatcher = limitPattern.matcher(content);
+        StringBuilder sb = new StringBuilder();
+
         while (limitMatcher.find()) {
-            String var = limitMatcher.group(1);
-            String collection = limitMatcher.group(2);
-            String limit = limitMatcher.group(3);
-            String offset = limitMatcher.group(4);
-
-            int forEnd = limitMatcher.end();
-            int endForPos = findMatchingEndFor(content, forEnd);
-            if (endForPos < 0) continue;
-
-            String loopBody = content.substring(forEnd, endForPos);
-            String forOpen;
-            if (offset != null && !offset.equals("0")) {
-                forOpen = "{#for " + var + " in " + collection + "}"
-                        + "{#if " + var + "_count > " + offset + " && " + var + "_count <= " + offset + " + " + limit + "}";
-            } else {
-                forOpen = "{#for " + var + " in " + collection + "}"
-                        + "{#if " + var + "_count <= " + limit + "}";
-            }
-
-            content = content.substring(0, limitMatcher.start())
-                    + forOpen + loopBody + "{/if}{/for}"
-                    + content.substring(endForPos + "{/for}".length());
-            limitMatcher = limitPattern.matcher(content);
+            String replacement = buildLimitedForLoop(limitMatcher);
+            limitMatcher.appendReplacement(sb, Matcher.quoteReplacement(replacement));
         }
+        limitMatcher.appendTail(sb);
+        content = sb.toString();
 
         if (!content.equals(original)) {
             conversionsApplied.add("Converted loops");
@@ -942,6 +923,19 @@ public class LiquidToQuteConverter {
             }
         }
         return content.length();
+    }
+
+    private static String buildLimitedForLoop(Matcher limitMatcher) {
+        String var = limitMatcher.group(1);
+        String collection = limitMatcher.group(2);
+        String limit = limitMatcher.group(3);
+        String offset = limitMatcher.group(4);
+
+        if (offset != null && !offset.equals("0")) {
+            return "{#for " + var + " in " + collection + ".skip(" + offset + ").limit(" + limit + ")}";
+        } else {
+            return "{#for " + var + " in " + collection + ".limit(" + limit + ")}";
+        }
     }
 
     private String convertIncludes(String content) {
@@ -1198,7 +1192,7 @@ public class LiquidToQuteConverter {
         long newlinesBefore = trailing.substring(0, firstUse).chars().filter(c -> c == '\n').count();
         if (newlinesBefore > 3) {
             return 0;
-            }
+        }
             // Extend to the end of the line containing the last usage on consecutive lines
             int lineEnd = trailing.indexOf('\n', useMatcher.end());
             return lineEnd >= 0 ? lineEnd + 1 : trailing.length();
@@ -1290,9 +1284,8 @@ public class LiquidToQuteConverter {
             String expr = expressions.get(i);
 
             int scopeEnd = findScopeBoundary(content, assignEnd);
-            String letExpr = expr.contains("?:") ? "(" + expr + ")" : expr;
             content = content.substring(0, assignStart)
-                    + "{#let " + var + "=" + letExpr + "}"
+                    + "{#let " + var + "=" + expr + "}"
                     + content.substring(assignEnd, scopeEnd)
                     + "{/let}"
                     + content.substring(scopeEnd);
@@ -1532,11 +1525,7 @@ public class LiquidToQuteConverter {
     }
 
     private String wrapTernaryInExpression(String expr) {
-        // Match ?: where the default value is followed by a method/property call:
-        //   expr ?: "val".method(   →  (expr ?: "val").method(
-        //   expr ?: "val".property  →  (expr ?: "val").property
-        Pattern pattern = Pattern.compile(
-                "([a-zA-Z0-9_\\.\\[\\]]+)\\s*\\?:\\s*([\"'][^\"']*[\"']|[a-zA-Z0-9_\\.\\[\\]]+)\\.([a-zA-Z0-9_]+)(\\s*\\()?");
+        Pattern pattern = Pattern.compile("([a-zA-Z0-9_\\.\\[\\]]+)\\s*\\?:\\s*([\"'][^\"']*[\"']|[a-zA-Z0-9_\\.\\[\\]]+)\\.([a-zA-Z0-9_]+)\\s*\\(");
         Matcher matcher = pattern.matcher(expr);
         StringBuilder sb = new StringBuilder();
 
@@ -1544,8 +1533,7 @@ public class LiquidToQuteConverter {
             String variable = matcher.group(1);
             String defaultVal = matcher.group(2);
             String method = matcher.group(3);
-            String paren = matcher.group(4) != null ? matcher.group(4) : "";
-            String replacement = "(" + variable + " ?: " + defaultVal + ")." + method + paren;
+            String replacement = "(" + variable + " ?: " + defaultVal + ")." + method + "(";
             matcher.appendReplacement(sb, Matcher.quoteReplacement(replacement));
         }
         matcher.appendTail(sb);
@@ -1626,7 +1614,7 @@ public class LiquidToQuteConverter {
         // Note: Using "siteConfig" instead of "site" to avoid conflict with Roq's built-in Site object
         String knownSiteProps = "url|title|description|image|imageExists|data|pages|allPages|collections|" +
                 "index|files|file|fileExists|page|normalPage|document|imagesDirUrl|pageContent|" +
-                "posts|tags|time";
+                "posts|tags";
 
         // Convert site.<section>.* to cdi:<section>Config.* for each ConfigMapping section
         for (String section : configMappingSections) {
@@ -1793,18 +1781,6 @@ public class LiquidToQuteConverter {
         if (!content.equals(original)) {
             conversionsApplied.add("Converted site.posts to site.collections.get('posts')");
         }
-
-        // Jekyll's site.time is the build time (not config). Convert to Roq's now global.
-        // The date_to_rfc822 filter conversion produces .rfc822, which needs ZonedDateTime,
-        // so we use now.format() with RFC-822 pattern instead.
-        original = content;
-        content = content.replaceAll("\\bsite\\.time\\.rfc822\\b",
-                "now.format('EEE, dd MMM yyyy HH:mm:ss Z')");
-        content = content.replaceAll("\\bsite\\.time\\b", "now");
-        if (!content.equals(original)) {
-            conversionsApplied.add("Converted site.time to now (Roq build-time global)");
-        }
-
         return content;
     }
 

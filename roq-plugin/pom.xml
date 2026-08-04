@@ -29,5 +29,6 @@
         <module>faker</module>
         <module>hybrid</module>
         <module>l10n-adoc</module>
+        <module>og-card</module>
     </modules>
 </project>

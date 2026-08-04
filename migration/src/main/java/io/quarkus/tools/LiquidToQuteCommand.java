@@ -43,6 +43,10 @@ public class LiquidToQuteCommand implements Callable<Integer> {
     @Option(names = { "--partials" }, description = "Converting partials/includes (uses {page.content} instead of {#insert /})")
     private boolean partials;
 
+    @Option(names = {
+            "--config-mappings" }, split = ",", description = "ConfigMapping section names from _config.yml (e.g. search,analytics)")
+    private List<String> configMappings;
+
     private LiquidToQuteConverter converter = new LiquidToQuteConverter();
 
     public static void main(String... args) {
@@ -54,6 +58,9 @@ public class LiquidToQuteCommand implements Callable<Integer> {
     public Integer call() throws Exception {
         converter = new LiquidToQuteConverter(extensionSyntax);
         converter.setConvertingPartials(partials);
+        if (configMappings != null && !configMappings.isEmpty()) {
+            converter.setConfigMappingSections(configMappings);
+        }
 
         if (!Files.exists(input)) {
             System.err.println("Error: Input path '" + input + "' does not exist");
@@ -201,7 +208,7 @@ public class LiquidToQuteCommand implements Callable<Integer> {
 
                         // Extract types from include lines — match any path ending with the filename
                         java.util.regex.Pattern includeP = java.util.regex.Pattern.compile(
-                                "\\{#include \\S*" + fnQuoted + " type=\"([^\"]+)\" /\\}");
+                                "\\{#include \\S*" + fnQuoted + " type=\"([^\"]+)\"(?: _unisolated)? /\\}");
                         java.util.regex.Matcher includeM = includeP.matcher(content);
                         List<String> types = new ArrayList<>();
                         while (includeM.find()) {
@@ -214,7 +221,7 @@ public class LiquidToQuteCommand implements Callable<Integer> {
                         for (String type : types) {
                             content = content.replaceFirst(
                                     "\\{#include \\S*" + fnQuoted + " type=\""
-                                            + java.util.regex.Pattern.quote(type) + "\" /\\}"
+                                            + java.util.regex.Pattern.quote(type) + "\"(?: _unisolated)? /\\}"
                                             + "\\s*\n(\\s*)\\{#if " + java.util.regex.Pattern.quote(partial.accumVar()) + "\\}",
                                     "$1{#if " + partial.sourceVar() + ".mergeTypes('" + type + "')}");
                         }

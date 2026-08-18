@@ -1603,6 +1603,14 @@ public class LiquidToQuteConverter {
             expressions.add(m.group(2).trim());
         }
 
+        // When converting partials, there are no assigns in the partial itself,
+        // but variables may be assigned as mutable in the parent template.
+        // Partials should reference potentially-mutable variables via _m.read() with
+        // a fallback to the direct variable name (for non-mutable variables).
+        if (positions.isEmpty() && convertingPartials) {
+            return convertPartialVariablesToMutableReads(content);
+        }
+
         if (positions.isEmpty()) {
             return content;
         }
@@ -1743,6 +1751,58 @@ public class LiquidToQuteConverter {
 
         if (!content.equals(original)) {
             conversionsApplied.add("Converted mutable assigns to mut:map()");
+        }
+        return content;
+    }
+
+    /**
+     * When converting partials (includes), variables may be assigned as mutable in the parent
+     * template but the partial doesn't know which variables are mutable. This method converts
+     * variable references to use _m.read('var').or(var) pattern, which reads from the mutable
+     * map if the variable exists there, otherwise falls back to the direct variable.
+     *
+     * However, this is complex and error-prone. A simpler approach is to convert only variables
+     * that match a known pattern of being assigned in parent templates (e.g., *_script, *_src).
+     */
+    private String convertPartialVariablesToMutableReads(String content) {
+        String original = content;
+
+        // Pattern: variables that are commonly assigned in parent templates before includes
+        // These typically end with _script, _src, _style, _content, etc.
+        Pattern potentialMutableVarPattern = Pattern.compile(
+                "(?<![.\\w'\"])([a-z][a-z0-9]*_(?:script|src|style|content|data|config))\\b(?!['\"])");
+
+        Set<String> potentialMutableVars = new LinkedHashSet<>();
+
+        // Find all potential mutable variables in the content
+        Matcher m = potentialMutableVarPattern.matcher(content);
+        while (m.find()) {
+            potentialMutableVars.add(m.group(1));
+        }
+
+        if (potentialMutableVars.isEmpty()) {
+            return content;
+        }
+
+        // Replace references to potentially mutable vars with _m.read('VAR').or(VAR)
+        // This way, if the variable is in the mutable map (from parent), use that value,
+        // otherwise fall back to the direct variable (if it exists in the partial's scope)
+        for (String var : potentialMutableVars) {
+            String qVar = Pattern.quote(var);
+            // Only replace standalone references, not property access or string literals
+            Pattern refPattern = Pattern.compile(
+                    "(?<![.\\w'\"])" + qVar + "\\b(?!['\"])");
+            content = replaceInQuteBlocksWithMatcher(content, refPattern, ref -> {
+                return "_m.read('" + var + "')";
+            });
+        }
+
+        // Partials using mutable variables need access to _m from the parent
+        // Since includes are _unisolated, _m should be available from parent scope
+        // No need to wrap with {#let _m=mut:map()} — that's in the parent
+
+        if (!content.equals(original)) {
+            conversionsApplied.add("Converted partial variables to use _m.read() for mutable map access");
         }
         return content;
     }

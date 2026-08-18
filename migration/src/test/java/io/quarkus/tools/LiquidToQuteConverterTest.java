@@ -1603,6 +1603,67 @@ class LiquidToQuteConverterTest {
     }
 
     @Test
+    void testMutableVarInOutputExpressionGetsRawAfterRead() {
+        // When a mutable variable appears in an output expression {=var},
+        // it should become {=_m.read('var').raw}, not {=var.raw}
+        String input = "{% if mode %}{% assign search_script = host %}{% endif %}"
+                + "{=search_script}";
+        String result = converter.convert(input);
+        assertTrue(result.contains("_m.read('search_script').raw"),
+                "Mutable var in output should be _m.read('var').raw: " + result);
+        assertFalse(result.contains("{=search_script.raw}"),
+                "Should NOT have bare variable name with .raw: " + result);
+    }
+
+    @Test
+    void testMutableVarReferencedInIncludedPartial() {
+        // The partial head-csp.html contains {=search_script} which should become
+        // {=_m.read('search_script').raw} when the variable is assigned before the include
+        // Note: This test simulates what would happen in the main template - the partial
+        // itself is converted separately and needs to reference the mutable var correctly
+
+        // Simulate the main template that assigns the variable and includes the partial
+        String mainTemplate = "{% if mode %}{% assign search_script = host %}{% endif %}"
+                + "{% include head-csp.html %}";
+        String mainResult = converter.convert(mainTemplate);
+
+        // The main template should use _m.assign
+        assertTrue(mainResult.contains("_m.assign('search_script',"),
+                "Main template should use _m.assign: " + mainResult);
+
+        // Now simulate the partial that references the variable
+        // The partial is converted separately and doesn't know about the assignment context
+        // but should detect that *_script variables are potentially mutable
+        converter.clearConversions(); // Clear conversion history for fresh partial conversion
+        converter.setConvertingPartials(true);
+        String partialInput = "<script>{=search_script}</script>";
+        String partialResult = converter.convert(partialInput);
+
+        // The partial should use _m.read since *_script matches the mutable pattern
+        assertTrue(partialResult.contains("_m.read('search_script').raw"),
+                "Partial should use _m.read() for *_script variables: " + partialResult);
+        assertFalse(partialResult.contains("{=search_script.raw}"),
+                "Partial should NOT use bare variable.raw: " + partialResult);
+    }
+
+    @Test
+    void testPartialWithMultipleMutablePatternVariables() {
+        // Test that partials correctly handle multiple variables matching the mutable pattern
+        converter.setConvertingPartials(true);
+        String input = "<script src=\"{=search_script}\"></script>"
+                + "<link href=\"{=main_style}\">"
+                + "<div>{=arbitrary_content}</div>";
+        String result = converter.convert(input);
+
+        assertTrue(result.contains("_m.read('search_script').raw"),
+                "Should convert search_script to _m.read(): " + result);
+        assertTrue(result.contains("_m.read('main_style').raw"),
+                "Should convert main_style to _m.read(): " + result);
+        assertTrue(result.contains("_m.read('arbitrary_content').raw"),
+                "Should convert arbitrary_content to _m.read(): " + result);
+    }
+
+    @Test
     void testSingleAssignStaysAsLet() {
         // Single assign, used only within scope — no mutable treatment needed
         String input = "{% assign x = \"hello\" %}\n{=x}\nmore";

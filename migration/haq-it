@@ -140,14 +140,6 @@ for guides_dir in ${project_dir}/_guides ${project_dir}/_versions/*/guides; do
         filename=$(basename "${static_file}")
         mv "${static_file}" "${assets_dir}/${filename}"
         echo "  Moved: ${static_file#${project_dir}/} -> ${assets_dir#${project_dir}/}/${filename}"
-
-        # Create index.html if it doesn't exist to make assets/ servable
-        if [ ! -f "${assets_dir}/index.html" ]; then
-            # Determine the URL path for this assets directory
-            # Extract path like "guides" or "versions/3.2/guides"
-            rel_path=$(echo "${guides_dir}" | sed "s|${project_dir}/_||" | sed 's|^_||')
-            printf '%s\n' '---' "link: /${rel_path}/assets/" '---' '<html><body></body></html>' > "${assets_dir}/index.html"
-        fi
     done
 
     # Update AsciiDoc links in this guides directory to point to assets/ subdirectory

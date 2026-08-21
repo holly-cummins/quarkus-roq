@@ -52,6 +52,37 @@ add_underscore_prefix() {
     fi
 }
 
+# Map a content-relative path to the URL path used by its collection.
+# Reads collection link patterns from application.properties to handle cases where
+# the URL prefix differs from the content directory name
+# (e.g., content/versions/ → /version/ when link=/version/:dir[1]/:name).
+# Falls back to the content path if no mapping is found.
+collection_url_path() {
+    local rel_path="$1"
+    local first_segment="${rel_path%%/*}"
+
+    local props_file="${project_dir}/config/application.properties"
+    if [ -f "$props_file" ]; then
+        # e.g. site.collections.versions.link=/version/:dir[1]/:name → /version/:dir[1]/:name
+        local link_pattern
+        link_pattern=$(grep "^site\\.collections\\.${first_segment}\\.link=" "$props_file" | head -1 | sed 's/^[^=]*=//')
+        if [ -n "$link_pattern" ]; then
+            # Extract first path segment: /version/:dir[1]/:name → version
+            local url_prefix
+            url_prefix=$(echo "$link_pattern" | sed 's|^/||' | cut -d'/' -f1)
+            if [ -n "$url_prefix" ] && [[ "$url_prefix" != :* ]] && [ "$url_prefix" != "$first_segment" ]; then
+                if [[ "$rel_path" == */* ]]; then
+                    echo "${url_prefix}/${rel_path#*/}"
+                else
+                    echo "${url_prefix}"
+                fi
+                return
+            fi
+        fi
+    fi
+    echo "$rel_path"
+}
+
 ## Build the converter
 mvn -f ${tools_dir}/pom.xml install -q
 
@@ -283,25 +314,9 @@ if [ -f "${project_dir}/config/.migration-config-mappings" ]; then
     CONFIG_MAPPINGS="--config-mappings $(paste -sd, "${project_dir}/config/.migration-config-mappings")"
 fi
 
-# Add index pages for image directories so Roq serves them as attachments.
-# Without an index page, non-template files in content/ are orphaned and silently dropped.
-# This handles both top-level collections (guides/images) and nested ones (versions/3.33/guides/images).
-find ${project_dir}/content -type d -name 'images' | while read -r img_dir; do
-    if [ ! -f "${img_dir}/index.html" ]; then
-        # Extract the path relative to content/ (e.g., "guides" or "versions/3.33/guides")
-        rel_path=$(echo "${img_dir}" | sed "s|${project_dir}/content/||" | sed 's|/images$||')
-        printf '%s\n' '---' "link: /${rel_path}/images/" '---' '<html><body></body></html>' > "${img_dir}/index.html"
-    fi
-done
-
-# Same for javascript directories.
-find ${project_dir}/content -type d -name 'javascript' | while read -r js_dir; do
-    if [ ! -f "${js_dir}/index.html" ]; then
-        # Extract the path relative to content/ (e.g., "guides" or "versions/3.33/guides")
-        rel_path=$(echo "${js_dir}" | sed "s|${project_dir}/content/||" | sed 's|/javascript$||')
-        printf '%s\n' '---' "link: /${rel_path}/javascript/" '---' '<html><body></body></html>' > "${js_dir}/index.html"
-    fi
-done
+# Index pages for static asset directories are created after config conversion
+# (see "Add index pages for static asset directories" below) so that collection
+# link patterns from application.properties can be used to compute correct URLs.
 
 # Convert Liquid to Qute; this has the side effect of renaming directories to adjust the structure
 mkdir -p ${project_dir}/templates/partials
@@ -340,14 +355,18 @@ if [ -d "${project_dir}/_guides" ]; then
     fi
 fi
 
-# Add index.html to stylesheet directories so files are served as attachments
-# This runs after copying to handle all stylesheet dirs (guides and versions)
-find ${project_dir}/content -type d -name 'stylesheet' | while read -r css_dir; do
-    if [ ! -f "${css_dir}/index.html" ]; then
-        # Extract the path relative to content/ (e.g., "guides" or "versions/3.33/guides")
-        rel_path=$(echo "${css_dir}" | sed "s|${project_dir}/content/||" | sed 's|/stylesheet$||')
-        printf '%s\n' '---' "link: /${rel_path}/stylesheet/" '---' '<html><body></body></html>' > "${css_dir}/index.html"
-    fi
+# Add index pages for static asset directories so Roq serves their contents as attachments.
+# Without an index page, non-template files in content/ are orphaned and silently dropped.
+# Uses collection link patterns from application.properties to compute correct URLs — e.g.,
+# content/versions/ serves at /version/ when the collection link uses a different prefix.
+for dir_name in images javascript stylesheet assets; do
+    find ${project_dir}/content -type d -name "${dir_name}" | while read -r asset_dir; do
+        if [ ! -f "${asset_dir}/index.html" ]; then
+            rel_path=$(echo "${asset_dir}" | sed "s|${project_dir}/content/||" | sed "s|/${dir_name}\$||")
+            url_path=$(collection_url_path "${rel_path}")
+            printf '%s\n' '---' "link: /${url_path}/${dir_name}/" '---' '<html><body></body></html>' > "${asset_dir}/index.html"
+        fi
+    done
 done
 
 # Copy Jekyll filter extensions ONLY if they don't already exist

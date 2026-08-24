@@ -237,13 +237,6 @@ sed_inplace '/<profiles>/a\
 \        </profile>
 ' ${project_dir}/pom.xml
 
-# Workarounds for pending Roq issues
-  # Hardcode relative paths in guides for xrefs  (waiting for https://github.com/quarkiverse/quarkus-roq/pull/1158)
-git fetch https://github.com/holly-cummins/quarkusio.github.io.git tmp-handle-xref-paths
-( cd ${project_dir} &&  git cherry-pick 766253135 || git cherry-pick --abort || true )
-
-
-
 if [ "${RUN_TESTS}" = "true" ]; then
     # SSG build: render all pages like CI does (quarkus:run with BATCH=true)
     # This catches errors that dev mode misses since it renders every route.

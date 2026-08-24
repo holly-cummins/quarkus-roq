@@ -79,14 +79,15 @@ rm -f ${project_dir}/docker-compose.yml ${project_dir}/docker-compose_with_guide
 # serve.sh: full site (dev profile is automatic in quarkus:dev)
 cat > ${project_dir}/serve.sh << 'SERVE'
 #!/bin/sh
-mvn quarkus:dev "$@"
+SCRIPTDIR=$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )
+${SCRIPTDIR}/mvnw quarkus:dev "$@"
 SERVE
 
 # serve-noguides.sh: no guides (fast iteration on non-guide pages)
 cat > ${project_dir}/serve-noguides.sh << 'SERVE'
 #!/bin/sh
 echo "WARNING: Serving site with no guides. It is fast though!"
-QUARKUS_PROFILE=noguides mvn quarkus:dev "$@"
+QUARKUS_PROFILE=noguides ${SCRIPTDIR}/mvnw quarkus:dev "$@"
 SERVE
 
 # serve-only-latest-guides.sh: only latest guides (skip old versions)
@@ -95,7 +96,7 @@ cat > ${project_dir}/serve-only-latest-guides.sh << 'SERVE'
 SCRIPTDIR=$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )
 pushd "${SCRIPTDIR}"
 echo "WARNING: Serving site with only the latest guides (latest and main)"
-QUARKUS_PROFILE=only-latest-guides mvn quarkus:dev "$@"
+QUARKUS_PROFILE=only-latest-guides ${SCRIPTDIR}/mvnw quarkus:dev "$@"
 popd
 SERVE
 chmod +x ${project_dir}/serve.sh ${project_dir}/serve-noguides.sh ${project_dir}/serve-only-latest-guides.sh
@@ -235,6 +236,12 @@ sed_inplace '/<profiles>/a\
 \            </build>\
 \        </profile>
 ' ${project_dir}/pom.xml
+
+# Workarounds for pending Roq issues
+  # Hardcode relative paths in guides for xrefs  (waiting for https://github.com/quarkiverse/quarkus-roq/pull/1158)
+git fetch https://github.com/holly-cummins/quarkusio.github.io.git tmp-handle-xref-paths
+( cd ${project_dir} &&  git cherry-pick 766253135 || git cherry-pick --abort || true )
+
 
 
 if [ "${RUN_TESTS}" = "true" ]; then

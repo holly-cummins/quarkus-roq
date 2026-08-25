@@ -92,6 +92,8 @@ mvn -f ${tools_dir}/pom.xml install -q
 rm -rf ${project_dir}/content/
 rm -rf ${project_dir}/data/
 rm -rf ${project_dir}/templates/
+rm -rf ${project_dir}/public/
+rm -rf ${project_dir}/web/
 
 rm -f ${project_dir}/application.properties
 
